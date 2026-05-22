@@ -22,8 +22,8 @@ config_load() {
 
   local file_mount_workdir="true"
   local file_sandbox_image="ubuntu"
-
   local file_scope="session"
+  local file_sandbox_name=""
 
   if [[ -f "$config_file" ]]; then
     local val
@@ -33,6 +33,8 @@ config_load() {
     [[ -n "$val" ]] && file_sandbox_image="$val"
     val="$(config_yaml_get "$config_file" "scope")"
     [[ -n "$val" ]] && file_scope="$val"
+    val="$(config_yaml_get "$config_file" "sandbox_name")"
+    [[ -n "$val" ]] && file_sandbox_name="$val"
   fi
 
   CC_MSB_MOUNT_WORKDIR="${CC_MSB_MOUNT_WORKDIR:-$file_mount_workdir}"
@@ -43,6 +45,9 @@ config_load() {
 
   CC_MSB_SCOPE="${CC_MSB_SCOPE:-$file_scope}"
   export CC_MSB_SCOPE
+
+  CC_MSB_SANDBOX_NAME="${CC_MSB_SANDBOX_NAME:-$file_sandbox_name}"
+  export CC_MSB_SANDBOX_NAME
 }
 
 # Returns the effective sandbox image for a given agent type.
@@ -81,4 +86,43 @@ config_agent_image() {
   fi
 
   echo "${CC_MSB_SANDBOX_IMAGE:-ubuntu}"
+}
+
+# Returns the effective named sandbox for a given agent type (scope: named only).
+# Resolution order:
+#   1. CC_MSB_AGENT_SANDBOX_NAME_<UPPER_SNAKE> env var
+#   2. agent_sandbox_name_<lower_snake> in the config file
+#   3. CC_MSB_SANDBOX_NAME (global)
+# Returns empty string when no name is configured (caller falls back to session scope).
+# Args: agent_type, config_file
+config_agent_sandbox_name() {
+  local agent_type="$1" config_file="$2"
+
+  if [[ -z "$agent_type" ]]; then
+    echo "${CC_MSB_SANDBOX_NAME:-}"
+    return
+  fi
+
+  local snake="${agent_type//-/_}"
+  local upper lower
+  upper="$(printf '%s' "$snake" | tr '[:lower:]' '[:upper:]')"
+  lower="$(printf '%s' "$snake" | tr '[:upper:]' '[:lower:]')"
+
+  local env_var="CC_MSB_AGENT_SANDBOX_NAME_${upper}"
+  local env_val="${!env_var:-}"
+  if [[ -n "$env_val" ]]; then
+    echo "$env_val"
+    return
+  fi
+
+  if [[ -f "$config_file" ]]; then
+    local val
+    val="$(config_yaml_get "$config_file" "agent_sandbox_name_${lower}")"
+    if [[ -n "$val" ]]; then
+      echo "$val"
+      return
+    fi
+  fi
+
+  echo "${CC_MSB_SANDBOX_NAME:-}"
 }

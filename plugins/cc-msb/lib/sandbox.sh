@@ -10,9 +10,17 @@ sandbox_name() {
 #   ephemeral — agents get a unique name each call (for Bash wrapping + self-cleanup)
 # Args: session_id [agent_type [mode]]
 sandbox_name_for() {
-  local session_id="$1" agent_type="${2:-}" mode="${3:-${CC_MSB_SCOPE:-session}}"
+  local session_id="$1" agent_type="${2:-}" explicit_name="${3:-}"
+  local mode="${CC_MSB_SCOPE:-session}"
 
-  if [[ -z "$agent_type" ]] || [[ "$mode" == "session" ]]; then
+  # named scope with a configured name — use it directly (persists across sessions)
+  if [[ "$mode" == "named" && -n "$explicit_name" ]]; then
+    echo "$explicit_name"
+    return
+  fi
+
+  # no agent, session mode, or named with no name configured — use the main sandbox
+  if [[ -z "$agent_type" ]] || [[ "$mode" == "session" ]] || [[ "$mode" == "named" ]]; then
     echo "cc-msb-${session_id:0:16}"
     return
   fi
@@ -36,12 +44,21 @@ sandbox_name_for() {
 }
 
 # Like sandbox_name_for but treats ephemeral as per-agent (file ops keep a stable sandbox).
-# Args: session_id [agent_type]
+# Args: session_id [agent_type [explicit_name]]
 sandbox_name_for_file_op() {
-  local session_id="$1" agent_type="${2:-}"
+  local session_id="$1" agent_type="${2:-}" explicit_name="${3:-}"
   local mode="${CC_MSB_SCOPE:-session}"
-  [[ "$mode" == "ephemeral" ]] && mode="per-agent"
-  sandbox_name_for "$session_id" "$agent_type" "$mode"
+  if [[ "$mode" == "ephemeral" ]]; then
+    if [[ -z "$agent_type" ]]; then
+      echo "cc-msb-${session_id:0:16}"
+    else
+      local lower
+      lower="$(printf '%s' "${agent_type//-/_}" | tr '[:upper:]' '[:lower:]')"
+      echo "cc-msb-${session_id:0:8}-${lower:0:8}"
+    fi
+  else
+    sandbox_name_for "$session_id" "$agent_type" "$explicit_name"
+  fi
 }
 
 # Appends a sandbox name to the session tracking list for cleanup.

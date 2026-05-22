@@ -13,6 +13,7 @@ config_load "$PROJECT_DIR"
 EVENT="$(cat)"
 TOOL_NAME="$(printf '%s' "$EVENT" | jq -r '.tool_name')"
 AGENT_TYPE="$(printf '%s' "$EVENT" | jq -r '.agent_type // empty')"
+EFFECTIVE_SANDBOX_NAME="$(config_agent_sandbox_name "$AGENT_TYPE" "$PROJECT_DIR/.cc-msb.yml")"
 
 case "$TOOL_NAME" in
   mcp__*|WebSearch|WebFetch)
@@ -30,7 +31,7 @@ case "$TOOL_NAME" in
     # Only sync if the file was written to a shadow path (VM-only file)
     if [[ "$FILE_PATH" == "$SHADOW_ROOT"/* ]]; then
       VM_PATH="${FILE_PATH#"$SHADOW_ROOT"}"
-      SANDBOX="$(sandbox_name_for_file_op "$SESSION_ID" "$AGENT_TYPE")"
+      SANDBOX="$(sandbox_name_for_file_op "$SESSION_ID" "$AGENT_TYPE" "$EFFECTIVE_SANDBOX_NAME")"
       sandbox_write_from_shadow "$SANDBOX" "$FILE_PATH" "$VM_PATH" || true
     fi
     exit 0

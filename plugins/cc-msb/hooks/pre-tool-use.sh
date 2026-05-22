@@ -16,6 +16,7 @@ EVENT="$(cat)"
 TOOL_NAME="$(printf '%s' "$EVENT" | jq -r '.tool_name')"
 AGENT_TYPE="$(printf '%s' "$EVENT" | jq -r '.agent_type // empty')"
 EFFECTIVE_IMAGE="$(config_agent_image "$AGENT_TYPE" "$PROJECT_DIR/.cc-msb.yml")"
+EFFECTIVE_SANDBOX_NAME="$(config_agent_sandbox_name "$AGENT_TYPE" "$PROJECT_DIR/.cc-msb.yml")"
 
 case "$TOOL_NAME" in
   mcp__*|WebSearch|WebFetch|Agent)
@@ -27,7 +28,7 @@ case "$TOOL_NAME" in
     COMMAND="$(printf '%s' "$EVENT" | jq -r '.tool_input.command // empty')"
     [[ -z "$SESSION_ID" || -z "$COMMAND" ]] && exit 0
 
-    SANDBOX="$(sandbox_name_for "$SESSION_ID" "$AGENT_TYPE")"
+    SANDBOX="$(sandbox_name_for "$SESSION_ID" "$AGENT_TYPE" "$EFFECTIVE_SANDBOX_NAME")"
     STATE_DIR="$(sandbox_state_dir "$SESSION_ID")"
     mkdir -p "$STATE_DIR"
 
@@ -35,7 +36,10 @@ case "$TOOL_NAME" in
       emit_deny "cc-msb: failed to start sandbox (see $STATE_DIR/sandbox.log)"
       exit 0
     }
-    sandbox_track "$SESSION_ID" "$SANDBOX"
+    # Named sandboxes persist across sessions — don't add to cleanup list
+    if [[ "${CC_MSB_SCOPE:-session}" != "named" || -z "$EFFECTIVE_SANDBOX_NAME" ]]; then
+      sandbox_track "$SESSION_ID" "$SANDBOX"
+    fi
 
     if [[ "${CC_MSB_SCOPE:-session}" == "ephemeral" && -n "$AGENT_TYPE" ]]; then
       emit_allow_rewrite "$(sandbox_wrap_command_ephemeral "$SANDBOX" "$COMMAND")"
@@ -50,7 +54,7 @@ case "$TOOL_NAME" in
     FILE_PATH="$(printf '%s' "$EVENT" | jq -r '.tool_input.file_path // empty')"
     [[ -z "$SESSION_ID" || -z "$FILE_PATH" ]] && exit 0
 
-    SANDBOX="$(sandbox_name_for_file_op "$SESSION_ID" "$AGENT_TYPE")"
+    SANDBOX="$(sandbox_name_for_file_op "$SESSION_ID" "$AGENT_TYPE" "$EFFECTIVE_SANDBOX_NAME")"
     STATE_DIR="$(sandbox_state_dir "$SESSION_ID")"
     mkdir -p "$STATE_DIR"
 
@@ -61,7 +65,9 @@ case "$TOOL_NAME" in
         emit_deny "cc-msb: failed to start sandbox for read of $FILE_PATH"
         exit 0
       }
-      sandbox_track "$SESSION_ID" "$SANDBOX"
+      if [[ "${CC_MSB_SCOPE:-session}" != "named" || -z "$EFFECTIVE_SANDBOX_NAME" ]]; then
+        sandbox_track "$SESSION_ID" "$SANDBOX"
+      fi
       sandbox_read_into_shadow "$SANDBOX" "$FILE_PATH" "$SANDBOX_HOST_PATH" || {
         emit_deny "cc-msb: cannot read $FILE_PATH from sandbox"
         exit 0

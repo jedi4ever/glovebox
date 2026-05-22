@@ -62,13 +62,15 @@ function findEphemeralCreateArgs(): string | null {
   return files.length > 0 ? `/tmp/${files[0]}` : null;
 }
 
+const NAMED_PREFIXES = ["cc-msb-test-named", "cc-msb-env-named", "cc-msb-env-agent-named"];
+
 function cleanupFakeMsbFiles() {
   readdirSync("/tmp")
-    .filter(
-      (f) =>
-        f.startsWith(`fake-msb-${SESSION_PREFIX}`) &&
-        (f.endsWith(".state") || f.endsWith(".create-args"))
-    )
+    .filter((f) => {
+      if (!f.startsWith("fake-msb-") || (!f.endsWith(".state") && !f.endsWith(".create-args"))) return false;
+      if (f.startsWith(`fake-msb-${SESSION_PREFIX}`)) return true;
+      return NAMED_PREFIXES.some((p) => f.startsWith(`fake-msb-${p}`));
+    })
     .forEach((f) => { try { rmSync(`/tmp/${f}`); } catch {} });
 }
 
@@ -206,5 +208,55 @@ describe("config — scope", () => {
     runHook(fixturePath("simple-read"), { CC_MSB_SCOPE: "per-agent" }, "test-agent");
     expect(readCreateArgs(PER_AGENT_SANDBOX)).toContain("ubuntu");
     expect(readCreateArgs(SANDBOX_NAME)).toHaveLength(0);
+  });
+});
+
+describe("config — scope: named", () => {
+  const NAMED_SANDBOX = "cc-msb-test-named";
+  const NAMED_AGENT_SANDBOX = "cc-msb-test-named-agent";
+
+  it("uses the configured sandbox_name as the sandbox", () => {
+    runHook(fixturePath("config-named-sandbox"));
+    expect(readCreateArgs(NAMED_SANDBOX)).toContain("ubuntu");
+    expect(readCreateArgs(SANDBOX_NAME)).toHaveLength(0);
+  });
+
+  it("two calls to the hook reuse the same named sandbox (not re-created)", () => {
+    runHook(fixturePath("config-named-sandbox"));
+    runHook(fixturePath("config-named-sandbox"));
+    // Sandbox was created once; state file exists but create-args written once
+    const lines = readCreateArgs(NAMED_SANDBOX);
+    expect(lines).toContain("ubuntu");
+    // second call hits "Running" → no re-create → still exactly one set of create-args
+    expect(lines.filter((l) => l === "ubuntu")).toHaveLength(1);
+  });
+
+  it("agent uses its own named sandbox from agent_sandbox_name_<agent>", () => {
+    runHook(fixturePath("config-named-agent-sandbox"), {}, "test-agent");
+    expect(readCreateArgs(NAMED_AGENT_SANDBOX)).toContain("ubuntu");
+    expect(readCreateArgs("cc-msb-test-named-main")).toHaveLength(0);
+  });
+
+  it("main session uses sandbox_name when no agent_type", () => {
+    runHook(fixturePath("config-named-agent-sandbox"));
+    expect(readCreateArgs("cc-msb-test-named-main")).toContain("ubuntu");
+    expect(readCreateArgs(NAMED_AGENT_SANDBOX)).toHaveLength(0);
+  });
+
+  it("env var CC_MSB_SANDBOX_NAME overrides config file", () => {
+    runHook(fixturePath("simple-read"), { CC_MSB_SCOPE: "named", CC_MSB_SANDBOX_NAME: "cc-msb-env-named" });
+    expect(readCreateArgs("cc-msb-env-named")).toContain("ubuntu");
+    expect(readCreateArgs(SANDBOX_NAME)).toHaveLength(0);
+  });
+
+  it("env var CC_MSB_AGENT_SANDBOX_NAME_<NAME> overrides config for that agent", () => {
+    runHook(fixturePath("config-named-agent-sandbox"), { CC_MSB_AGENT_SANDBOX_NAME_TEST_AGENT: "cc-msb-env-agent-named" }, "test-agent");
+    expect(readCreateArgs("cc-msb-env-agent-named")).toContain("ubuntu");
+    expect(readCreateArgs(NAMED_AGENT_SANDBOX)).toHaveLength(0);
+  });
+
+  it("named scope with no sandbox_name falls back to the session sandbox", () => {
+    runHook(fixturePath("simple-read"), { CC_MSB_SCOPE: "named" });
+    expect(readCreateArgs(SANDBOX_NAME)).toContain("ubuntu");
   });
 });
