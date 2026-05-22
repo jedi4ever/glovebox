@@ -24,6 +24,36 @@ describe("write sandboxing", () => {
   });
 });
 
+describe("full hook round-trip", () => {
+  let session: CleanSession | undefined;
+
+  afterEach(async () => {
+    await session?.dispose();
+  });
+
+  it("bash creates, read fetches, write updates, read verifies — all outside workdir", async () => {
+    session = await createCleanSession();
+
+    // All four steps in one session so they share the same sandbox.
+    // Exercises Bash hook (create), Read hook (shadow sync in), Write hook
+    // (shadow sync out via post-tool-use), Read hook again (re-sync).
+    const result = await session.run(
+      "Do these 4 steps in order, using separate tool calls for each:\n" +
+      "1. Run a bash command: `echo initial-value > /tmp/cc-msb-roundtrip.txt`\n" +
+      "2. Use the Read tool on /tmp/cc-msb-roundtrip.txt and report the exact contents.\n" +
+      "3. Use the Write tool to write the exact text 'updated-value\\n' to /tmp/cc-msb-roundtrip.txt\n" +
+      "4. Use the Read tool on /tmp/cc-msb-roundtrip.txt again and report the exact contents.\n" +
+      "Label each step's output clearly."
+    );
+
+    expect(result.exitCode).toBe(0);
+    // Step 2 should show the original content
+    expect(result.stdout).toMatch(/initial-value/i);
+    // Step 4 should show the updated content
+    expect(result.stdout).toMatch(/updated-value/i);
+  });
+});
+
 describe("concurrent sessions", () => {
   let sessionA: CleanSession | undefined;
   let sessionB: CleanSession | undefined;
