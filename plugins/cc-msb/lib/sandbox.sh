@@ -4,6 +4,64 @@ sandbox_name() {
   echo "cc-msb-${1:0:16}"
 }
 
+# Returns the sandbox name for a tool call, respecting CC_MSB_SCOPE.
+#   session   — one shared sandbox per session (default)
+#   per-agent — one sandbox per agent type; main session always uses the base name
+#   ephemeral — agents get a unique name each call (for Bash wrapping + self-cleanup)
+# Args: session_id [agent_type [mode]]
+sandbox_name_for() {
+  local session_id="$1" agent_type="${2:-}" mode="${3:-${CC_MSB_SCOPE:-session}}"
+
+  if [[ -z "$agent_type" ]] || [[ "$mode" == "session" ]]; then
+    echo "cc-msb-${session_id:0:16}"
+    return
+  fi
+
+  local lower
+  lower="$(printf '%s' "${agent_type//-/_}" | tr '[:upper:]' '[:lower:]')"
+
+  case "$mode" in
+    per-agent)
+      echo "cc-msb-${session_id:0:8}-${lower:0:8}"
+      ;;
+    ephemeral)
+      local rand
+      rand="$(openssl rand -hex 4 2>/dev/null || od -An -tx1 -N4 /dev/urandom | tr -d ' \n')"
+      echo "cc-msb-${session_id:0:8}-${rand}"
+      ;;
+    *)
+      echo "cc-msb-${session_id:0:16}"
+      ;;
+  esac
+}
+
+# Like sandbox_name_for but treats ephemeral as per-agent (file ops keep a stable sandbox).
+# Args: session_id [agent_type]
+sandbox_name_for_file_op() {
+  local session_id="$1" agent_type="${2:-}"
+  local mode="${CC_MSB_SCOPE:-session}"
+  [[ "$mode" == "ephemeral" ]] && mode="per-agent"
+  sandbox_name_for "$session_id" "$agent_type" "$mode"
+}
+
+# Appends a sandbox name to the session tracking list for cleanup.
+# Args: session_id sandbox_name
+sandbox_track() {
+  local session_id="$1" name="$2"
+  local state_dir
+  state_dir="$(sandbox_state_dir "$session_id")"
+  echo "$name" >> "$state_dir/sandboxes"
+}
+
+# Wraps a command to run in the sandbox and auto-destroy it afterward (ephemeral use).
+# Args: name command
+sandbox_wrap_command_ephemeral() {
+  local name="$1" command="$2"
+  local encoded
+  encoded=$(printf '%s' "$command" | base64 | tr -d '\n')
+  echo "printf '%s' '$encoded' | base64 -d | msb exec '$name' -- bash; _ec=\$?; msb stop '$name' --quiet 2>/dev/null; msb remove '$name' --quiet 2>/dev/null; exit \$_ec"
+}
+
 sandbox_state_dir() {
   echo "$HOME/.cache/cc-msb/$1"
 }

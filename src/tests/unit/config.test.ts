@@ -2,7 +2,7 @@ import { describe, it, expect, beforeEach, afterEach } from "vitest";
 import { spawnSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
 import { join } from "node:path";
-import { rmSync, readFileSync, existsSync } from "node:fs";
+import { rmSync, readFileSync, existsSync, readdirSync } from "node:fs";
 import { fixturePath } from "../../helpers/fixtures.js";
 
 const PLUGIN_ROOT = fileURLToPath(new URL("../../../plugins/cc-msb", import.meta.url));
@@ -39,21 +39,41 @@ function runHook(
   });
 }
 
-function readCreateArgs(): string[] {
-  const argsFile = `/tmp/fake-msb-${SANDBOX_NAME}.create-args`;
+// Per-agent sandbox name for "test-agent" with this SESSION_ID:
+//   session prefix: SESSION_ID.slice(0,8) = "unit-con"
+//   agent snake:    "test_agent".slice(0,8) = "test_age"
+const PER_AGENT_SANDBOX = `cc-msb-${SESSION_ID.slice(0, 8)}-test_age`;
+const SESSION_PREFIX = `cc-msb-${SESSION_ID.slice(0, 8)}`;
+
+function readCreateArgs(sandboxName: string = SANDBOX_NAME): string[] {
+  const argsFile = `/tmp/fake-msb-${sandboxName}.create-args`;
   if (!existsSync(argsFile)) return [];
   return readFileSync(argsFile, "utf8").trim().split("\n").filter(Boolean);
 }
 
-beforeEach(() => {
-  try { rmSync(`/tmp/fake-msb-${SANDBOX_NAME}.state`); } catch {}
-  try { rmSync(`/tmp/fake-msb-${SANDBOX_NAME}.create-args`); } catch {}
-});
+// Returns the first ephemeral create-args file for this session (name != main sandbox).
+function findEphemeralCreateArgs(): string | null {
+  const files = readdirSync("/tmp").filter(
+    (f) =>
+      f.startsWith(`fake-msb-${SESSION_PREFIX}`) &&
+      f.endsWith(".create-args") &&
+      f !== `fake-msb-${SANDBOX_NAME}.create-args`
+  );
+  return files.length > 0 ? `/tmp/${files[0]}` : null;
+}
 
-afterEach(() => {
-  try { rmSync(`/tmp/fake-msb-${SANDBOX_NAME}.state`); } catch {}
-  try { rmSync(`/tmp/fake-msb-${SANDBOX_NAME}.create-args`); } catch {}
-});
+function cleanupFakeMsbFiles() {
+  readdirSync("/tmp")
+    .filter(
+      (f) =>
+        f.startsWith(`fake-msb-${SESSION_PREFIX}`) &&
+        (f.endsWith(".state") || f.endsWith(".create-args"))
+    )
+    .forEach((f) => { try { rmSync(`/tmp/${f}`); } catch {} });
+}
+
+beforeEach(() => cleanupFakeMsbFiles());
+afterEach(() => cleanupFakeMsbFiles());
 
 describe("config — mount_workdir", () => {
   it("mounts workdir by default (no config file)", () => {
@@ -144,5 +164,47 @@ describe("config — agent-specific image", () => {
   it("env var CC_MSB_AGENT_IMAGE_<NAME> with hyphenated agent name (test-agent → TEST_AGENT)", () => {
     runHook(fixturePath("simple-read"), { CC_MSB_AGENT_IMAGE_TEST_AGENT: "alpine" }, "test-agent");
     expect(readCreateArgs()[0]).toBe("alpine");
+  });
+});
+
+describe("config — scope", () => {
+  it("uses main sandbox when no agent_type (any scope)", () => {
+    runHook(fixturePath("config-scope-per-agent"));
+    expect(readCreateArgs(SANDBOX_NAME)).toContain("ubuntu");
+  });
+
+  it("session scope: agent uses the same (main) sandbox", () => {
+    runHook(fixturePath("config-scope-session"), {}, "test-agent");
+    expect(readCreateArgs(SANDBOX_NAME)).toContain("ubuntu");
+    expect(readCreateArgs(PER_AGENT_SANDBOX)).toHaveLength(0);
+  });
+
+  it("per-agent scope: agent gets its own sandbox", () => {
+    runHook(fixturePath("config-scope-per-agent"), {}, "test-agent");
+    expect(readCreateArgs(PER_AGENT_SANDBOX)).toContain("ubuntu");
+    expect(readCreateArgs(SANDBOX_NAME)).toHaveLength(0);
+  });
+
+  it("ephemeral scope: agent gets a unique sandbox (not the main one)", () => {
+    runHook(fixturePath("config-scope-ephemeral"), {}, "test-agent");
+    expect(findEphemeralCreateArgs()).not.toBeNull();
+    expect(readCreateArgs(SANDBOX_NAME)).toHaveLength(0);
+  });
+
+  it("ephemeral scope: two calls produce different sandbox names", () => {
+    runHook(fixturePath("config-scope-ephemeral"), {}, "test-agent");
+    const first = findEphemeralCreateArgs();
+    cleanupFakeMsbFiles();
+    runHook(fixturePath("config-scope-ephemeral"), {}, "test-agent");
+    const second = findEphemeralCreateArgs();
+    expect(first).not.toBeNull();
+    expect(second).not.toBeNull();
+    expect(first).not.toBe(second);
+  });
+
+  it("env var CC_MSB_SCOPE overrides config file", () => {
+    runHook(fixturePath("simple-read"), { CC_MSB_SCOPE: "per-agent" }, "test-agent");
+    expect(readCreateArgs(PER_AGENT_SANDBOX)).toContain("ubuntu");
+    expect(readCreateArgs(SANDBOX_NAME)).toHaveLength(0);
   });
 });

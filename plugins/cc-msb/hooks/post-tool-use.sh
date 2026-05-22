@@ -4,9 +4,15 @@ set -euo pipefail
 PLUGIN_ROOT="${CLAUDE_PLUGIN_ROOT:-$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)}"
 # shellcheck source=../lib/sandbox.sh
 . "$PLUGIN_ROOT/lib/sandbox.sh"
+# shellcheck source=../lib/config.sh
+. "$PLUGIN_ROOT/lib/config.sh"
+
+PROJECT_DIR="${CLAUDE_PROJECT_DIR:-$PWD}"
+config_load "$PROJECT_DIR"
 
 EVENT="$(cat)"
 TOOL_NAME="$(printf '%s' "$EVENT" | jq -r '.tool_name')"
+AGENT_TYPE="$(printf '%s' "$EVENT" | jq -r '.agent_type // empty')"
 
 case "$TOOL_NAME" in
   mcp__*|WebSearch|WebFetch)
@@ -24,7 +30,7 @@ case "$TOOL_NAME" in
     # Only sync if the file was written to a shadow path (VM-only file)
     if [[ "$FILE_PATH" == "$SHADOW_ROOT"/* ]]; then
       VM_PATH="${FILE_PATH#"$SHADOW_ROOT"}"
-      SANDBOX="$(sandbox_name "$SESSION_ID")"
+      SANDBOX="$(sandbox_name_for_file_op "$SESSION_ID" "$AGENT_TYPE")"
       sandbox_write_from_shadow "$SANDBOX" "$FILE_PATH" "$VM_PATH" || true
     fi
     exit 0

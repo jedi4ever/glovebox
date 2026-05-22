@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# SessionEnd hook — stops and removes the MSB sandbox for this session.
+# SessionEnd hook — stops and removes all MSB sandboxes created for this session.
 set -euo pipefail
 
 PLUGIN_ROOT="${CLAUDE_PLUGIN_ROOT:-$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)}"
@@ -11,12 +11,25 @@ SESSION_ID="$(printf '%s' "$EVENT" | jq -r '.session_id // empty')"
 
 [[ -z "$SESSION_ID" ]] && exit 0
 
-SANDBOX="$(sandbox_name "$SESSION_ID")"
 STATE_DIR="$(sandbox_state_dir "$SESSION_ID")"
+SANDBOX_LIST="$STATE_DIR/sandboxes"
 
-if [[ -n "$(sandbox_status "$SANDBOX")" ]]; then
-  msb stop "$SANDBOX" --quiet 2>/dev/null || true
-  msb remove "$SANDBOX" --quiet 2>/dev/null || true
+remove_sandbox() {
+  local name="$1"
+  [[ -z "$name" ]] && return
+  if [[ -n "$(sandbox_status "$name")" ]]; then
+    msb stop "$name" --quiet 2>/dev/null || true
+    msb remove "$name" --quiet 2>/dev/null || true
+  fi
+}
+
+if [[ -f "$SANDBOX_LIST" ]]; then
+  sort -u "$SANDBOX_LIST" | while IFS= read -r name; do
+    remove_sandbox "$name"
+  done
+else
+  # Fallback for sessions that predate sandbox tracking
+  remove_sandbox "$(sandbox_name "$SESSION_ID")"
 fi
 
 rm -rf "$STATE_DIR" 2>/dev/null || true

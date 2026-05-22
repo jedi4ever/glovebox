@@ -23,12 +23,16 @@ config_load() {
   local file_mount_workdir="true"
   local file_sandbox_image="ubuntu"
 
+  local file_scope="session"
+
   if [[ -f "$config_file" ]]; then
     local val
     val="$(config_yaml_get "$config_file" "mount_workdir")"
     [[ -n "$val" ]] && file_mount_workdir="$val"
     val="$(config_yaml_get "$config_file" "sandbox_image")"
     [[ -n "$val" ]] && file_sandbox_image="$val"
+    val="$(config_yaml_get "$config_file" "scope")"
+    [[ -n "$val" ]] && file_scope="$val"
   fi
 
   CC_MSB_MOUNT_WORKDIR="${CC_MSB_MOUNT_WORKDIR:-$file_mount_workdir}"
@@ -36,6 +40,9 @@ config_load() {
 
   CC_MSB_SANDBOX_IMAGE="${CC_MSB_SANDBOX_IMAGE:-$file_sandbox_image}"
   export CC_MSB_SANDBOX_IMAGE
+
+  CC_MSB_SCOPE="${CC_MSB_SCOPE:-$file_scope}"
+  export CC_MSB_SCOPE
 }
 
 # Returns the effective sandbox image for a given agent type.

@@ -1,0 +1,3 @@
+scope: per-agent
+sandbox_image: ubuntu
+agent_image_test_agent: debian
