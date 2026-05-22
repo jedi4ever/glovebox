@@ -50,4 +50,25 @@ describe.concurrent("edit sandboxing", () => {
       await session.dispose();
     }
   });
+
+  // Without an explicit instruction to use any specific tool, the SessionStart
+  // hint ("Edit is not available for files inside the sandbox — use Bash to edit
+  // them.") should steer the agent to use Bash and succeed on the first try.
+  it("with the hint, an agent modifies a sandbox file successfully", async () => {
+    const session = await createCleanSession();
+    try {
+      const result = await session.run(
+        "Run these 3 steps in order:\n" +
+        "1. Create /tmp/cc-msb-hint-probe.txt containing exactly 'initial-value'.\n" +
+        "2. Change the file's contents to 'final-value'.\n" +
+        "3. Run a bash command to cat /tmp/cc-msb-hint-probe.txt and report the exact output."
+      );
+
+      expect(result.exitCode).toBe(0);
+      // The agent successfully modified the sandbox file — step 3's cat shows the new content.
+      expect(result.stdout).toMatch(/final-value/);
+    } finally {
+      await session.dispose();
+    }
+  });
 });
