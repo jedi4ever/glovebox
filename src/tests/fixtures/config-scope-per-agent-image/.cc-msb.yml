@@ -1,5 +1,7 @@
-scope: per-agent
-sandbox_image: ubuntu
+defaults:
+  agents:
+    scope: per-agent
+    sandbox_image: ubuntu
 
 agents:
   test-agent:

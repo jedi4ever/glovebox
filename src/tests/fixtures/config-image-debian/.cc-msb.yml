@@ -1,1 +1,3 @@
-sandbox_image: debian
+defaults:
+  agents:
+    sandbox_image: debian

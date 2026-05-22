@@ -4,14 +4,14 @@ sandbox_name() {
   echo "cc-msb-${1:0:16}"
 }
 
-# Returns the sandbox name for a tool call, respecting CC_MSB_SCOPE.
+# Returns the sandbox name for a tool call.
 #   session   — one shared sandbox per session (default)
 #   per-agent — one sandbox per agent type; main session always uses the base name
-#   ephemeral — agents get a unique name each call (for Bash wrapping + self-cleanup)
-# Args: session_id [agent_type [mode]]
+#   per-run   — agents get a unique name each call (for Bash wrapping + self-cleanup)
+#   named     — use explicit_name directly (persists across sessions)
+# Args: session_id [agent_type [explicit_name [scope]]]
 sandbox_name_for() {
-  local session_id="$1" agent_type="${2:-}" explicit_name="${3:-}"
-  local mode="${CC_MSB_SCOPE:-session}"
+  local session_id="$1" agent_type="${2:-}" explicit_name="${3:-}" mode="${4:-session}"
 
   # named scope with a configured name — use it directly (persists across sessions)
   if [[ "$mode" == "named" && -n "$explicit_name" ]]; then
@@ -32,7 +32,7 @@ sandbox_name_for() {
     per-agent)
       echo "cc-msb-${session_id:0:8}-${lower:0:8}"
       ;;
-    ephemeral)
+    per-run)
       local rand
       rand="$(openssl rand -hex 4 2>/dev/null || od -An -tx1 -N4 /dev/urandom | tr -d ' \n')"
       echo "cc-msb-${session_id:0:8}-${rand}"
@@ -43,12 +43,11 @@ sandbox_name_for() {
   esac
 }
 
-# Like sandbox_name_for but treats ephemeral as per-agent (file ops keep a stable sandbox).
-# Args: session_id [agent_type [explicit_name]]
+# Like sandbox_name_for but treats per-run as per-agent (file ops keep a stable sandbox).
+# Args: session_id [agent_type [explicit_name [scope]]]
 sandbox_name_for_file_op() {
-  local session_id="$1" agent_type="${2:-}" explicit_name="${3:-}"
-  local mode="${CC_MSB_SCOPE:-session}"
-  if [[ "$mode" == "ephemeral" ]]; then
+  local session_id="$1" agent_type="${2:-}" explicit_name="${3:-}" mode="${4:-session}"
+  if [[ "$mode" == "per-run" ]]; then
     if [[ -z "$agent_type" ]]; then
       echo "cc-msb-${session_id:0:16}"
     else
@@ -57,7 +56,7 @@ sandbox_name_for_file_op() {
       echo "cc-msb-${session_id:0:8}-${lower:0:8}"
     fi
   else
-    sandbox_name_for "$session_id" "$agent_type" "$explicit_name"
+    sandbox_name_for "$session_id" "$agent_type" "$explicit_name" "$mode"
   fi
 }
 
@@ -70,7 +69,7 @@ sandbox_track() {
   echo "$name" >> "$state_dir/sandboxes"
 }
 
-# Wraps a command to run in the sandbox and auto-destroy it afterward (ephemeral use).
+# Wraps a command to run in the sandbox and auto-destroy it afterward (per-run scope).
 # Args: name command
 sandbox_wrap_command_ephemeral() {
   local name="$1" command="$2"

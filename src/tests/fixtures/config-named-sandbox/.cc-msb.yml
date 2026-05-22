@@ -1,4 +1,3 @@
-scope: named
-
 main:
+  scope: named
   sandbox_name: cc-msb-test-named

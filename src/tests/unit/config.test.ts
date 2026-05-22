@@ -51,7 +51,7 @@ function readCreateArgs(sandboxName: string = SANDBOX_NAME): string[] {
   return readFileSync(argsFile, "utf8").trim().split("\n").filter(Boolean);
 }
 
-// Returns the first ephemeral create-args file for this session (name != main sandbox).
+// Returns the first per-run create-args file for this session (name != main sandbox).
 function findEphemeralCreateArgs(): string | null {
   const files = readdirSync("/tmp").filter(
     (f) =>
@@ -187,27 +187,33 @@ describe("config — scope", () => {
     expect(readCreateArgs(SANDBOX_NAME)).toHaveLength(0);
   });
 
-  it("ephemeral scope: agent gets a unique sandbox (not the main one)", () => {
-    runHook(fixturePath("config-scope-ephemeral"), {}, "test-agent");
+  it("per-run scope: agent gets a unique sandbox (not the main one)", () => {
+    runHook(fixturePath("config-scope-per-run"), {}, "test-agent");
     expect(findEphemeralCreateArgs()).not.toBeNull();
     expect(readCreateArgs(SANDBOX_NAME)).toHaveLength(0);
   });
 
-  it("ephemeral scope: two calls produce different sandbox names", () => {
-    runHook(fixturePath("config-scope-ephemeral"), {}, "test-agent");
+  it("per-run scope: two calls produce different sandbox names", () => {
+    runHook(fixturePath("config-scope-per-run"), {}, "test-agent");
     const first = findEphemeralCreateArgs();
     cleanupFakeMsbFiles();
-    runHook(fixturePath("config-scope-ephemeral"), {}, "test-agent");
+    runHook(fixturePath("config-scope-per-run"), {}, "test-agent");
     const second = findEphemeralCreateArgs();
     expect(first).not.toBeNull();
     expect(second).not.toBeNull();
     expect(first).not.toBe(second);
   });
 
-  it("env var CC_MSB_SCOPE overrides config file", () => {
-    runHook(fixturePath("simple-read"), { CC_MSB_SCOPE: "per-agent" }, "test-agent");
+  it("CC_MSB_AGENT_SCOPE_<NAME> env var overrides config file for that agent", () => {
+    runHook(fixturePath("simple-read"), { CC_MSB_AGENT_SCOPE_TEST_AGENT: "per-agent" }, "test-agent");
     expect(readCreateArgs(PER_AGENT_SANDBOX)).toContain("ubuntu");
     expect(readCreateArgs(SANDBOX_NAME)).toHaveLength(0);
+  });
+
+  it("CC_MSB_MAIN_SCOPE env var sets scope for the main session", () => {
+    runHook(fixturePath("simple-read"), { CC_MSB_MAIN_SCOPE: "per-agent" });
+    // main session always uses the base sandbox name regardless of scope
+    expect(readCreateArgs(SANDBOX_NAME)).toContain("ubuntu");
   });
 });
 
@@ -226,6 +232,34 @@ describe("config — main section", () => {
   it("CC_MSB_SANDBOX_IMAGE env var overrides main.sandbox_image", () => {
     runHook(fixturePath("config-main-image"), { CC_MSB_SANDBOX_IMAGE: "alpine" });
     expect(readCreateArgs()[0]).toBe("alpine");
+  });
+});
+
+describe("config — per-agent scope override", () => {
+  it("agent scope overrides defaults.agents.scope for that agent", () => {
+    runHook(fixturePath("config-scope-per-agent-scope"), {}, "test-agent");
+    // test-agent has scope: per-agent, default is session — agent gets own sandbox
+    expect(readCreateArgs(PER_AGENT_SANDBOX)).toContain("ubuntu");
+    expect(readCreateArgs(SANDBOX_NAME)).toHaveLength(0);
+  });
+
+  it("unlisted agents still use defaults.agents.scope", () => {
+    runHook(fixturePath("config-scope-per-agent-scope"), {}, "other-agent");
+    // other-agent inherits defaults.agents.scope: session — uses main sandbox
+    expect(readCreateArgs(SANDBOX_NAME)).toContain("ubuntu");
+  });
+
+  it("CC_MSB_AGENT_SCOPE_<NAME> env var overrides agent config file scope", () => {
+    runHook(fixturePath("config-scope-session"), { CC_MSB_AGENT_SCOPE_TEST_AGENT: "per-agent" }, "test-agent");
+    expect(readCreateArgs(PER_AGENT_SANDBOX)).toContain("ubuntu");
+    expect(readCreateArgs(SANDBOX_NAME)).toHaveLength(0);
+  });
+
+  it("main session uses main.scope, not defaults.agents.scope", () => {
+    // config-scope-per-agent-scope has defaults.agents.scope: session; main has no override
+    // main session should get session scope (main sandbox)
+    runHook(fixturePath("config-scope-per-agent-scope"));
+    expect(readCreateArgs(SANDBOX_NAME)).toContain("ubuntu");
   });
 });
 
@@ -262,7 +296,7 @@ describe("config — scope: named", () => {
   });
 
   it("env var CC_MSB_SANDBOX_NAME overrides config file", () => {
-    runHook(fixturePath("simple-read"), { CC_MSB_SCOPE: "named", CC_MSB_SANDBOX_NAME: "cc-msb-env-named" });
+    runHook(fixturePath("simple-read"), { CC_MSB_MAIN_SCOPE: "named", CC_MSB_SANDBOX_NAME: "cc-msb-env-named" });
     expect(readCreateArgs("cc-msb-env-named")).toContain("ubuntu");
     expect(readCreateArgs(SANDBOX_NAME)).toHaveLength(0);
   });
@@ -274,7 +308,7 @@ describe("config — scope: named", () => {
   });
 
   it("named scope with no sandbox_name falls back to the session sandbox", () => {
-    runHook(fixturePath("simple-read"), { CC_MSB_SCOPE: "named" });
+    runHook(fixturePath("simple-read"), { CC_MSB_MAIN_SCOPE: "named" });
     expect(readCreateArgs(SANDBOX_NAME)).toContain("ubuntu");
   });
 });

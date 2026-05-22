@@ -1,1 +1,3 @@
-sandbox_image: alpine
+defaults:
+  agents:
+    sandbox_image: alpine

@@ -1,0 +1,7 @@
+defaults:
+  agents:
+    scope: session
+
+agents:
+  test-agent:
+    scope: per-agent

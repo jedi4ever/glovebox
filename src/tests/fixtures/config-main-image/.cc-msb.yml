@@ -1,6 +1,6 @@
-# Global default (used by agents)
-sandbox_image: ubuntu
+defaults:
+  agents:
+    sandbox_image: ubuntu
 
-# Main session uses a different image
 main:
   sandbox_image: debian

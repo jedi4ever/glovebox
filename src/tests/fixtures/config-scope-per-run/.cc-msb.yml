@@ -1,3 +1,3 @@
 defaults:
   agents:
-    scope: session
+    scope: per-run

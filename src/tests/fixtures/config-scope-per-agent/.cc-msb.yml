@@ -1,1 +1,3 @@
-scope: per-agent
+defaults:
+  agents:
+    scope: per-agent

@@ -65,11 +65,11 @@ describe("config — scope integration", () => {
     expect(result.stdout).toMatch(/scope_test/i);
   });
 
-  // ephemeral: each agent bash call gets a fresh sandbox — no state carries over
+  // per-run: each agent bash call gets a fresh sandbox — no state carries over
 
-  it("ephemeral scope: file written in one agent bash call is gone in the next", async () => {
-    projectDir = await mkdtemp(join(tmpdir(), "cc-msb-scope-ephem-"));
-    await copyFixture("config-scope-ephemeral", projectDir);
+  it("per-run scope: file written in one agent bash call is gone in the next", async () => {
+    projectDir = await mkdtemp(join(tmpdir(), "cc-msb-scope-perrun-"));
+    await copyFixture("config-scope-per-run", projectDir);
 
     session = await createCleanSession({ cwd: projectDir });
     const result = await session.run(
@@ -78,7 +78,7 @@ describe("config — scope integration", () => {
     );
 
     expect(result.exitCode).toBe(0);
-    // In ephemeral mode each bash call gets a fresh sandbox, so the file is gone
+    // In per-run mode each bash call gets a fresh sandbox, so the file is gone
     expect(result.stdout).not.toMatch(/scope_test/i);
   });
 });
