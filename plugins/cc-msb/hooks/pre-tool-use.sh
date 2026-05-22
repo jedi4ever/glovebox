@@ -21,6 +21,7 @@ EFFECTIVE_SCOPE="$(config_agent_scope "$AGENT_TYPE" "$PROJECT_DIR/.cc-msb.yml")"
 EFFECTIVE_MOUNT_WORKDIR="$(config_agent_mount_workdir "$AGENT_TYPE" "$PROJECT_DIR/.cc-msb.yml")"
 EFFECTIVE_PASS_ENV="$(config_agent_pass_env "$AGENT_TYPE" "$PROJECT_DIR/.cc-msb.yml")"
 EFFECTIVE_NETWORK="$(config_agent_network "$AGENT_TYPE" "$PROJECT_DIR/.cc-msb.yml")"
+EFFECTIVE_PORTS="$(config_agent_ports "$AGENT_TYPE" "$PROJECT_DIR/.cc-msb.yml")"
 
 # scope=host: pass through every tool call unmodified — no sandbox, no shadow,
 # no rewrites. The agent runs directly on the host.
@@ -42,7 +43,7 @@ case "$TOOL_NAME" in
     STATE_DIR="$(sandbox_state_dir "$SESSION_ID")"
     mkdir -p "$STATE_DIR"
 
-    sandbox_ensure_running "$SANDBOX" "$PROJECT_DIR" "$STATE_DIR/sandbox.log" "$EFFECTIVE_IMAGE" "$EFFECTIVE_MOUNT_WORKDIR" "$EFFECTIVE_NETWORK" || {
+    sandbox_ensure_running "$SANDBOX" "$PROJECT_DIR" "$STATE_DIR/sandbox.log" "$EFFECTIVE_IMAGE" "$EFFECTIVE_MOUNT_WORKDIR" "$EFFECTIVE_NETWORK" "$EFFECTIVE_PORTS" || {
       emit_deny "cc-msb: failed to start sandbox (see $STATE_DIR/sandbox.log)"
       exit 0
     }
@@ -76,7 +77,7 @@ case "$TOOL_NAME" in
     sandbox_resolve_path "$FILE_PATH" "$PROJECT_DIR" "$STATE_DIR"
 
     if [[ "$SANDBOX_NEEDS_SYNC" == "yes" ]]; then
-      sandbox_ensure_running "$SANDBOX" "$PROJECT_DIR" "$STATE_DIR/sandbox.log" "$EFFECTIVE_IMAGE" "$EFFECTIVE_MOUNT_WORKDIR" "$EFFECTIVE_NETWORK" || {
+      sandbox_ensure_running "$SANDBOX" "$PROJECT_DIR" "$STATE_DIR/sandbox.log" "$EFFECTIVE_IMAGE" "$EFFECTIVE_MOUNT_WORKDIR" "$EFFECTIVE_NETWORK" "$EFFECTIVE_PORTS" || {
         emit_deny "cc-msb: failed to start sandbox for read of $FILE_PATH"
         exit 0
       }
@@ -106,7 +107,7 @@ case "$TOOL_NAME" in
     if [[ "$SANDBOX_NEEDS_SYNC" == "yes" ]]; then
       # Ensure the sandbox exists so post-tool-use can sync the shadow file into it.
       SANDBOX="$(sandbox_name_for "$SESSION_ID" "$AGENT_TYPE" "$EFFECTIVE_SANDBOX_NAME" "$EFFECTIVE_SCOPE" "$PROJECT_DIR")"
-      sandbox_ensure_running "$SANDBOX" "$PROJECT_DIR" "$STATE_DIR/sandbox.log" "$EFFECTIVE_IMAGE" "$EFFECTIVE_MOUNT_WORKDIR" "$EFFECTIVE_NETWORK" || true
+      sandbox_ensure_running "$SANDBOX" "$PROJECT_DIR" "$STATE_DIR/sandbox.log" "$EFFECTIVE_IMAGE" "$EFFECTIVE_MOUNT_WORKDIR" "$EFFECTIVE_NETWORK" "$EFFECTIVE_PORTS" || true
       if [[ "$EFFECTIVE_SCOPE" != "directory" ]] && [[ "$EFFECTIVE_SCOPE" != "named" || -z "$EFFECTIVE_SANDBOX_NAME" ]]; then
         sandbox_track "$SESSION_ID" "$SANDBOX"
       fi

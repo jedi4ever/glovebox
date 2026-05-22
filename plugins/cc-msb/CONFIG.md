@@ -12,6 +12,7 @@ defaults:
     mount_workdir: true
     pass_env: none
     network: enabled
+    ports: ""
 
 main:                     # main-session settings
   scope: named
@@ -20,6 +21,7 @@ main:                     # main-session settings
   mount_workdir: true
   pass_env: "HOME,PATH"
   network: "github.com,api.openai.com"
+  ports: "8080:80,5432:5432"
 
 agents:                   # per-agent overrides — inherit from defaults.agents
   test-agent:
@@ -41,7 +43,7 @@ Every setting follows the same precedence chain, from highest to lowest:
 **Main session** (no agent context)
 1. Env var (`CC_MSB_MAIN_*` or the legacy `CC_MSB_SANDBOX_IMAGE`/`CC_MSB_SANDBOX_NAME`)
 2. `main.<setting>` in the config file
-3. `defaults.agents.<setting>` in the config file *(for `scope`, `sandbox_image`, `mount_workdir`, `pass_env`, `network`)*
+3. `defaults.agents.<setting>` in the config file *(for `scope`, `sandbox_image`, `mount_workdir`, `pass_env`, `network`, `ports`)*
 4. Built-in default
 
 **Agent** (`agent_type` present in the event)
@@ -127,6 +129,19 @@ Applied at sandbox-creation time, so the policy is fixed for the sandbox's lifet
 
 **Env override**: `CC_MSB_MAIN_NETWORK`, `CC_MSB_AGENT_NETWORK_<NAME>`
 
+### `ports`
+
+Host port forwardings into the sandbox. Each entry is an msb `--port` mapping in `HOST:GUEST` form, with an optional `/tcp` or `/udp` proto suffix.
+
+| Value | Behavior |
+|---|---|
+| *(unset / empty)* *(default)* | No host ports are forwarded into the sandbox. |
+| `"HOST:GUEST[,HOST:GUEST/proto,...]"` | One `--port` flag per comma-separated entry. |
+
+Applied at sandbox-creation time, so the mappings are fixed for the sandbox's lifetime. Updating `ports` for a long-lived sandbox (`named`/`directory`) requires destroying and recreating the sandbox to take effect.
+
+**Env override**: `CC_MSB_MAIN_PORTS`, `CC_MSB_AGENT_PORTS_<NAME>`
+
 ## Env-var naming
 
 - Main settings use a fixed name: `CC_MSB_MAIN_<SETTING>` (e.g. `CC_MSB_MAIN_SCOPE`).
@@ -200,4 +215,12 @@ main:
 agents:
   fetcher:
     network: "registry.npmjs.org,github.com,objects.githubusercontent.com"
+```
+
+### Expose a dev server running inside the sandbox
+```yaml
+main:
+  scope: named
+  sandbox_name: my-app-dev
+  ports: "3000:3000,9229:9229"   # web + node inspector
 ```

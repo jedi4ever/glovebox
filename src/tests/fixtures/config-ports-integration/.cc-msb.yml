@@ -1,0 +1,4 @@
+main:
+  scope: named
+  sandbox_name: cc-msb-ports-int-named
+  ports: "19876:8000"

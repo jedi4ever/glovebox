@@ -9,6 +9,7 @@
 #       scope: session         # session | per-agent | per-run | named | directory | host
 #       pass_env: none         # none | all | "VAR1,VAR2"
 #       network: enabled       # enabled | disabled | "domain1,domain2"
+#       ports: ""              # "" | "HOST:GUEST[,HOST:GUEST/udp,...]"
 #
 #   main:                      # main session settings (always explicit)
 #     scope: named
@@ -16,6 +17,7 @@
 #     sandbox_image: debian
 #     pass_env: "HOME,PATH"
 #     network: "github.com,api.openai.com"
+#     ports: "8080:80,5432:5432"
 #
 #   agents:                    # per-agent overrides (inherit from defaults.agents)
 #     test-agent:
@@ -382,4 +384,50 @@ config_agent_network() {
     [[ -n "$val" ]] && echo "$val" && return
   fi
   echo "enabled"
+}
+
+# Returns the effective port-mapping spec for a given agent type.
+#
+# Values:
+#   ""       — no port mappings (default)
+#   "HOST:GUEST[,HOST:GUEST/proto,...]" — comma-separated msb --port mappings
+#
+# Resolution chain mirrors config_agent_pass_env / config_agent_network.
+#
+# Args: agent_type, config_file
+config_agent_ports() {
+  local agent_type="$1" config_file="$2"
+
+  if [[ -z "$agent_type" ]]; then
+    [[ -n "${CC_MSB_MAIN_PORTS:-}" ]] && echo "$CC_MSB_MAIN_PORTS" && return
+    if [[ -f "$config_file" ]]; then
+      local val
+      val="$(config_yaml_get_section "$config_file" "main" "ports")"
+      [[ -n "$val" ]] && echo "$val" && return
+      val="$(config_yaml_get_nested "$config_file" "defaults" "agents" "ports")"
+      [[ -n "$val" ]] && echo "$val" && return
+    fi
+    echo ""
+    return
+  fi
+
+  local snake="${agent_type//-/_}"
+  local upper
+  upper="$(printf '%s' "$snake" | tr '[:lower:]' '[:upper:]')"
+
+  local env_var="CC_MSB_AGENT_PORTS_${upper}"
+  local env_val="${!env_var:-}"
+  if [[ -n "$env_val" ]]; then
+    echo "$env_val"
+    return
+  fi
+
+  if [[ -f "$config_file" ]]; then
+    local val
+    val="$(config_yaml_get_nested "$config_file" "agents" "$agent_type" "ports")"
+    [[ -n "$val" ]] && echo "$val" && return
+    val="$(config_yaml_get_nested "$config_file" "defaults" "agents" "ports")"
+    [[ -n "$val" ]] && echo "$val" && return
+  fi
+  echo ""
 }

@@ -166,13 +166,30 @@ sandbox_network_args() {
   esac
 }
 
+# Emits one shell-token-per-line per `msb create --port HOST:GUEST` mapping
+# derived from a comma-separated `ports` spec. Empty/unset spec emits nothing.
+# Args: spec
+sandbox_port_args() {
+  local spec="$1"
+  [[ -z "$spec" ]] && return 0
+  local mapping
+  while IFS= read -r mapping || [[ -n "$mapping" ]]; do
+    mapping="${mapping#"${mapping%%[![:space:]]*}"}"
+    mapping="${mapping%"${mapping##*[![:space:]]}"}"
+    [[ -z "$mapping" ]] && continue
+    printf '%s\n' "--port"
+    printf '%s\n' "$mapping"
+  done < <(printf '%s' "$spec" | tr ',' '\n')
+}
+
 # Ensures the named sandbox is running. Creates it if it doesn't exist.
-# Args: name, project_dir, log_file [image [mount_workdir [network_spec]]]
+# Args: name, project_dir, log_file [image [mount_workdir [network_spec [ports_spec]]]]
 sandbox_ensure_running() {
   local name="$1" project_dir="$2" log_file="$3"
   local image="${4:-${CC_MSB_SANDBOX_IMAGE:-ubuntu}}"
   local mount_workdir="${5:-true}"
   local network_spec="${6:-enabled}"
+  local ports_spec="${7:-}"
   local status
   status=$(sandbox_status "$name")
 
@@ -194,6 +211,13 @@ sandbox_ensure_running() {
       done < <(sandbox_network_args "$network_spec")
       if (( ${#net_args[@]} > 0 )); then
         create_args+=("${net_args[@]}")
+      fi
+      local port_args=()
+      while IFS= read -r line; do
+        [[ -n "$line" ]] && port_args+=("$line")
+      done < <(sandbox_port_args "$ports_spec")
+      if (( ${#port_args[@]} > 0 )); then
+        create_args+=("${port_args[@]}")
       fi
       msb create "${create_args[@]}" 2>>"$log_file"
       ;;

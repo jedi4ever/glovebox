@@ -1,0 +1,7 @@
+defaults:
+  agents:
+    ports: "11111:11111"
+
+agents:
+  test-agent:
+    ports: "22222:22222"

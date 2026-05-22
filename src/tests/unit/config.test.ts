@@ -552,6 +552,62 @@ describe("config — network", () => {
   });
 });
 
+describe("config — ports", () => {
+  it("default (no config): no --port flags on msb create", () => {
+    runHook(fixturePath("simple-read"));
+    const args = readCreateArgs();
+    expect(args).not.toContain("--port");
+  });
+
+  it("main.ports=HOST:GUEST: emits one --port flag", () => {
+    runHook(fixturePath("config-ports-single"));
+    const args = readCreateArgs();
+    expect(args).toContain("--port");
+    expect(args).toContain("9876:8000");
+  });
+
+  it("main.ports=<list>: emits one --port flag per entry, preserving /proto suffix", () => {
+    runHook(fixturePath("config-ports-multi"));
+    const args = readCreateArgs();
+    // three --port flags
+    expect(args.filter((a) => a === "--port")).toHaveLength(3);
+    expect(args).toContain("8080:80");
+    expect(args).toContain("5432:5432");
+    expect(args).toContain("9229:9229/udp");
+  });
+
+  it("agent override beats defaults.agents.ports", () => {
+    runHook(fixturePath("config-ports-agent-override"), {}, "test-agent");
+    const args = readCreateArgs();
+    expect(args).toContain("22222:22222");
+    expect(args).not.toContain("11111:11111");
+  });
+
+  it("unlisted agent falls back to defaults.agents.ports", () => {
+    runHook(fixturePath("config-ports-agent-override"), {}, "other-agent");
+    const args = readCreateArgs();
+    expect(args).toContain("11111:11111");
+  });
+
+  it("CC_MSB_MAIN_PORTS overrides config file", () => {
+    runHook(fixturePath("config-ports-single"), { CC_MSB_MAIN_PORTS: "7777:7777" });
+    const args = readCreateArgs();
+    expect(args).toContain("7777:7777");
+    expect(args).not.toContain("9876:8000");
+  });
+
+  it("CC_MSB_AGENT_PORTS_<NAME> overrides agent file config", () => {
+    runHook(
+      fixturePath("config-ports-agent-override"),
+      { CC_MSB_AGENT_PORTS_TEST_AGENT: "33333:33333" },
+      "test-agent"
+    );
+    const args = readCreateArgs();
+    expect(args).toContain("33333:33333");
+    expect(args).not.toContain("22222:22222");
+  });
+});
+
 describe("config — scope: host", () => {
   it("main scope=host: Bash hook passes through (no rewrite, no sandbox create)", () => {
     const r = runHook(fixturePath("config-scope-host-main"));

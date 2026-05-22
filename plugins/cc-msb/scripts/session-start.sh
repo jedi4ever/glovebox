@@ -29,6 +29,7 @@ EFFECTIVE_SANDBOX_NAME="$(config_agent_sandbox_name "" "$PROJECT_DIR/.cc-msb.yml
 EFFECTIVE_SCOPE="$(config_agent_scope "" "$PROJECT_DIR/.cc-msb.yml")"
 EFFECTIVE_MOUNT_WORKDIR="$(config_agent_mount_workdir "" "$PROJECT_DIR/.cc-msb.yml")"
 EFFECTIVE_NETWORK="$(config_agent_network "" "$PROJECT_DIR/.cc-msb.yml")"
+EFFECTIVE_PORTS="$(config_agent_ports "" "$PROJECT_DIR/.cc-msb.yml")"
 
 # scope=host: nothing to boot. Just tell Claude that tools run on the host.
 if [[ "$EFFECTIVE_SCOPE" == "host" ]]; then
@@ -44,7 +45,7 @@ mkdir -p "$STATE_DIR"
 # Pre-create / start the sandbox. Silently bail on any failure — the per-call
 # hooks will recover or surface the error at that point.
 sandbox_ensure_running "$SANDBOX" "$PROJECT_DIR" "$STATE_DIR/sandbox.log" \
-  "$EFFECTIVE_IMAGE" "$EFFECTIVE_MOUNT_WORKDIR" "$EFFECTIVE_NETWORK" >/dev/null 2>&1 || exit 0
+  "$EFFECTIVE_IMAGE" "$EFFECTIVE_MOUNT_WORKDIR" "$EFFECTIVE_NETWORK" "$EFFECTIVE_PORTS" >/dev/null 2>&1 || exit 0
 
 # Track for cleanup unless persistent (named-with-name / directory).
 if [[ "$EFFECTIVE_SCOPE" != "directory" ]] && \
