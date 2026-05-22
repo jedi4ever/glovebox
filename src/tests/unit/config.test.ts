@@ -484,3 +484,67 @@ describe("config — pass_env", () => {
     expect(wrappedCommand(r.stdout)).not.toMatch(/--env\b/);
   });
 });
+
+describe("config — scope: host", () => {
+  it("main scope=host: Bash hook passes through (no rewrite, no sandbox create)", () => {
+    const r = runHook(fixturePath("config-scope-host-main"));
+    expect(r.status).toBe(0);
+    // No JSON emitted — full pass-through means stdout is empty and CC uses original tool_input.
+    expect(r.stdout.trim()).toBe("");
+    // No fake-msb sandbox was ever created.
+    expect(readCreateArgs(SANDBOX_NAME)).toHaveLength(0);
+  });
+
+  it("agent scope=host: Bash hook for that agent passes through; main still sandboxed", () => {
+    // Agent invocation: scope=host → pass-through
+    const rAgent = runHook(fixturePath("config-scope-host-agent"), {}, "test-agent");
+    expect(rAgent.status).toBe(0);
+    expect(rAgent.stdout.trim()).toBe("");
+    expect(readCreateArgs(PER_AGENT_SANDBOX)).toHaveLength(0);
+
+    // Main session has no override → defaults to session scope, sandbox is created
+    const rMain = runHook(fixturePath("config-scope-host-agent"));
+    expect(rMain.status).toBe(0);
+    expect(readCreateArgs(SANDBOX_NAME)).toContain("ubuntu");
+  });
+
+  it("CC_MSB_MAIN_SCOPE=host forces pass-through even without a config file", () => {
+    const r = runHook(fixturePath("simple-read"), { CC_MSB_MAIN_SCOPE: "host" });
+    expect(r.status).toBe(0);
+    expect(r.stdout.trim()).toBe("");
+    expect(readCreateArgs(SANDBOX_NAME)).toHaveLength(0);
+  });
+
+  it("CC_MSB_AGENT_SCOPE_<NAME>=host forces pass-through for that agent", () => {
+    const r = runHook(
+      fixturePath("simple-read"),
+      { CC_MSB_AGENT_SCOPE_TEST_AGENT: "host" },
+      "test-agent"
+    );
+    expect(r.status).toBe(0);
+    expect(r.stdout.trim()).toBe("");
+    expect(readCreateArgs(PER_AGENT_SANDBOX)).toHaveLength(0);
+  });
+
+  it("scope=host bypasses Read hook too (no shadow sync)", () => {
+    const r = runHook(fixturePath("config-scope-host-main"));
+    // Switch to a Read event by running the hook with a different tool_name
+    const result = spawnSync("bash", [PRE_HOOK], {
+      input: JSON.stringify({
+        tool_name: "Read",
+        session_id: SESSION_ID,
+        tool_input: { file_path: "/etc/os-release" },
+      }),
+      encoding: "utf8",
+      env: {
+        ...process.env,
+        PATH: `${FAKE_MSB_DIR}:${process.env["PATH"]}`,
+        CLAUDE_PLUGIN_ROOT: PLUGIN_ROOT,
+        CLAUDE_PROJECT_DIR: fixturePath("config-scope-host-main"),
+      },
+    });
+    expect(result.status).toBe(0);
+    expect((result.stdout ?? "").trim()).toBe("");
+    void r;
+  });
+});

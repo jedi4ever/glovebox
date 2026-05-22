@@ -16,6 +16,11 @@ AGENT_TYPE="$(printf '%s' "$EVENT" | jq -r '.agent_type // empty')"
 EFFECTIVE_SANDBOX_NAME="$(config_agent_sandbox_name "$AGENT_TYPE" "$PROJECT_DIR/.cc-msb.yml")"
 EFFECTIVE_SCOPE="$(config_agent_scope "$AGENT_TYPE" "$PROJECT_DIR/.cc-msb.yml")"
 
+# scope=host: nothing to sync — tools ran directly on the host.
+if [[ "$EFFECTIVE_SCOPE" == "host" ]]; then
+  exit 0
+fi
+
 case "$TOOL_NAME" in
   mcp__*|WebSearch|WebFetch)
     exit 0

@@ -6,7 +6,7 @@
 #     agents:                  # defaults for all agents
 #       sandbox_image: ubuntu
 #       mount_workdir: true
-#       scope: session         # session | per-agent | per-run | named | directory
+#       scope: session         # session | per-agent | per-run | named | directory | host
 #       pass_env: none         # none | all | "VAR1,VAR2"
 #
 #   main:                      # main session settings (always explicit)

@@ -21,6 +21,12 @@ EFFECTIVE_SCOPE="$(config_agent_scope "$AGENT_TYPE" "$PROJECT_DIR/.cc-msb.yml")"
 EFFECTIVE_MOUNT_WORKDIR="$(config_agent_mount_workdir "$AGENT_TYPE" "$PROJECT_DIR/.cc-msb.yml")"
 EFFECTIVE_PASS_ENV="$(config_agent_pass_env "$AGENT_TYPE" "$PROJECT_DIR/.cc-msb.yml")"
 
+# scope=host: pass through every tool call unmodified — no sandbox, no shadow,
+# no rewrites. The agent runs directly on the host.
+if [[ "$EFFECTIVE_SCOPE" == "host" ]]; then
+  exit 0
+fi
+
 case "$TOOL_NAME" in
   mcp__*|WebSearch|WebFetch|Agent)
     exit 0
