@@ -78,13 +78,52 @@ sandbox_track() {
   echo "$name" >> "$state_dir/sandboxes"
 }
 
+# Emits one shell-quoted token per line for each `--env KEY=VALUE` pair derived from
+# a pass_env spec. The spec is "none" (or empty), "all", or a comma-separated list.
+# Output is suitable for: `mapfile -t arr < <(sandbox_env_args "$spec")`.
+# Args: spec
+sandbox_env_args() {
+  local spec="$1"
+  case "$spec" in
+    ""|none|None|NONE)
+      return 0
+      ;;
+    all|All|ALL)
+      while IFS= read -r -d '' kv; do
+        # Skip lines without an '=' (shouldn't happen with `env -0`, but be safe)
+        [[ "$kv" != *=* ]] && continue
+        printf '%s\n' "--env"
+        printf '%s\n' "$kv"
+      done < <(env -0)
+      ;;
+    *)
+      local var
+      while IFS= read -r var || [[ -n "$var" ]]; do
+        var="${var#"${var%%[![:space:]]*}"}"
+        var="${var%"${var##*[![:space:]]}"}"
+        [[ -z "$var" ]] && continue
+        if [[ -n "${!var+set}" ]]; then
+          printf '%s\n' "--env"
+          printf '%s\n' "$var=${!var}"
+        fi
+      done < <(printf '%s' "$spec" | tr ',' '\n')
+      ;;
+  esac
+}
+
 # Wraps a command to run in the sandbox and auto-destroy it afterward (per-run scope).
-# Args: name command
+# Args: name command [env_arg ...]
 sandbox_wrap_command_ephemeral() {
   local name="$1" command="$2"
+  shift 2
+  local env_args=("$@")
   local encoded
   encoded=$(printf '%s' "$command" | base64 | tr -d '\n')
-  echo "printf '%s' '$encoded' | base64 -d | msb exec '$name' -- bash; _ec=\$?; msb stop '$name' --quiet 2>/dev/null; msb remove '$name' --quiet 2>/dev/null; exit \$_ec"
+  local env_str=""
+  if (( ${#env_args[@]} > 0 )); then
+    env_str=$(printf ' %q' "${env_args[@]}")
+  fi
+  echo "printf '%s' '$encoded' | base64 -d | msb exec${env_str} '$name' -- bash; _ec=\$?; msb stop '$name' --quiet 2>/dev/null; msb remove '$name' --quiet 2>/dev/null; exit \$_ec"
 }
 
 sandbox_state_dir() {
@@ -176,9 +215,16 @@ sandbox_write_from_shadow() {
 
 # Wraps an arbitrary command to run inside the sandbox via base64 encoding,
 # avoiding any shell-escaping issues with the original command content.
+# Args: name command [env_arg ...]
 sandbox_wrap_command() {
   local name="$1" command="$2"
+  shift 2
+  local env_args=("$@")
   local encoded
   encoded=$(printf '%s' "$command" | base64 | tr -d '\n')
-  echo "printf '%s' '$encoded' | base64 -d | msb exec '$name' -- bash"
+  local env_str=""
+  if (( ${#env_args[@]} > 0 )); then
+    env_str=$(printf ' %q' "${env_args[@]}")
+  fi
+  echo "printf '%s' '$encoded' | base64 -d | msb exec${env_str} '$name' -- bash"
 }

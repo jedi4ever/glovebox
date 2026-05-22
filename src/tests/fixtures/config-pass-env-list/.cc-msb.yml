@@ -1,0 +1,2 @@
+main:
+  pass_env: "TEST_PASS_ENV_VAR,SECOND_VAR"

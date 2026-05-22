@@ -1,0 +1,3 @@
+defaults:
+  agents:
+    pass_env: "DEFAULT_VAR_A,DEFAULT_VAR_B"

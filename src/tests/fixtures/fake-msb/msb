@@ -40,9 +40,25 @@ case "$SUBCMD" in
     rm -f "/tmp/fake-msb-${NAME}.state"
     ;;
   exec)
-    # msb exec <name> -- <cmd> [args...]
+    # msb exec [--env KEY=VAL ...] <name> -- <cmd> [args...]
     shift              # skip "exec" subcommand
-    shift              # skip sandbox name
+    ENV_ARGS=()
+    while [[ $# -gt 0 ]]; do
+      case "$1" in
+        --env|-e)
+          ENV_ARGS+=("$2")
+          shift 2
+          ;;
+        *)
+          break
+          ;;
+      esac
+    done
+    NAME="${1:-}"
+    shift || true
+    if (( ${#ENV_ARGS[@]} > 0 )); then
+      printf '%s\n' "${ENV_ARGS[@]}" > "/tmp/fake-msb-${NAME}.exec-env"
+    fi
     [[ "${1:-}" == "--" ]] && shift  # skip "--"
 
     CMD="${1:-bash}"

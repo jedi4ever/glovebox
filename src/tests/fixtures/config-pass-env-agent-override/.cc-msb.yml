@@ -1,0 +1,7 @@
+defaults:
+  agents:
+    pass_env: "DEFAULT_VAR"
+
+agents:
+  test-agent:
+    pass_env: "AGENT_VAR"

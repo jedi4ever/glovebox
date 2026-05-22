@@ -7,17 +7,20 @@
 #       sandbox_image: ubuntu
 #       mount_workdir: true
 #       scope: session         # session | per-agent | per-run | named | directory
+#       pass_env: none         # none | all | "VAR1,VAR2"
 #
 #   main:                      # main session settings (always explicit)
 #     scope: named
 #     sandbox_name: foo
 #     sandbox_image: debian
+#     pass_env: "HOME,PATH"
 #
 #   agents:                    # per-agent overrides (inherit from defaults.agents)
 #     test-agent:
 #       scope: per-run
 #       sandbox_image: alpine
 #       sandbox_name: bar
+#       pass_env: all
 
 # Returns a value from a named top-level section block.
 # Usage: config_yaml_get_section file section key
@@ -273,4 +276,61 @@ config_agent_sandbox_name() {
   fi
 
   echo "${CC_MSB_SANDBOX_NAME:-}"
+}
+
+# Returns the effective pass_env spec for a given agent type.
+#
+# Values:
+#   "none" — pass no host env vars (default)
+#   "all"  — pass every host env var
+#   "VAR1,VAR2,..." — pass only the listed vars (if defined on the host)
+#
+# Main session (no agent_type):
+#   1. CC_MSB_MAIN_PASS_ENV env var
+#   2. main.pass_env in config file
+#   3. defaults.agents.pass_env in config file
+#   4. none
+#
+# Agents:
+#   1. CC_MSB_AGENT_PASS_ENV_<UPPER_SNAKE> env var
+#   2. agents.<name>.pass_env in config file
+#   3. defaults.agents.pass_env in config file
+#   4. none
+#
+# Args: agent_type, config_file
+config_agent_pass_env() {
+  local agent_type="$1" config_file="$2"
+
+  if [[ -z "$agent_type" ]]; then
+    [[ -n "${CC_MSB_MAIN_PASS_ENV:-}" ]] && echo "$CC_MSB_MAIN_PASS_ENV" && return
+    if [[ -f "$config_file" ]]; then
+      local val
+      val="$(config_yaml_get_section "$config_file" "main" "pass_env")"
+      [[ -n "$val" ]] && echo "$val" && return
+      val="$(config_yaml_get_nested "$config_file" "defaults" "agents" "pass_env")"
+      [[ -n "$val" ]] && echo "$val" && return
+    fi
+    echo "none"
+    return
+  fi
+
+  local snake="${agent_type//-/_}"
+  local upper
+  upper="$(printf '%s' "$snake" | tr '[:lower:]' '[:upper:]')"
+
+  local env_var="CC_MSB_AGENT_PASS_ENV_${upper}"
+  local env_val="${!env_var:-}"
+  if [[ -n "$env_val" ]]; then
+    echo "$env_val"
+    return
+  fi
+
+  if [[ -f "$config_file" ]]; then
+    local val
+    val="$(config_yaml_get_nested "$config_file" "agents" "$agent_type" "pass_env")"
+    [[ -n "$val" ]] && echo "$val" && return
+    val="$(config_yaml_get_nested "$config_file" "defaults" "agents" "pass_env")"
+    [[ -n "$val" ]] && echo "$val" && return
+  fi
+  echo "none"
 }

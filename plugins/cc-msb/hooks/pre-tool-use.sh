@@ -19,6 +19,7 @@ EFFECTIVE_IMAGE="$(config_agent_image "$AGENT_TYPE" "$PROJECT_DIR/.cc-msb.yml")"
 EFFECTIVE_SANDBOX_NAME="$(config_agent_sandbox_name "$AGENT_TYPE" "$PROJECT_DIR/.cc-msb.yml")"
 EFFECTIVE_SCOPE="$(config_agent_scope "$AGENT_TYPE" "$PROJECT_DIR/.cc-msb.yml")"
 EFFECTIVE_MOUNT_WORKDIR="$(config_agent_mount_workdir "$AGENT_TYPE" "$PROJECT_DIR/.cc-msb.yml")"
+EFFECTIVE_PASS_ENV="$(config_agent_pass_env "$AGENT_TYPE" "$PROJECT_DIR/.cc-msb.yml")"
 
 case "$TOOL_NAME" in
   mcp__*|WebSearch|WebFetch|Agent)
@@ -43,10 +44,15 @@ case "$TOOL_NAME" in
       sandbox_track "$SESSION_ID" "$SANDBOX"
     fi
 
+    SANDBOX_BASH_ENV_ARGS=()
+    while IFS= read -r line; do
+      [[ -n "$line" ]] && SANDBOX_BASH_ENV_ARGS+=("$line")
+    done < <(sandbox_env_args "$EFFECTIVE_PASS_ENV")
+
     if [[ "$EFFECTIVE_SCOPE" == "per-run" ]]; then
-      emit_allow_rewrite "$(sandbox_wrap_command_ephemeral "$SANDBOX" "$COMMAND")"
+      emit_allow_rewrite "$(sandbox_wrap_command_ephemeral "$SANDBOX" "$COMMAND" ${SANDBOX_BASH_ENV_ARGS[@]+"${SANDBOX_BASH_ENV_ARGS[@]}"})"
     else
-      emit_allow_rewrite "$(sandbox_wrap_command "$SANDBOX" "$COMMAND")"
+      emit_allow_rewrite "$(sandbox_wrap_command "$SANDBOX" "$COMMAND" ${SANDBOX_BASH_ENV_ARGS[@]+"${SANDBOX_BASH_ENV_ARGS[@]}"})"
     fi
     exit 0
     ;;
