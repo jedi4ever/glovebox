@@ -1,12 +1,13 @@
 import { describe, it, expect } from "vitest";
 import { createCleanSession } from "../helpers/session.js";
 
-// Verifies the SessionStart `session-start.sh` hook actually shapes Claude's
-// notion of its environment. After the hook runs, when asked about the OS,
-// Claude should report Linux/Ubuntu (the sandbox), not Darwin (the host).
+// Verifies that OS-level info Claude reports reflects the sandbox, not the
+// host. The SessionStart hook (scripts/session-start.sh) introspects the
+// sandbox and injects an additionalContext block; the assertion below is the
+// end-to-end check that the block actually steers Claude's answer.
 
-describe.concurrent("session-start integration", () => {
-  it("OS-level info (operating system) reflects the sandbox, not the host", async () => {
+describe.concurrent("sandbox OS-level info", () => {
+  it("operating system reported reflects the sandbox, not the host", async () => {
     const session = await createCleanSession();
     try {
       const result = await session.run(
