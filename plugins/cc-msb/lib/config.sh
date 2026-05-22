@@ -8,12 +8,14 @@
 #       mount_workdir: true
 #       scope: session         # session | per-agent | per-run | named | directory | host
 #       pass_env: none         # none | all | "VAR1,VAR2"
+#       network: enabled       # enabled | disabled | "domain1,domain2"
 #
 #   main:                      # main session settings (always explicit)
 #     scope: named
 #     sandbox_name: foo
 #     sandbox_image: debian
 #     pass_env: "HOME,PATH"
+#     network: "github.com,api.openai.com"
 #
 #   agents:                    # per-agent overrides (inherit from defaults.agents)
 #     test-agent:
@@ -333,4 +335,51 @@ config_agent_pass_env() {
     [[ -n "$val" ]] && echo "$val" && return
   fi
   echo "none"
+}
+
+# Returns the effective network spec for a given agent type.
+#
+# Values:
+#   "enabled"  — full network access (msb default)
+#   "disabled" — no network at all (`--no-net`)
+#   "domain1,domain2,..." — allow only these domains, deny everything else
+#
+# Resolution chain mirrors config_agent_pass_env.
+#
+# Args: agent_type, config_file
+config_agent_network() {
+  local agent_type="$1" config_file="$2"
+
+  if [[ -z "$agent_type" ]]; then
+    [[ -n "${CC_MSB_MAIN_NETWORK:-}" ]] && echo "$CC_MSB_MAIN_NETWORK" && return
+    if [[ -f "$config_file" ]]; then
+      local val
+      val="$(config_yaml_get_section "$config_file" "main" "network")"
+      [[ -n "$val" ]] && echo "$val" && return
+      val="$(config_yaml_get_nested "$config_file" "defaults" "agents" "network")"
+      [[ -n "$val" ]] && echo "$val" && return
+    fi
+    echo "enabled"
+    return
+  fi
+
+  local snake="${agent_type//-/_}"
+  local upper
+  upper="$(printf '%s' "$snake" | tr '[:lower:]' '[:upper:]')"
+
+  local env_var="CC_MSB_AGENT_NETWORK_${upper}"
+  local env_val="${!env_var:-}"
+  if [[ -n "$env_val" ]]; then
+    echo "$env_val"
+    return
+  fi
+
+  if [[ -f "$config_file" ]]; then
+    local val
+    val="$(config_yaml_get_nested "$config_file" "agents" "$agent_type" "network")"
+    [[ -n "$val" ]] && echo "$val" && return
+    val="$(config_yaml_get_nested "$config_file" "defaults" "agents" "network")"
+    [[ -n "$val" ]] && echo "$val" && return
+  fi
+  echo "enabled"
 }

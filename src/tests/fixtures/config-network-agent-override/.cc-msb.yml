@@ -1,0 +1,7 @@
+defaults:
+  agents:
+    network: disabled
+
+agents:
+  test-agent:
+    network: "example.com"

@@ -137,12 +137,42 @@ sandbox_status() {
   printf '%s' "$json" | jq -r '.status // empty' 2>/dev/null || echo ""
 }
 
+# Emits one shell-quoted token per line per `msb create` network flag derived
+# from a network spec. Output is suitable for: `mapfile -t arr < <(sandbox_network_args "$spec")`.
+# Spec values:
+#   "enabled" (or empty) — no flags (msb default = full access)
+#   "disabled"           — emits `--no-net`
+#   "d1,d2,..."          — emits `--net-rule allow@<domain>` per entry
+# Args: spec
+sandbox_network_args() {
+  local spec="$1"
+  case "$spec" in
+    ""|enabled|Enabled|ENABLED)
+      return 0
+      ;;
+    disabled|Disabled|DISABLED)
+      printf '%s\n' "--no-net"
+      ;;
+    *)
+      local domain
+      while IFS= read -r domain || [[ -n "$domain" ]]; do
+        domain="${domain#"${domain%%[![:space:]]*}"}"
+        domain="${domain%"${domain##*[![:space:]]}"}"
+        [[ -z "$domain" ]] && continue
+        printf '%s\n' "--net-rule"
+        printf '%s\n' "allow@${domain}"
+      done < <(printf '%s' "$spec" | tr ',' '\n')
+      ;;
+  esac
+}
+
 # Ensures the named sandbox is running. Creates it if it doesn't exist.
-# Args: name, project_dir, log_file [image [mount_workdir]]
+# Args: name, project_dir, log_file [image [mount_workdir [network_spec]]]
 sandbox_ensure_running() {
   local name="$1" project_dir="$2" log_file="$3"
   local image="${4:-${CC_MSB_SANDBOX_IMAGE:-ubuntu}}"
   local mount_workdir="${5:-true}"
+  local network_spec="${6:-enabled}"
   local status
   status=$(sandbox_status "$name")
 
@@ -157,6 +187,13 @@ sandbox_ensure_running() {
       local create_args=("$image" --name "$name" --workdir /workspace --quiet)
       if [[ "$mount_workdir" == "true" ]]; then
         create_args+=(--volume "$project_dir:/workspace")
+      fi
+      local net_args=()
+      while IFS= read -r line; do
+        [[ -n "$line" ]] && net_args+=("$line")
+      done < <(sandbox_network_args "$network_spec")
+      if (( ${#net_args[@]} > 0 )); then
+        create_args+=("${net_args[@]}")
       fi
       msb create "${create_args[@]}" 2>>"$log_file"
       ;;

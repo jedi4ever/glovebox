@@ -1,0 +1,2 @@
+main:
+  network: "example.com,api.github.com"

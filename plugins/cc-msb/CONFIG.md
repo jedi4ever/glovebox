@@ -108,6 +108,20 @@ Applied at exec time, so each Bash call sees the current host env. Internal shad
 
 **Env override**: `CC_MSB_MAIN_PASS_ENV`, `CC_MSB_AGENT_PASS_ENV_<NAME>`
 
+### `network`
+
+Outbound network policy for the sandbox.
+
+| Value | Behavior |
+|---|---|
+| `enabled` *(default)* | Full network access — msb's normal behavior (egress allowed to public addresses). |
+| `disabled` | Complete network isolation — adds `--no-net` to `msb create`. |
+| `"domain1,domain2,..."` | Allowlist: only the listed domains are reachable; everything else is denied. Translates to one `--net-rule allow@<domain>` per entry. |
+
+Applied at sandbox-creation time, so the policy is fixed for the sandbox's lifetime. Changing `network` for a long-lived sandbox (named/directory scope) only takes effect when the sandbox is destroyed and recreated.
+
+**Env override**: `CC_MSB_MAIN_NETWORK`, `CC_MSB_AGENT_NETWORK_<NAME>`
+
 ## Env-var naming
 
 - Main settings use a fixed name: `CC_MSB_MAIN_<SETTING>` (e.g. `CC_MSB_MAIN_SCOPE`).
@@ -172,4 +186,13 @@ agents:
 ```yaml
 main:
   pass_env: "ANTHROPIC_API_KEY,GITHUB_TOKEN"
+```
+
+### Air-gapped main session, allowlisted agents
+```yaml
+main:
+  network: disabled
+agents:
+  fetcher:
+    network: "registry.npmjs.org,github.com,objects.githubusercontent.com"
 ```

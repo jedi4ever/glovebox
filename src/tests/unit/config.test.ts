@@ -485,6 +485,73 @@ describe("config — pass_env", () => {
   });
 });
 
+describe("config — network", () => {
+  it("default (no config): no network flags on msb create", () => {
+    runHook(fixturePath("simple-read"));
+    const args = readCreateArgs();
+    expect(args).not.toContain("--no-net");
+    expect(args).not.toContain("--net-rule");
+  });
+
+  it("main.network=disabled: adds --no-net to msb create", () => {
+    runHook(fixturePath("config-network-disabled"));
+    const args = readCreateArgs();
+    expect(args).toContain("--no-net");
+  });
+
+  it("main.network=<list>: emits --net-rule allow@<domain> per entry", () => {
+    runHook(fixturePath("config-network-allowlist"));
+    const args = readCreateArgs();
+    // Each domain becomes a pair: "--net-rule" + "allow@<domain>"
+    expect(args).toContain("--net-rule");
+    expect(args).toContain("allow@example.com");
+    expect(args).toContain("allow@api.github.com");
+    expect(args).not.toContain("--no-net");
+  });
+
+  it("agent override beats defaults.agents.network", () => {
+    runHook(fixturePath("config-network-agent-override"), {}, "test-agent");
+    // Agent uses the session sandbox (default scope) — args land there.
+    const args = readCreateArgs();
+    // test-agent has network: "example.com", so we get a rule, not --no-net.
+    expect(args).toContain("--net-rule");
+    expect(args).toContain("allow@example.com");
+    expect(args).not.toContain("--no-net");
+  });
+
+  it("unlisted agent falls back to defaults.agents.network=disabled", () => {
+    runHook(fixturePath("config-network-agent-override"), {}, "other-agent");
+    // other-agent has no override → defaults.agents.network: disabled
+    // With per-agent default scope=session (no config there), other-agent
+    // uses the session sandbox. Inspect main sandbox args.
+    const args = readCreateArgs();
+    expect(args).toContain("--no-net");
+  });
+
+  it("CC_MSB_MAIN_NETWORK overrides config file", () => {
+    runHook(fixturePath("config-network-allowlist"), { CC_MSB_MAIN_NETWORK: "disabled" });
+    const args = readCreateArgs();
+    expect(args).toContain("--no-net");
+    expect(args).not.toContain("allow@example.com");
+  });
+
+  it("CC_MSB_AGENT_NETWORK_<NAME> overrides agent file config", () => {
+    runHook(
+      fixturePath("config-network-agent-override"),
+      { CC_MSB_AGENT_NETWORK_TEST_AGENT: "disabled" },
+      "test-agent"
+    );
+    const args = readCreateArgs();
+    expect(args).toContain("--no-net");
+  });
+
+  it("CC_MSB_MAIN_NETWORK=enabled disables network restrictions", () => {
+    runHook(fixturePath("config-network-disabled"), { CC_MSB_MAIN_NETWORK: "enabled" });
+    const args = readCreateArgs();
+    expect(args).not.toContain("--no-net");
+  });
+});
+
 describe("config — scope: host", () => {
   it("main scope=host: Bash hook passes through (no rewrite, no sandbox create)", () => {
     const r = runHook(fixturePath("config-scope-host-main"));
