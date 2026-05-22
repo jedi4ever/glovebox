@@ -211,6 +211,24 @@ describe("config — scope", () => {
   });
 });
 
+describe("config — main section", () => {
+  it("main.sandbox_image overrides global for the main session", () => {
+    runHook(fixturePath("config-main-image"));
+    expect(readCreateArgs()[0]).toBe("debian");
+  });
+
+  it("agents fall back to global sandbox_image, ignoring main.sandbox_image", () => {
+    runHook(fixturePath("config-main-image"), {}, "test-agent");
+    // session scope: agent shares main sandbox; image is global default, not main.sandbox_image
+    expect(readCreateArgs(SANDBOX_NAME)[0]).toBe("ubuntu");
+  });
+
+  it("CC_MSB_SANDBOX_IMAGE env var overrides main.sandbox_image", () => {
+    runHook(fixturePath("config-main-image"), { CC_MSB_SANDBOX_IMAGE: "alpine" });
+    expect(readCreateArgs()[0]).toBe("alpine");
+  });
+});
+
 describe("config — scope: named", () => {
   const NAMED_SANDBOX = "cc-msb-test-named";
   const NAMED_AGENT_SANDBOX = "cc-msb-test-named-agent";

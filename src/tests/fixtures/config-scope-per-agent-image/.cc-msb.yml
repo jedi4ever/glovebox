@@ -1,3 +1,6 @@
 scope: per-agent
 sandbox_image: ubuntu
-agent_image_test_agent: debian
+
+agents:
+  test-agent:
+    sandbox_image: debian

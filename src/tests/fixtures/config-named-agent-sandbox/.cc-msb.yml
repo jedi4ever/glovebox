@@ -1,3 +1,8 @@
 scope: named
-sandbox_name: cc-msb-test-named-main
-agent_sandbox_name_test_agent: cc-msb-test-named-agent
+
+main:
+  sandbox_name: cc-msb-test-named-main
+
+agents:
+  test-agent:
+    sandbox_name: cc-msb-test-named-agent
