@@ -51,6 +51,12 @@ describe("session-start.sh — SessionStart hook", () => {
     expect(ctx).toMatch(/OVERRIDES host/i);
     expect(ctx).toMatch(/Sandbox name: cc-msb-unit-session-st/);
     expect(ctx).toMatch(/Scope: session/);
+    // New fields that override the host's identity-leaking values.
+    expect(ctx).toMatch(/User:/);
+    expect(ctx).toMatch(/Home directory:/);
+    expect(ctx).toMatch(/Working directory:/);
+    // Explicit instruction to ignore host-side paths.
+    expect(ctx).toMatch(/\/Users\/\*/);
   });
 
   it("scope=host: emits a 'tools run on host' note, does not create a sandbox", () => {

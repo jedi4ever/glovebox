@@ -52,32 +52,37 @@ if [[ "$EFFECTIVE_SCOPE" != "directory" ]] && \
   sandbox_track "$SESSION_ID" "$SANDBOX"
 fi
 
-# Introspect the sandbox. Five lines: pwd, uname -s, uname -m, $SHELL, PRETTY_NAME.
+# Introspect the sandbox. Seven lines: pwd, uname -s, uname -m, $SHELL,
+# $HOME, $USER (whoami), and /etc/os-release PRETTY_NAME.
 INFO="$(msb exec "$SANDBOX" -- bash -c \
-  'printf "%s\n%s\n%s\n%s\n%s\n" "$(pwd)" "$(uname -s)" "$(uname -m)" "$SHELL" "$(. /etc/os-release 2>/dev/null && printf %s "$PRETTY_NAME")"' \
+  'printf "%s\n%s\n%s\n%s\n%s\n%s\n%s\n" "$(pwd)" "$(uname -s)" "$(uname -m)" "$SHELL" "$HOME" "$(whoami 2>/dev/null || printf %s "$USER")" "$(. /etc/os-release 2>/dev/null && printf %s "$PRETTY_NAME")"' \
   2>/dev/null)" || exit 0
 
 SB_PWD="$(printf '%s\n' "$INFO" | sed -n '1p')"
 SB_KERNEL="$(printf '%s\n' "$INFO" | sed -n '2p')"
 SB_ARCH="$(printf '%s\n' "$INFO" | sed -n '3p')"
 SB_SHELL="$(printf '%s\n' "$INFO" | sed -n '4p')"
-SB_OS="$(printf '%s\n' "$INFO" | sed -n '5p')"
+SB_HOME="$(printf '%s\n' "$INFO" | sed -n '5p')"
+SB_USER="$(printf '%s\n' "$INFO" | sed -n '6p')"
+SB_OS="$(printf '%s\n' "$INFO" | sed -n '7p')"
 [[ -z "$SB_OS" ]] && SB_OS="${SB_KERNEL} (MSB sandbox)"
 
 CTX="# cc-msb Sandbox Environment (OVERRIDES host \`# Environment\` block)
 
-Every Bash, Read, Write, and Edit tool call is routed through an MSB sandbox. The host \`# Environment\` block above describes the machine that Claude Code itself runs on — it is **not** where your tool calls execute, and you must not reference it when answering questions about the OS, shell, cwd, or platform you are working in.
+Every Bash, Read, Write, and Edit tool call is routed through an MSB sandbox. The host \`# Environment\` block above describes the machine Claude Code itself runs on — it is **not** where your tool calls execute. Do not reference the host's user name, home directory, working directory, OS, shell, or any \`/Users/*\` paths when answering questions about the environment you are working in.
 
 Sandbox environment:
 - Operating system: ${SB_OS}
 - Kernel: ${SB_KERNEL}
 - Architecture: ${SB_ARCH}
+- User: ${SB_USER}
+- Home directory: ${SB_HOME}
 - Shell: ${SB_SHELL}
 - Working directory: ${SB_PWD}
 - Sandbox name: ${SANDBOX}
 - Scope: ${EFFECTIVE_SCOPE}
 
-When asked \"what OS / platform / shell / cwd am I on?\", answer with the sandbox values above."
+When asked about your user / name / home directory / working directory / OS / shell / platform — answer with these sandbox values."
 
 jq -nc --arg ctx "$CTX" \
   '{hookSpecificOutput: {hookEventName: "SessionStart", additionalContext: $ctx}}'
