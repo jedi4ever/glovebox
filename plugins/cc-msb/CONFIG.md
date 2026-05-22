@@ -6,18 +6,20 @@ This file is read from the **project root** (`$CLAUDE_PROJECT_DIR/.cc-msb.yml`) 
 
 ```yaml
 defaults:
-  agents:                 # defaults applied to every agent (not main)
-    scope: session
+  agents:                 # defaults inherited by every agent — and by `main`
+    scope: session        # as a fallback when main.<setting> is not set
     sandbox_image: ubuntu
     mount_workdir: true
     pass_env: none
+    network: enabled
 
-main:                     # settings for the main session — always explicit
+main:                     # main-session settings
   scope: named
   sandbox_name: my-project
   sandbox_image: debian
   mount_workdir: true
   pass_env: "HOME,PATH"
+  network: "github.com,api.openai.com"
 
 agents:                   # per-agent overrides — inherit from defaults.agents
   test-agent:
@@ -27,9 +29,10 @@ agents:                   # per-agent overrides — inherit from defaults.agents
     scope: named
     sandbox_name: reviewer-sandbox
     pass_env: all
+    network: disabled
 ```
 
-There is no `defaults.main:` sub-section. Main settings are always written in full under `main:`.
+There is no `defaults.main:` sub-section. The `defaults.agents:` block doubles as the fallback layer for `main` settings that aren't explicitly set under `main:` (except `sandbox_name`, which is per-context).
 
 ## Resolution order
 
@@ -38,7 +41,7 @@ Every setting follows the same precedence chain, from highest to lowest:
 **Main session** (no agent context)
 1. Env var (`CC_MSB_MAIN_*` or the legacy `CC_MSB_SANDBOX_IMAGE`/`CC_MSB_SANDBOX_NAME`)
 2. `main.<setting>` in the config file
-3. `defaults.agents.<setting>` in the config file *(for `sandbox_image`, `mount_workdir`, `scope`, `pass_env`)*
+3. `defaults.agents.<setting>` in the config file *(for `scope`, `sandbox_image`, `mount_workdir`, `pass_env`, `network`)*
 4. Built-in default
 
 **Agent** (`agent_type` present in the event)
@@ -46,6 +49,8 @@ Every setting follows the same precedence chain, from highest to lowest:
 2. `agents.<name>.<setting>` in the config file
 3. `defaults.agents.<setting>` in the config file
 4. Built-in default
+
+`sandbox_name` is the one exception to the chain above: it is per-context and never inherited from `defaults.agents`. Agents fall back to the main session's `sandbox_name` (or `CC_MSB_SANDBOX_NAME`) when their own isn't set. `sandbox_image` for agents has an extra step too — the legacy `CC_MSB_SANDBOX_IMAGE` env var is consulted between the agent's own config and `defaults.agents`.
 
 ## Settings
 
