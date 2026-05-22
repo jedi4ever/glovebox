@@ -2,3 +2,13 @@ https://code.claude.com/docs/en/skills#frontmatter-reference
 https://code.claude.com/docs/en/hooks#hooks-in-skills-and-agents
 https://code.claude.com/docs/en/plugins-reference#metadata-fields
 https://microsandbox.dev/
+
+
+  │ Prove CC honored CLAUDE_CODE_SHELL   │ Added CC_MSB_SHELL_TRACE_LOG opt-in to the shim; test sets it via settings.local.json env and asserts the log has    │
+  │                                      │ entries                                                                                                              │
+  ├──────────────────────────────────────┼──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┤
+  │ Cleanup race vs claude writing into  │ 500 ms wait after tui.kill() + swallow ENOTEMPTY                                                                     │
+  │ configDir                            │                                                                                                                      │
+  ├──────────────────────────────────────┼──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┤
+  │ node-pty binary missing after npm i  │ npx node-gyp rebuild inside node_modules/node-pty/                                                                   │
+  └──────────────────────────────────────┴──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┘

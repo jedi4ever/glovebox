@@ -17,9 +17,13 @@
 #
 #   {
 #     "env": {
-#       "CLAUDE_CODE_SHELL": "${CLAUDE_PLUGIN_ROOT}/skills/shell/cc-msb-bash.sh"
+#       "CLAUDE_CODE_SHELL": "<absolute path to this file>"
 #     }
 #   }
+#
+# Note: ${CLAUDE_PLUGIN_ROOT} only expands inside MCP/LSP/hook `command`
+# fields, NOT inside `env` values. You have to hard-code the path.
+# Discover it with: find "$HOME/.claude/plugins" -name cc-msb-bash.sh
 
 set -uo pipefail
 

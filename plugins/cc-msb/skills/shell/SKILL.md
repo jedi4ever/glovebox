@@ -9,12 +9,20 @@ By default, `!cmd` typed in Claude Code's input box runs on the **host** — sep
 
 ## Activate
 
-Add an `env.CLAUDE_CODE_SHELL` entry to your project's `.claude/settings.json` (or `.claude/settings.local.json` for personal opt-in):
+Add an `env.CLAUDE_CODE_SHELL` entry to your project's `.claude/settings.json` (or `.claude/settings.local.json` for personal opt-in). The value **must be an absolute path** — Claude Code does not expand `${CLAUDE_PLUGIN_ROOT}` or any other plugin-relative variable inside `env.*` values (only MCP/LSP/hook `command` fields support that).
+
+The shim ships with this skill at:
+
+```
+!`echo "${CLAUDE_SKILL_DIR}/cc-msb-bash.sh"`
+```
+
+Paste that absolute path into your settings:
 
 ```json
 {
   "env": {
-    "CLAUDE_CODE_SHELL": "${CLAUDE_PLUGIN_ROOT}/skills/shell/cc-msb-bash.sh"
+    "CLAUDE_CODE_SHELL": "<paste the path above>"
   }
 }
 ```
@@ -23,7 +31,6 @@ Start (or restart) Claude Code from this project. From that point on, every `!` 
 
 ## How it works
 
-The shim follows the gondolin-sandbox `gondolin-bash.sh` pattern:
 
 1. Parses the bash invocation (`-c <cmd>`, bare command string, script file, interactive). Only `-c <cmd>` (and the equivalent bare-string form CC sometimes uses) is rewritten — every other form is deferred to real `/bin/bash`.
 2. Skips already-wrapped commands so Bash-tool calls (which the PreToolUse hook has already rewritten as `printf '%s' '<b64>' | base64 -d | msb exec '<name>' -- bash`) aren't double-wrapped.
