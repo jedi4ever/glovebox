@@ -18,7 +18,7 @@ AGENT_TYPE="$(printf '%s' "$EVENT" | jq -r '.agent_type // empty')"
 EFFECTIVE_IMAGE="$(config_agent_image "$AGENT_TYPE" "$PROJECT_DIR/.cc-msb.yml")"
 
 case "$TOOL_NAME" in
-  mcp__*|WebSearch|WebFetch)
+  mcp__*|WebSearch|WebFetch|Agent)
     exit 0
     ;;
 

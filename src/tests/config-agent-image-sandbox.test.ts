@@ -1,5 +1,5 @@
 import { describe, it, expect, afterEach } from "vitest";
-import { mkdtemp, rm, copyFile } from "node:fs/promises";
+import { mkdtemp, rm, cp } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { createCleanSession, type CleanSession } from "../helpers/session.js";
@@ -14,30 +14,24 @@ describe("config — agent-specific image integration", () => {
     if (projectDir) await rm(projectDir, { recursive: true, force: true });
   });
 
-  it("uses agent-specific image when agent_type matches config", async () => {
+  it("uses agent-specific image when test-agent subagent is invoked", async () => {
     projectDir = await mkdtemp(join(tmpdir(), "cc-msb-agent-image-"));
-    await copyFile(
-      fixturePath("config-agent-image", ".cc-msb.yml"),
-      join(projectDir, ".cc-msb.yml")
-    );
+    await cp(fixturePath("config-agent-image"), projectDir, { recursive: true });
 
-    session = await createCleanSession({ cwd: projectDir, agentType: "test-agent" });
+    session = await createCleanSession({ cwd: projectDir });
     const result = await session.run(
-      "Run a bash command to read /etc/os-release and tell me what NAME= says."
+      "Use the test-agent to check what OS its sandbox is running. " +
+      "Ask it to run `cat /etc/os-release` and report what the NAME= line says."
     );
 
     expect(result.exitCode).toBe(0);
     expect(result.stdout).toMatch(/debian/i);
   });
 
-  it("falls back to global sandbox_image for an unlisted agent type", async () => {
+  it("falls back to global sandbox_image when no agent-specific image is configured", async () => {
     projectDir = await mkdtemp(join(tmpdir(), "cc-msb-agent-image-fallback-"));
-    await copyFile(
-      fixturePath("config-agent-image", ".cc-msb.yml"),
-      join(projectDir, ".cc-msb.yml")
-    );
 
-    session = await createCleanSession({ cwd: projectDir, agentType: "other-agent" });
+    session = await createCleanSession({ cwd: projectDir });
     const result = await session.run(
       "Run a bash command to read /etc/os-release and tell me what NAME= says."
     );

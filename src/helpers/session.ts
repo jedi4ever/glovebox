@@ -4,7 +4,7 @@ import { join } from "node:path";
 import { spawn } from "node:child_process";
 
 const PLUGIN_DIR = new URL("../../plugins/cc-msb", import.meta.url).pathname;
-const SANDBOXED_TOOLS = ["Bash", "Read", "Write", "Edit", "MultiEdit"];
+const SANDBOXED_TOOLS = ["Bash", "Read", "Write", "Edit", "MultiEdit", "Agent"];
 
 export interface SessionResult {
   stdout: string;
