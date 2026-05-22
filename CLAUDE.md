@@ -44,7 +44,16 @@ Test cases:
 - run them using a clean claude code session
 - add unit tests too
 - see if we plugin checks for the right software installed
+- never write destructive commands inside a sandbox
 
 
+Make the bash code simple and understandable
+Bundle shared logic in a lib
+Keep shell and js files short and readable
 
+Functionality:
+- Each bash command in claude runs in a micro sandbox
+- The sandbox is created/destroyed per session
 
+Keep the hooks clear names and seperarte in logic to follow
+Make sure to do correct shell escsping where necessary
