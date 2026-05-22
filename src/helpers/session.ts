@@ -14,6 +14,7 @@ export interface SessionResult {
 
 export interface SessionOptions {
   env?: Record<string, string>;
+  cwd?: string;
 }
 
 export interface CleanSession {
@@ -46,6 +47,7 @@ export async function createCleanSession(options: SessionOptions = {}): Promise<
             prompt,
           ],
           {
+            cwd: options.cwd,
             env: {
               ...process.env,
               ANTHROPIC_API_KEY: apiKey,

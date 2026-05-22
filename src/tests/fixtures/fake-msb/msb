@@ -1,11 +1,10 @@
 #!/usr/bin/env bash
-# Fake msb for unit tests. Simulates msb status/create/start/stop/remove
+# Fake msb for unit tests. Simulates msb status/create/start/stop/remove/exec
 # without creating real sandboxes.
 SUBCMD="${1:-}"
 
 case "$SUBCMD" in
   status)
-    # Positional: msb status <name> [--format json]
     NAME="${2:-}"
     if [[ -f "/tmp/fake-msb-${NAME}.state" ]]; then
       STATE=$(cat "/tmp/fake-msb-${NAME}.state")
@@ -16,14 +15,16 @@ case "$SUBCMD" in
     fi
     ;;
   create)
-    # Extract --name value
     NAME=""
+    ARGS=("$@")
     while [[ $# -gt 0 ]]; do
       if [[ "$1" == "--name" ]]; then NAME="$2"; fi
       shift
     done
     [[ -z "$NAME" ]] && NAME="unnamed"
     echo "Running" > "/tmp/fake-msb-${NAME}.state"
+    # Log the full create args for test assertions
+    printf '%s\n' "${ARGS[@]}" > "/tmp/fake-msb-${NAME}.create-args"
     ;;
   start)
     NAME="${2:-}"
@@ -38,8 +39,34 @@ case "$SUBCMD" in
     rm -f "/tmp/fake-msb-${NAME}.state"
     ;;
   exec)
-    # msb exec <name> -- bash: decode and run the piped command
-    cat | bash
+    # msb exec <name> -- <cmd> [args...]
+    shift              # skip "exec" subcommand
+    shift              # skip sandbox name
+    [[ "${1:-}" == "--" ]] && shift  # skip "--"
+
+    CMD="${1:-bash}"
+    shift || true
+
+    case "$CMD" in
+      bash)
+        # Bash rewrite: decode base64-piped command from stdin
+        cat | bash
+        ;;
+      cat)
+        # Read hook: return fake sandbox content for the requested path
+        FILE="${1:-}"
+        FIXTURE_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/fixtures" 2>/dev/null && pwd || echo "")"
+        FIXTURE="$FIXTURE_DIR$FILE"
+        if [[ -n "$FIXTURE_DIR" && -f "$FIXTURE" ]]; then
+          cat "$FIXTURE"
+        else
+          echo "FAKE_SANDBOX_CONTENT: $FILE"
+        fi
+        ;;
+      *)
+        "$CMD" "$@"
+        ;;
+    esac
     ;;
   *)
     echo "fake-msb: unknown subcommand $SUBCMD" >&2
