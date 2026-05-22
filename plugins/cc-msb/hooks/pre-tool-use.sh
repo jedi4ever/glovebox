@@ -91,15 +91,13 @@ case "$TOOL_NAME" in
     sandbox_resolve_path "$FILE_PATH" "$PROJECT_DIR" "$STATE_DIR"
 
     if [[ "$SANDBOX_NEEDS_SYNC" == "yes" ]]; then
-      # Write at the original host path (transparent — shadow path never shown to Claude).
-      # Ensure the sandbox exists so post-tool-use can sync the file into it.
+      # Ensure the sandbox exists so post-tool-use can sync the shadow file into it.
       SANDBOX="$(sandbox_name_for "$SESSION_ID" "$AGENT_TYPE" "$EFFECTIVE_SANDBOX_NAME" "$EFFECTIVE_SCOPE" "$PROJECT_DIR")"
       sandbox_ensure_running "$SANDBOX" "$PROJECT_DIR" "$STATE_DIR/sandbox.log" "$EFFECTIVE_IMAGE" "$EFFECTIVE_MOUNT_WORKDIR" || true
       if [[ "$EFFECTIVE_SCOPE" != "directory" ]] && [[ "$EFFECTIVE_SCOPE" != "named" || -z "$EFFECTIVE_SANDBOX_NAME" ]]; then
         sandbox_track "$SESSION_ID" "$SANDBOX"
       fi
-      mkdir -p "$(dirname "$FILE_PATH")" 2>/dev/null || true
-      SANDBOX_HOST_PATH="$FILE_PATH"
+      mkdir -p "$(dirname "$SANDBOX_HOST_PATH")" 2>/dev/null || true
     fi
 
     emit_allow_file_path "$SANDBOX_HOST_PATH" "$EVENT"
@@ -125,8 +123,8 @@ case "$TOOL_NAME" in
       if [[ "$EFFECTIVE_SCOPE" != "directory" ]] && [[ "$EFFECTIVE_SCOPE" != "named" || -z "$EFFECTIVE_SANDBOX_NAME" ]]; then
         sandbox_track "$SESSION_ID" "$SANDBOX"
       fi
-      # Try to sync from sandbox to original host path (transparent).
-      # Fall back to the shadow path for host locations that aren't writable (e.g. /etc).
+      # Sync sandbox → host path so the Edit tool can operate on it directly.
+      # Fall back to shadow for locations where the host dir isn't writable (e.g. /etc).
       if mkdir -p "$(dirname "$FILE_PATH")" 2>/dev/null && \
          sandbox_read_into_shadow "$SANDBOX" "$FILE_PATH" "$FILE_PATH" 2>/dev/null; then
         SANDBOX_HOST_PATH="$FILE_PATH"

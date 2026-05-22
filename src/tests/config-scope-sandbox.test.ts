@@ -22,6 +22,7 @@ describe("config — scope integration", () => {
 
   it("default (no config): main and agent share the same sandbox", async () => {
     projectDir = await mkdtemp(join(tmpdir(), "cc-msb-scope-default-"));
+    await copyFixture("config-scope-default", projectDir);
 
     session = await createCleanSession({ cwd: projectDir });
     const result = await session.run(

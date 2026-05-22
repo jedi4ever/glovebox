@@ -50,7 +50,7 @@ afterEach(() => {
 });
 
 describe("pre-tool-use.sh — Write hook", () => {
-  it("allows VM-only Write at the original host path (no shadow redirect)", () => {
+  it("redirects VM-only Write to the shadow path", () => {
     const r = runHook(PRE_HOOK, {
       tool_name: "Write",
       session_id: SESSION_ID,
@@ -60,9 +60,9 @@ describe("pre-tool-use.sh — Write hook", () => {
     expect(r.status).toBe(0);
     const out = r.json();
     expect(out.hookSpecificOutput.permissionDecision).toBe("allow");
-    // Must use the original path — shadow path must NOT appear
-    expect(out.hookSpecificOutput.updatedInput.file_path).toBe("/tmp/test.txt");
-    expect(out.hookSpecificOutput.updatedInput.file_path).not.toContain("shadow");
+    // Must redirect to shadow so Claude's Write tool can reach it
+    expect(out.hookSpecificOutput.updatedInput.file_path).toContain("shadow");
+    expect(out.hookSpecificOutput.updatedInput.file_path).toContain("/tmp/test.txt");
     expect(out.hookSpecificOutput.updatedInput.content).toBe("hello");
   });
 
@@ -82,18 +82,19 @@ describe("pre-tool-use.sh — Write hook", () => {
 });
 
 describe("post-tool-use.sh — Write hook", () => {
-  it("syncs a file written at the original host path into the sandbox", () => {
+  it("syncs a shadow-written file into the sandbox", () => {
+    const shadowFile = `${SHADOW_ROOT}/tmp/cc-msb-write-post-test.txt`;
     writeFileSync(`/tmp/fake-msb-${SANDBOX_NAME}.state`, "Running");
-    writeFileSync("/tmp/cc-msb-write-post-test.txt", "synced content");
+    mkdirSync(`${SHADOW_ROOT}/tmp`, { recursive: true });
+    writeFileSync(shadowFile, "synced content");
 
     const r = runHook(POST_HOOK, {
       tool_name: "Write",
       session_id: SESSION_ID,
-      tool_input: { file_path: "/tmp/cc-msb-write-post-test.txt", content: "synced content" },
+      tool_input: { file_path: shadowFile, content: "synced content" },
     });
 
     expect(r.status).toBe(0);
-    try { rmSync("/tmp/cc-msb-write-post-test.txt"); } catch {}
   });
 
   it("exits cleanly for project-dir paths (no sandbox sync needed)", () => {
@@ -107,7 +108,7 @@ describe("post-tool-use.sh — Write hook", () => {
 });
 
 describe("pre-tool-use.sh — Edit hook", () => {
-  it("syncs VM-only file from sandbox and allows Edit at original host path", () => {
+  it("syncs VM-only file from sandbox and allows Edit at the original host path", () => {
     writeFileSync(`/tmp/fake-msb-${SANDBOX_NAME}.state`, "Running");
 
     const r = runHook(PRE_HOOK, {
@@ -119,7 +120,7 @@ describe("pre-tool-use.sh — Edit hook", () => {
     expect(r.status).toBe(0);
     const out = r.json();
     expect(out.hookSpecificOutput.permissionDecision).toBe("allow");
-    // Original path used (transparent) since /tmp is writable on the host
+    // Edit syncs to the original host path so Claude's Edit tool operates transparently.
     const rewrittenPath = out.hookSpecificOutput.updatedInput.file_path as string;
     expect(rewrittenPath).toBe(EDIT_TEST_FILE);
     expect(rewrittenPath).not.toContain("shadow");

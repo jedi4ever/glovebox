@@ -62,3 +62,4 @@ The config settings can also be set via env var
 Use fixtures instead of creating config files adhoc
 
 We use ANthropic API key because  just changing the claude config dir would make login fail 
+Before you commit always run the tests, unless specifically told so
