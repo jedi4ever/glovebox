@@ -23,8 +23,6 @@ describe("write-sandbox", () => {
     }
   });
 
-  // CC's Edit tool checks file existence on the host BEFORE the PreToolUse hook fires,
-  // so Edit on VM-only paths (/tmp, /etc, ...) cannot be hook-redirected.
   // For VM-only path edits, use Bash with sed/echo inside the sandbox instead.
   it.concurrent("write tool creates a VM-only file that bash can then read in the sandbox", async () => {
     const session = await createCleanSession();

@@ -108,41 +108,39 @@ describe("post-tool-use.sh — Write hook", () => {
 });
 
 describe("pre-tool-use.sh — Edit hook", () => {
-  it("syncs VM-only file from sandbox and allows Edit at the original host path", () => {
+  // Empirically, CC's Edit tool checks file existence on the host BEFORE this
+  // hook is invoked. For VM-only paths CC denies with "File does not exist"
+  // without ever calling us. So the hook just passes through and lets CC do
+  // its thing. The unit test below verifies the pass-through behavior — CC's
+  // bypass is verified by the integration test in edit-sandbox.test.ts.
+  it("passes through Edit on any path without rewriting tool_input", () => {
     writeFileSync(`/tmp/fake-msb-${SANDBOX_NAME}.state`, "Running");
 
     const r = runHook(PRE_HOOK, {
       tool_name: "Edit",
       session_id: SESSION_ID,
-      tool_input: { file_path: EDIT_TEST_FILE, old_string: "hello", new_string: "hello\nworld" },
+      tool_input: { file_path: EDIT_TEST_FILE, old_string: "hello", new_string: "world" },
     });
 
+    // exit 0 with no stdout → CC proceeds with the original tool_input
     expect(r.status).toBe(0);
-    const out = r.json();
-    expect(out.hookSpecificOutput.permissionDecision).toBe("allow");
-    // Edit syncs to the original host path so Claude's Edit tool operates transparently.
-    const rewrittenPath = out.hookSpecificOutput.updatedInput.file_path as string;
-    expect(rewrittenPath).toBe(EDIT_TEST_FILE);
-    expect(rewrittenPath).not.toContain("shadow");
-    // The file must exist at the host path (synced from fake sandbox)
-    expect(existsSync(EDIT_TEST_FILE)).toBe(true);
+    expect(r.stdout.trim()).toBe("");
   });
 
-  it("passes a project-dir path through without shadow for Edit", () => {
-    const projectFile = join(PROJECT_DIR, "src.ts");
-    writeFileSync(projectFile, "const x = 1;");
+  it("passes through MultiEdit the same way", () => {
+    writeFileSync(`/tmp/fake-msb-${SANDBOX_NAME}.state`, "Running");
 
     const r = runHook(PRE_HOOK, {
-      tool_name: "Edit",
+      tool_name: "MultiEdit",
       session_id: SESSION_ID,
-      tool_input: { file_path: projectFile, old_string: "x", new_string: "y" },
+      tool_input: {
+        file_path: EDIT_TEST_FILE,
+        edits: [{ old_string: "hello", new_string: "world" }],
+      },
     });
 
     expect(r.status).toBe(0);
-    const out = r.json();
-    expect(out.hookSpecificOutput.permissionDecision).toBe("allow");
-    expect(out.hookSpecificOutput.updatedInput.file_path).toBe(projectFile);
-    expect(out.hookSpecificOutput.updatedInput.file_path).not.toContain("shadow");
+    expect(r.stdout.trim()).toBe("");
   });
 });
 

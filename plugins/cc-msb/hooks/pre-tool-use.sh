@@ -111,38 +111,12 @@ case "$TOOL_NAME" in
     ;;
 
   Edit|MultiEdit)
-    SESSION_ID="$(printf '%s' "$EVENT" | jq -r '.session_id // empty')"
-    FILE_PATH="$(printf '%s' "$EVENT" | jq -r '.tool_input.file_path // empty')"
-    [[ -z "$SESSION_ID" || -z "$FILE_PATH" ]] && exit 0
-
-    SANDBOX="$(sandbox_name_for_file_op "$SESSION_ID" "$AGENT_TYPE" "$EFFECTIVE_SANDBOX_NAME" "$EFFECTIVE_SCOPE" "$PROJECT_DIR")"
-    STATE_DIR="$(sandbox_state_dir "$SESSION_ID")"
-    mkdir -p "$STATE_DIR"
-
-    sandbox_resolve_path "$FILE_PATH" "$PROJECT_DIR" "$STATE_DIR"
-
-    if [[ "$SANDBOX_NEEDS_SYNC" == "yes" ]]; then
-      sandbox_ensure_running "$SANDBOX" "$PROJECT_DIR" "$STATE_DIR/sandbox.log" "$EFFECTIVE_IMAGE" "$EFFECTIVE_MOUNT_WORKDIR" || {
-        emit_deny "cc-msb: failed to start sandbox for edit of $FILE_PATH"
-        exit 0
-      }
-      if [[ "$EFFECTIVE_SCOPE" != "directory" ]] && [[ "$EFFECTIVE_SCOPE" != "named" || -z "$EFFECTIVE_SANDBOX_NAME" ]]; then
-        sandbox_track "$SESSION_ID" "$SANDBOX"
-      fi
-      # Sync sandbox → host path so the Edit tool can operate on it directly.
-      # Fall back to shadow for locations where the host dir isn't writable (e.g. /etc).
-      if mkdir -p "$(dirname "$FILE_PATH")" 2>/dev/null && \
-         sandbox_read_into_shadow "$SANDBOX" "$FILE_PATH" "$FILE_PATH" 2>/dev/null; then
-        SANDBOX_HOST_PATH="$FILE_PATH"
-      else
-        sandbox_read_into_shadow "$SANDBOX" "$FILE_PATH" "$SANDBOX_HOST_PATH" || {
-          emit_deny "cc-msb: cannot read $FILE_PATH from sandbox for editing"
-          exit 0
-        }
-      fi
-    fi
-
-    emit_allow_file_path "$SANDBOX_HOST_PATH" "$EVENT"
+    # CC checks file existence on the host BEFORE this hook fires, so Edit on
+    # VM-only paths (/tmp/..., /etc/..., etc.) is blocked by CC with "File does
+    # not exist" before we ever see the call — verified by hook tracing.
+    # For project-dir (bind-mounted) Edits, the file is already on host, so we
+    # just pass through without rewriting. Workaround for VM-only edits is to
+    # use Bash with sed/echo inside the sandbox.
     exit 0
     ;;
 esac
