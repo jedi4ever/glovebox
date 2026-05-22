@@ -90,10 +90,11 @@ sandbox_status() {
 }
 
 # Ensures the named sandbox is running. Creates it if it doesn't exist.
-# Args: name, project_dir, log_file [image]
+# Args: name, project_dir, log_file [image [mount_workdir]]
 sandbox_ensure_running() {
   local name="$1" project_dir="$2" log_file="$3"
   local image="${4:-${CC_MSB_SANDBOX_IMAGE:-ubuntu}}"
+  local mount_workdir="${5:-true}"
   local status
   status=$(sandbox_status "$name")
 
@@ -106,7 +107,7 @@ sandbox_ensure_running() {
       ;;
     *)
       local create_args=("$image" --name "$name" --workdir /workspace --quiet)
-      if [[ "${CC_MSB_MOUNT_WORKDIR:-true}" == "true" ]]; then
+      if [[ "$mount_workdir" == "true" ]]; then
         create_args+=(--volume "$project_dir:/workspace")
       fi
       msb create "${create_args[@]}" 2>>"$log_file"

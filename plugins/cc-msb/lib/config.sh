@@ -56,26 +56,20 @@ config_yaml_get_nested() {
 }
 
 # Loads config from <project_dir>/.cc-msb.yml.
-# Sets CC_MSB_MOUNT_WORKDIR and CC_MSB_SANDBOX_NAME.
-# Scope is no longer global — resolved per-context by config_agent_scope.
+# Sets CC_MSB_SANDBOX_NAME.
+# Scope and mount_workdir are resolved per-context by config_agent_scope / config_agent_mount_workdir.
 # Environment variables always take precedence over file values.
 config_load() {
   local project_dir="$1"
   local config_file="$project_dir/.cc-msb.yml"
 
-  local file_mount_workdir="true"
   local file_sandbox_name=""
 
   if [[ -f "$config_file" ]]; then
     local val
-    val="$(config_yaml_get_nested "$config_file" "defaults" "agents" "mount_workdir")"
-    [[ -n "$val" ]] && file_mount_workdir="$val"
     val="$(config_yaml_get_section "$config_file" "main" "sandbox_name")"
     [[ -n "$val" ]] && file_sandbox_name="$val"
   fi
-
-  CC_MSB_MOUNT_WORKDIR="${CC_MSB_MOUNT_WORKDIR:-$file_mount_workdir}"
-  export CC_MSB_MOUNT_WORKDIR
 
   CC_MSB_SANDBOX_NAME="${CC_MSB_SANDBOX_NAME:-$file_sandbox_name}"
   export CC_MSB_SANDBOX_NAME
@@ -131,6 +125,49 @@ config_agent_scope() {
     [[ -n "$val" ]] && echo "$val" && return
   fi
   echo "session"
+}
+
+# Returns the effective mount_workdir setting for a given agent type.
+#
+# Main session (no agent_type):
+#   1. CC_MSB_MAIN_MOUNT_WORKDIR env var
+#   2. main.mount_workdir in config file
+#   3. defaults.agents.mount_workdir in config file
+#   4. true
+#
+# Agents:
+#   1. CC_MSB_AGENT_MOUNT_WORKDIR env var
+#   2. agents.<name>.mount_workdir in config file
+#   3. defaults.agents.mount_workdir in config file
+#   4. true
+#
+# Args: agent_type, config_file
+config_agent_mount_workdir() {
+  local agent_type="$1" config_file="$2"
+
+  if [[ -z "$agent_type" ]]; then
+    [[ -n "${CC_MSB_MAIN_MOUNT_WORKDIR:-}" ]] && echo "$CC_MSB_MAIN_MOUNT_WORKDIR" && return
+    if [[ -f "$config_file" ]]; then
+      local val
+      val="$(config_yaml_get_section "$config_file" "main" "mount_workdir")"
+      [[ -n "$val" ]] && echo "$val" && return
+      val="$(config_yaml_get_nested "$config_file" "defaults" "agents" "mount_workdir")"
+      [[ -n "$val" ]] && echo "$val" && return
+    fi
+    echo "true"
+    return
+  fi
+
+  [[ -n "${CC_MSB_AGENT_MOUNT_WORKDIR:-}" ]] && echo "$CC_MSB_AGENT_MOUNT_WORKDIR" && return
+
+  if [[ -f "$config_file" ]]; then
+    local val
+    val="$(config_yaml_get_nested "$config_file" "agents" "$agent_type" "mount_workdir")"
+    [[ -n "$val" ]] && echo "$val" && return
+    val="$(config_yaml_get_nested "$config_file" "defaults" "agents" "mount_workdir")"
+    [[ -n "$val" ]] && echo "$val" && return
+  fi
+  echo "true"
 }
 
 # Returns the effective sandbox image for a given agent type.

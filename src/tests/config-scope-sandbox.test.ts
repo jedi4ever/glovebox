@@ -18,6 +18,23 @@ describe("config — scope integration", () => {
     if (projectDir) await rm(projectDir, { recursive: true, force: true });
   });
 
+  // default: no config → session scope → main and agents share the same sandbox
+
+  it("default (no config): main and agent share the same sandbox", async () => {
+    projectDir = await mkdtemp(join(tmpdir(), "cc-msb-scope-default-"));
+
+    session = await createCleanSession({ cwd: projectDir });
+    const result = await session.run(
+      "Do these steps in order. " +
+      "Step 1: run a bash command `echo shared_sandbox_test > /tmp/cc-msb-shared.txt`. " +
+      "Step 2: use the test-agent to run `cat /tmp/cc-msb-shared.txt 2>&1` and report the exact output."
+    );
+
+    expect(result.exitCode).toBe(0);
+    // The agent can read the file written by main — they share the same sandbox
+    expect(result.stdout).toMatch(/shared_sandbox_test/i);
+  });
+
   // per-agent: each agent type gets its own sandbox, verified via distinct OS images
 
   it("per-agent: main session uses the global sandbox image (ubuntu)", async () => {

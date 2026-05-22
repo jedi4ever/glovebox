@@ -93,14 +93,19 @@ describe("config — mount_workdir", () => {
     expect(readCreateArgs()).not.toContain("--volume");
   });
 
-  it("env var CC_MSB_MOUNT_WORKDIR=false overrides config file true", () => {
-    runHook(fixturePath("config-mount-on"), { CC_MSB_MOUNT_WORKDIR: "false" });
+  it("env var CC_MSB_MAIN_MOUNT_WORKDIR=false overrides config file true", () => {
+    runHook(fixturePath("config-mount-on"), { CC_MSB_MAIN_MOUNT_WORKDIR: "false" });
     expect(readCreateArgs()).not.toContain("--volume");
   });
 
-  it("env var CC_MSB_MOUNT_WORKDIR=true overrides config file false", () => {
-    runHook(fixturePath("config-mount-off"), { CC_MSB_MOUNT_WORKDIR: "true" });
+  it("env var CC_MSB_MAIN_MOUNT_WORKDIR=true overrides config file false", () => {
+    runHook(fixturePath("config-mount-off"), { CC_MSB_MAIN_MOUNT_WORKDIR: "true" });
     expect(readCreateArgs()).toContain("--volume");
+  });
+
+  it("env var CC_MSB_AGENT_MOUNT_WORKDIR=false disables mount for agents", () => {
+    runHook(fixturePath("simple-read"), { CC_MSB_AGENT_SCOPE_TEST_AGENT: "per-agent", CC_MSB_AGENT_MOUNT_WORKDIR: "false" }, "test-agent");
+    expect(readCreateArgs(PER_AGENT_SANDBOX)).not.toContain("--volume");
   });
 
   it("config file supports quoted values (mount_workdir: 'false')", () => {
@@ -173,6 +178,14 @@ describe("config — scope", () => {
   it("uses main sandbox when no agent_type (any scope)", () => {
     runHook(fixturePath("config-scope-per-agent"));
     expect(readCreateArgs(SANDBOX_NAME)).toContain("ubuntu");
+  });
+
+  it("default (no config): agent and main share the same sandbox", () => {
+    runHook(fixturePath("simple-read"));
+    runHook(fixturePath("simple-read"), {}, "test-agent");
+    // Both calls land in the same session-scoped sandbox
+    expect(readCreateArgs(SANDBOX_NAME)).toContain("ubuntu");
+    expect(readCreateArgs(PER_AGENT_SANDBOX)).toHaveLength(0);
   });
 
   it("session scope: agent uses the same (main) sandbox", () => {
