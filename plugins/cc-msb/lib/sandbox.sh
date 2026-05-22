@@ -9,13 +9,22 @@ sandbox_name() {
 #   per-agent — one sandbox per agent type; main session always uses the base name
 #   per-run   — agents get a unique name each call (for Bash wrapping + self-cleanup)
 #   named     — use explicit_name directly (persists across sessions)
-# Args: session_id [agent_type [explicit_name [scope]]]
+#   directory — stable name derived from project_dir; persists across sessions
+# Args: session_id [agent_type [explicit_name [scope [project_dir]]]]
 sandbox_name_for() {
-  local session_id="$1" agent_type="${2:-}" explicit_name="${3:-}" mode="${4:-session}"
+  local session_id="$1" agent_type="${2:-}" explicit_name="${3:-}" mode="${4:-session}" project_dir="${5:-}"
 
   # named scope with a configured name — use it directly (persists across sessions)
   if [[ "$mode" == "named" && -n "$explicit_name" ]]; then
     echo "$explicit_name"
+    return
+  fi
+
+  # directory scope — stable name derived from the project directory path
+  if [[ "$mode" == "directory" ]]; then
+    local hash
+    hash="$(printf '%s' "${project_dir:-$PWD}" | openssl dgst -sha256 2>/dev/null | sed -E 's/^.*= //' | cut -c1-12)"
+    echo "cc-msb-dir-${hash}"
     return
   fi
 
@@ -44,9 +53,9 @@ sandbox_name_for() {
 }
 
 # Like sandbox_name_for but treats per-run as per-agent (file ops keep a stable sandbox).
-# Args: session_id [agent_type [explicit_name [scope]]]
+# Args: session_id [agent_type [explicit_name [scope [project_dir]]]]
 sandbox_name_for_file_op() {
-  local session_id="$1" agent_type="${2:-}" explicit_name="${3:-}" mode="${4:-session}"
+  local session_id="$1" agent_type="${2:-}" explicit_name="${3:-}" mode="${4:-session}" project_dir="${5:-}"
   if [[ "$mode" == "per-run" ]]; then
     if [[ -z "$agent_type" ]]; then
       echo "cc-msb-${session_id:0:16}"
@@ -56,7 +65,7 @@ sandbox_name_for_file_op() {
       echo "cc-msb-${session_id:0:8}-${lower:0:8}"
     fi
   else
-    sandbox_name_for "$session_id" "$agent_type" "$explicit_name" "$mode"
+    sandbox_name_for "$session_id" "$agent_type" "$explicit_name" "$mode" "$project_dir"
   fi
 }
 

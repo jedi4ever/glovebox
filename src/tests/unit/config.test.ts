@@ -1,9 +1,14 @@
 import { describe, it, expect, beforeEach, afterEach } from "vitest";
 import { spawnSync } from "node:child_process";
+import { createHash } from "node:crypto";
 import { fileURLToPath } from "node:url";
 import { join } from "node:path";
 import { rmSync, readFileSync, existsSync, readdirSync } from "node:fs";
 import { fixturePath } from "../../helpers/fixtures.js";
+
+function dirSandboxName(dir: string): string {
+  return `cc-msb-dir-${createHash("sha256").update(dir).digest("hex").slice(0, 12)}`;
+}
 
 const PLUGIN_ROOT = fileURLToPath(new URL("../../../plugins/cc-msb", import.meta.url));
 const FAKE_MSB_DIR = fileURLToPath(new URL("../fixtures/fake-msb", import.meta.url));
@@ -69,6 +74,7 @@ function cleanupFakeMsbFiles() {
     .filter((f) => {
       if (!f.startsWith("fake-msb-") || (!f.endsWith(".state") && !f.endsWith(".create-args"))) return false;
       if (f.startsWith(`fake-msb-${SESSION_PREFIX}`)) return true;
+      if (f.startsWith("fake-msb-cc-msb-dir-")) return true;
       return NAMED_PREFIXES.some((p) => f.startsWith(`fake-msb-${p}`));
     })
     .forEach((f) => { try { rmSync(`/tmp/${f}`); } catch {} });
@@ -323,5 +329,37 @@ describe("config — scope: named", () => {
   it("named scope with no sandbox_name falls back to the session sandbox", () => {
     runHook(fixturePath("simple-read"), { CC_MSB_MAIN_SCOPE: "named" });
     expect(readCreateArgs(SANDBOX_NAME)).toContain("ubuntu");
+  });
+});
+
+describe("config — scope: directory", () => {
+  it("uses a sandbox name derived from the project directory", () => {
+    const dir = fixturePath("config-scope-directory");
+    runHook(dir);
+    expect(readCreateArgs(dirSandboxName(dir))).toContain("ubuntu");
+    expect(readCreateArgs(SANDBOX_NAME)).toHaveLength(0);
+  });
+
+  it("two calls from the same directory reuse the same sandbox (not re-created)", () => {
+    const dir = fixturePath("config-scope-directory");
+    runHook(dir);
+    runHook(dir);
+    const lines = readCreateArgs(dirSandboxName(dir));
+    expect(lines).toContain("ubuntu");
+    // second call hits "Running" → no re-create → still one set of create-args
+    expect(lines.filter((l) => l === "ubuntu")).toHaveLength(1);
+  });
+
+  it("two different directories produce different sandbox names", () => {
+    const dirA = fixturePath("config-scope-directory");
+    const dirB = fixturePath("simple-read");
+    expect(dirSandboxName(dirA)).not.toBe(dirSandboxName(dirB));
+  });
+
+  it("CC_MSB_MAIN_SCOPE=directory uses a directory-derived sandbox", () => {
+    const dir = fixturePath("simple-read");
+    runHook(dir, { CC_MSB_MAIN_SCOPE: "directory" });
+    expect(readCreateArgs(dirSandboxName(dir))).toContain("ubuntu");
+    expect(readCreateArgs(SANDBOX_NAME)).toHaveLength(0);
   });
 });

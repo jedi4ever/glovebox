@@ -30,7 +30,7 @@ case "$TOOL_NAME" in
     COMMAND="$(printf '%s' "$EVENT" | jq -r '.tool_input.command // empty')"
     [[ -z "$SESSION_ID" || -z "$COMMAND" ]] && exit 0
 
-    SANDBOX="$(sandbox_name_for "$SESSION_ID" "$AGENT_TYPE" "$EFFECTIVE_SANDBOX_NAME" "$EFFECTIVE_SCOPE")"
+    SANDBOX="$(sandbox_name_for "$SESSION_ID" "$AGENT_TYPE" "$EFFECTIVE_SANDBOX_NAME" "$EFFECTIVE_SCOPE" "$PROJECT_DIR")"
     STATE_DIR="$(sandbox_state_dir "$SESSION_ID")"
     mkdir -p "$STATE_DIR"
 
@@ -38,8 +38,8 @@ case "$TOOL_NAME" in
       emit_deny "cc-msb: failed to start sandbox (see $STATE_DIR/sandbox.log)"
       exit 0
     }
-    # Named sandboxes persist across sessions — don't add to cleanup list
-    if [[ "$EFFECTIVE_SCOPE" != "named" || -z "$EFFECTIVE_SANDBOX_NAME" ]]; then
+    # named and directory sandboxes persist across sessions — don't add to cleanup list
+    if [[ "$EFFECTIVE_SCOPE" != "directory" ]] && [[ "$EFFECTIVE_SCOPE" != "named" || -z "$EFFECTIVE_SANDBOX_NAME" ]]; then
       sandbox_track "$SESSION_ID" "$SANDBOX"
     fi
 
@@ -56,7 +56,7 @@ case "$TOOL_NAME" in
     FILE_PATH="$(printf '%s' "$EVENT" | jq -r '.tool_input.file_path // empty')"
     [[ -z "$SESSION_ID" || -z "$FILE_PATH" ]] && exit 0
 
-    SANDBOX="$(sandbox_name_for_file_op "$SESSION_ID" "$AGENT_TYPE" "$EFFECTIVE_SANDBOX_NAME" "$EFFECTIVE_SCOPE")"
+    SANDBOX="$(sandbox_name_for_file_op "$SESSION_ID" "$AGENT_TYPE" "$EFFECTIVE_SANDBOX_NAME" "$EFFECTIVE_SCOPE" "$PROJECT_DIR")"
     STATE_DIR="$(sandbox_state_dir "$SESSION_ID")"
     mkdir -p "$STATE_DIR"
 
@@ -67,7 +67,7 @@ case "$TOOL_NAME" in
         emit_deny "cc-msb: failed to start sandbox for read of $FILE_PATH"
         exit 0
       }
-      if [[ "$EFFECTIVE_SCOPE" != "named" || -z "$EFFECTIVE_SANDBOX_NAME" ]]; then
+      if [[ "$EFFECTIVE_SCOPE" != "directory" ]] && [[ "$EFFECTIVE_SCOPE" != "named" || -z "$EFFECTIVE_SANDBOX_NAME" ]]; then
         sandbox_track "$SESSION_ID" "$SANDBOX"
       fi
       sandbox_read_into_shadow "$SANDBOX" "$FILE_PATH" "$SANDBOX_HOST_PATH" || {
