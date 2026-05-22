@@ -12,15 +12,22 @@ const PRE_HOOK = join(PLUGIN_ROOT, "hooks/pre-tool-use.sh");
 const SESSION_ID = "unit-config-test-001";
 const SANDBOX_NAME = `cc-msb-${SESSION_ID.slice(0, 16)}`;
 
-const BASH_EVENT = {
-  tool_name: "Bash",
-  session_id: SESSION_ID,
-  tool_input: { command: "echo hi" },
-};
+function bashEvent(agentType?: string) {
+  return {
+    tool_name: "Bash",
+    session_id: SESSION_ID,
+    ...(agentType ? { agent_type: agentType } : {}),
+    tool_input: { command: "echo hi" },
+  };
+}
 
-function runHook(projectDir: string, extraEnv: Record<string, string> = {}) {
+function runHook(
+  projectDir: string,
+  extraEnv: Record<string, string> = {},
+  agentType?: string
+) {
   return spawnSync("bash", [PRE_HOOK], {
-    input: JSON.stringify(BASH_EVENT),
+    input: JSON.stringify(bashEvent(agentType)),
     encoding: "utf8",
     env: {
       ...process.env,
@@ -109,6 +116,33 @@ describe("config — sandbox_image", () => {
 
   it("env var CC_MSB_SANDBOX_IMAGE overrides default when no config file", () => {
     runHook(fixturePath("simple-read"), { CC_MSB_SANDBOX_IMAGE: "alpine" });
+    expect(readCreateArgs()[0]).toBe("alpine");
+  });
+});
+
+describe("config — agent-specific image", () => {
+  it("uses agent-specific image from config when agent_type matches", () => {
+    runHook(fixturePath("config-agent-image"), {}, "test-agent");
+    expect(readCreateArgs()[0]).toBe("debian");
+  });
+
+  it("falls back to global sandbox_image for an unlisted agent", () => {
+    runHook(fixturePath("config-agent-image"), {}, "other-agent");
+    expect(readCreateArgs()[0]).toBe("ubuntu");
+  });
+
+  it("falls back to global sandbox_image when no agent_type in event", () => {
+    runHook(fixturePath("config-agent-image"));
+    expect(readCreateArgs()[0]).toBe("ubuntu");
+  });
+
+  it("env var CC_MSB_AGENT_IMAGE_<NAME> overrides config file for that agent", () => {
+    runHook(fixturePath("config-agent-image"), { CC_MSB_AGENT_IMAGE_TEST_AGENT: "alpine" }, "test-agent");
+    expect(readCreateArgs()[0]).toBe("alpine");
+  });
+
+  it("env var CC_MSB_AGENT_IMAGE_<NAME> with hyphenated agent name (test-agent → TEST_AGENT)", () => {
+    runHook(fixturePath("simple-read"), { CC_MSB_AGENT_IMAGE_TEST_AGENT: "alpine" }, "test-agent");
     expect(readCreateArgs()[0]).toBe("alpine");
   });
 });

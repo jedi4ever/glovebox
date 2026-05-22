@@ -15,6 +15,7 @@ export interface SessionResult {
 export interface SessionOptions {
   env?: Record<string, string>;
   cwd?: string;
+  agentType?: string;
 }
 
 export interface CleanSession {
@@ -38,12 +39,14 @@ export async function createCleanSession(options: SessionOptions = {}): Promise<
 
     run(prompt: string): Promise<SessionResult> {
       return new Promise((resolve, reject) => {
+        const agentArgs = options.agentType ? ["--agent", options.agentType] : [];
         const proc = spawn(
           "claude",
           [
             "--print",
             "--allowedTools", SANDBOXED_TOOLS.join(","),
             "--plugin-dir", PLUGIN_DIR,
+            ...agentArgs,
             prompt,
           ],
           {

@@ -14,6 +14,8 @@ config_load "$PROJECT_DIR"
 
 EVENT="$(cat)"
 TOOL_NAME="$(printf '%s' "$EVENT" | jq -r '.tool_name')"
+AGENT_TYPE="$(printf '%s' "$EVENT" | jq -r '.agent_type // empty')"
+EFFECTIVE_IMAGE="$(config_agent_image "$AGENT_TYPE" "$PROJECT_DIR/.cc-msb.yml")"
 
 case "$TOOL_NAME" in
   mcp__*|WebSearch|WebFetch)
@@ -29,7 +31,7 @@ case "$TOOL_NAME" in
     STATE_DIR="$(sandbox_state_dir "$SESSION_ID")"
     mkdir -p "$STATE_DIR"
 
-    sandbox_ensure_running "$SANDBOX" "$PROJECT_DIR" "$STATE_DIR/sandbox.log" || {
+    sandbox_ensure_running "$SANDBOX" "$PROJECT_DIR" "$STATE_DIR/sandbox.log" "$EFFECTIVE_IMAGE" || {
       emit_deny "cc-msb: failed to start sandbox (see $STATE_DIR/sandbox.log)"
       exit 0
     }
@@ -50,7 +52,7 @@ case "$TOOL_NAME" in
     sandbox_resolve_path "$FILE_PATH" "$PROJECT_DIR" "$STATE_DIR"
 
     if [[ "$SANDBOX_NEEDS_SYNC" == "yes" ]]; then
-      sandbox_ensure_running "$SANDBOX" "$PROJECT_DIR" "$STATE_DIR/sandbox.log" || {
+      sandbox_ensure_running "$SANDBOX" "$PROJECT_DIR" "$STATE_DIR/sandbox.log" "$EFFECTIVE_IMAGE" || {
         emit_deny "cc-msb: failed to start sandbox for read of $FILE_PATH"
         exit 0
       }

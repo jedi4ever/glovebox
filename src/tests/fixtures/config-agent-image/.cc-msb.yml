@@ -1,0 +1,4 @@
+# Default image for all agents not explicitly listed
+sandbox_image: ubuntu
+# Override image for the "test-agent" subagent
+agent_image_test_agent: debian
