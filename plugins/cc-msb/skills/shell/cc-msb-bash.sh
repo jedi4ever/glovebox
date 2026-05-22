@@ -96,4 +96,8 @@ if [ -z "$SANDBOX" ]; then
   exec "$HOST_BASH" -c "$CMD" "$@"
 fi
 
-exec msb exec "$SANDBOX" -- bash -c "$CMD"
+# Redirect stdin from /dev/null. `msb exec` inherits stdin from the shim,
+# which CC connects to its pty — without closing it, msb's session holds
+# stdin open after the inner bash command has produced its output, so msb
+# exec never returns and CC's TUI shows the command "Running…" forever.
+exec msb exec "$SANDBOX" -- bash -c "$CMD" < /dev/null
