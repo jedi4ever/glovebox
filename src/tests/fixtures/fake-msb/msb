@@ -39,6 +39,20 @@ case "$SUBCMD" in
     NAME="${2:-}"
     rm -f "/tmp/fake-msb-${NAME}.state"
     ;;
+  list)
+    # Mimic `msb list` output: one line per running sandbox.
+    # Real format: NAME  IMAGE  STATUS  STARTED_AT — we only need NAME + status,
+    # but emit a similar shape so awk patterns in the shim still match.
+    for f in /tmp/fake-msb-*.state; do
+      [[ -f "$f" ]] || continue
+      n="${f#/tmp/fake-msb-}"
+      n="${n%.state}"
+      s="$(cat "$f" 2>/dev/null)"
+      if [[ "$s" == "Running" ]]; then
+        printf '%s\tubuntu\trunning\t%s\n' "$n" "$(date '+%Y-%m-%d %H:%M:%S')"
+      fi
+    done
+    ;;
   exec)
     # msb exec [--env KEY=VAL ...] <name> -- <cmd> [args...]
     shift              # skip "exec" subcommand
