@@ -1,8 +1,9 @@
 import { describe, it, expect, afterEach } from "vitest";
-import { mkdtemp, rm, writeFile } from "node:fs/promises";
+import { mkdtemp, rm, writeFile, copyFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { createCleanSession, type CleanSession } from "../helpers/session.js";
+import { fixturePath } from "../helpers/fixtures.js";
 
 describe("config — mount_workdir integration", () => {
   let session: CleanSession | undefined;
@@ -29,7 +30,10 @@ describe("config — mount_workdir integration", () => {
   it("project files are not visible when mount_workdir: false", async () => {
     projectDir = await mkdtemp(join(tmpdir(), "cc-msb-mount-off-"));
     await writeFile(join(projectDir, "marker.txt"), "project-marker-content");
-    await writeFile(join(projectDir, ".cc-msb.yml"), "mount_workdir: false\n");
+    await copyFile(
+      fixturePath("config-mount-off", ".cc-msb.yml"),
+      join(projectDir, ".cc-msb.yml")
+    );
 
     session = await createCleanSession({ cwd: projectDir });
     const result = await session.run(

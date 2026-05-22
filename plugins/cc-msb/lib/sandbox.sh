@@ -30,7 +30,7 @@ sandbox_ensure_running() {
       msb start "$name" --quiet 2>>"$log_file"
       ;;
     *)
-      local create_args=(ubuntu --name "$name" --workdir /workspace --quiet)
+      local create_args=("${CC_MSB_SANDBOX_IMAGE:-ubuntu}" --name "$name" --workdir /workspace --quiet)
       if [[ "${CC_MSB_MOUNT_WORKDIR:-true}" == "true" ]]; then
         create_args+=(--volume "$project_dir:/workspace")
       fi

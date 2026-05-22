@@ -58,3 +58,7 @@ Make sure to do correct shell escsping where necessary
 We want to control features using a config file .cc-msb.yml:
 for example enable/disalbe the mouting of the workdir
 The config settings can also be set via env var
+
+Use fixtures instead of creating config files adhoc
+
+We use ANthropic API key because  just changing the claude config dir would make login fail 

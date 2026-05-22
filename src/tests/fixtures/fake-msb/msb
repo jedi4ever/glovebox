@@ -15,6 +15,7 @@ case "$SUBCMD" in
     fi
     ;;
   create)
+    shift  # skip "create"
     NAME=""
     ARGS=("$@")
     while [[ $# -gt 0 ]]; do

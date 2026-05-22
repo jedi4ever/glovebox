@@ -10,7 +10,8 @@ config_yaml_get() {
     | sed -E "s/^[^:]+:[[:space:]]*//" \
     | sed -E "s/[[:space:]]*#.*//" \
     | sed -E "s/^[[:space:]]+|[[:space:]]+\$//g" \
-    | sed -E "s/^['\"]|['\"]$//g"
+    | sed -E "s/^['\"]|['\"]$//g" \
+    || true
 }
 
 # Loads config from <project_dir>/.cc-msb.yml.
@@ -20,13 +21,19 @@ config_load() {
   local config_file="$project_dir/.cc-msb.yml"
 
   local file_mount_workdir="true"
+  local file_sandbox_image="ubuntu"
 
   if [[ -f "$config_file" ]]; then
     local val
     val="$(config_yaml_get "$config_file" "mount_workdir")"
     [[ -n "$val" ]] && file_mount_workdir="$val"
+    val="$(config_yaml_get "$config_file" "sandbox_image")"
+    [[ -n "$val" ]] && file_sandbox_image="$val"
   fi
 
   CC_MSB_MOUNT_WORKDIR="${CC_MSB_MOUNT_WORKDIR:-$file_mount_workdir}"
   export CC_MSB_MOUNT_WORKDIR
+
+  CC_MSB_SANDBOX_IMAGE="${CC_MSB_SANDBOX_IMAGE:-$file_sandbox_image}"
+  export CC_MSB_SANDBOX_IMAGE
 }
