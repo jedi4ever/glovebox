@@ -6,7 +6,7 @@ import { createCleanSession } from "../helpers/session.js";
 // Claude should report Linux/Ubuntu (the sandbox), not Darwin (the host).
 
 describe.concurrent("session-start integration", () => {
-  it("Claude reports the sandbox OS, not the macOS host, when asked", async () => {
+  it("OS-level info (operating system) reflects the sandbox, not the host", async () => {
     const session = await createCleanSession();
     try {
       const result = await session.run(
