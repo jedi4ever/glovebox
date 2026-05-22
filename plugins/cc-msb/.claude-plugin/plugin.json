@@ -1,0 +1,10 @@
+{
+  "name": "cc-msb",
+  "version": "0.1.0",
+  "description": "Isolates Claude Code Read/Write/Bash/Edit tool calls inside an MSB (Micro Sandbox). The host project dir is bind-mounted inside the sandbox; changes are visible on the host only after the sandbox syncs.",
+  "author": {
+    "name": "Patrick Debois",
+    "email": "patrick@tessl.io"
+  },
+  "license": "MIT"
+}
