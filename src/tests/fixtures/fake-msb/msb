@@ -66,8 +66,14 @@ case "$SUBCMD" in
 
     case "$CMD" in
       bash)
-        # Bash rewrite: decode base64-piped command from stdin
-        cat | bash
+        if [[ "${1:-}" == "-c" ]]; then
+          # bash -c <script>: run the script directly (e.g. SessionStart probe).
+          shift
+          bash -c "$1"
+        else
+          # Bash rewrite: decode base64-piped command from stdin
+          cat | bash
+        fi
         ;;
       cat)
         # Read hook: return fake sandbox content for the requested path
