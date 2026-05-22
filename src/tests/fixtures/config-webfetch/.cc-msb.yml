@@ -1,0 +1,2 @@
+main:
+  sandbox_image: buildpack-deps:noble

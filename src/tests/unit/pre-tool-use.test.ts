@@ -46,10 +46,16 @@ describe("pre-tool-use.sh — passthrough tools", () => {
     expect(r.stdout).toBe("");
   });
 
-  it("exits 0 silently for WebFetch", () => {
-    const r = runHook({ tool_name: "WebFetch", session_id: SESSION_ID, tool_input: { url: "https://example.com" } });
+  it("denies WebFetch with a Bash+curl hint (covered in detail in webfetch-hook.test.ts)", () => {
+    const r = runHook({
+      tool_name: "WebFetch",
+      session_id: SESSION_ID,
+      tool_input: { url: "https://example.com", prompt: "summarise" },
+    });
     expect(r.status).toBe(0);
-    expect(r.stdout).toBe("");
+    const out = JSON.parse(r.stdout);
+    expect(out.hookSpecificOutput.permissionDecision).toBe("deny");
+    expect(out.hookSpecificOutput.permissionDecisionReason).toMatch(/curl/i);
   });
 
   it("exits 0 silently for mcp__ tools", () => {

@@ -30,7 +30,7 @@ if [[ "$EFFECTIVE_SCOPE" == "host" ]]; then
 fi
 
 case "$TOOL_NAME" in
-  mcp__*|WebSearch|WebFetch|Agent)
+  mcp__*|WebSearch|Agent)
     exit 0
     ;;
 
@@ -125,6 +125,19 @@ case "$TOOL_NAME" in
     # 5 sequential runs (trace log stayed empty for VM-only Edits).
     # For project-dir (bind-mounted) Edits, the file is already on host, so we
     # just pass through. Workaround for VM-only edits: use Bash + sed/echo.
+    exit 0
+    ;;
+
+  WebFetch)
+    # WebFetch uses CC's built-in HTTP client on the host, bypassing every
+    # cc-msb config (network policy, pass_env, etc.). Deny it and nudge
+    # Claude to use Bash + curl instead — the existing Bash hook routes
+    # that through `msb exec` so the fetch actually happens in the sandbox.
+    # PreToolUse hooks can't return synthetic tool results, so this two-turn
+    # bounce (deny → next-turn Bash) is the cleanest path.
+    URL="$(printf '%s' "$EVENT" | jq -r '.tool_input.url // empty')"
+    PROMPT="$(printf '%s' "$EVENT" | jq -r '.tool_input.prompt // empty')"
+    emit_deny "cc-msb: WebFetch is intercepted so network calls run inside the sandbox (where the configured \`network\` policy applies). Use Bash instead: run \`curl -sSL '$URL'\` and then answer this question about the response: $PROMPT"
     exit 0
     ;;
 esac

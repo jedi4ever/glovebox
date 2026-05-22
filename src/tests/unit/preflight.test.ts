@@ -20,12 +20,14 @@ function runPreflight(extraEnv: Record<string, string> = {}) {
 }
 
 describe("preflight.sh — SessionStart hook", () => {
-  it("emits the Edit-not-available hint when all required tools are present", () => {
+  it("emits the Edit-not-available and WebFetch-intercepted hints when all required tools are present", () => {
     const r = runPreflight();
     expect(r.status).toBe(0);
     const ctx = r.json().hookSpecificOutput.additionalContext as string;
     expect(ctx).toMatch(/sandbox is active/i);
     expect(ctx).toMatch(/edit is not available/i);
+    expect(ctx).toMatch(/webfetch is also intercepted/i);
     expect(ctx).toMatch(/use bash/i);
+    expect(ctx).toMatch(/curl/i);
   });
 });

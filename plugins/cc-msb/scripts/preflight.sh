@@ -32,7 +32,7 @@ EOF
 fi
 
 VERSIONS="node=$(node --version), jq=$(jq --version), msb=$(msb --version 2>&1 | head -1)"
-EDIT_HINT="Edit is not available for files inside the sandbox — use Bash to edit them."
+EDIT_HINT="Edit is not available for files inside the sandbox — use Bash to edit them. WebFetch is also intercepted — use Bash with curl to fetch URLs so they go through the sandbox's network policy."
 
 jq -nc --arg ctx "cc-msb sandbox is active ($VERSIONS). $EDIT_HINT" '{
   hookSpecificOutput: {

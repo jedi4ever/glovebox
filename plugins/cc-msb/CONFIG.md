@@ -142,6 +142,16 @@ Applied at sandbox-creation time, so the mappings are fixed for the sandbox's li
 
 **Env override**: `CC_MSB_MAIN_PORTS`, `CC_MSB_AGENT_PORTS_<NAME>`
 
+## Behavior
+
+### WebFetch interception
+
+The plugin denies the `WebFetch` tool with a hint telling Claude to use `Bash` with `curl` instead. The Bash hook then routes that curl call through `msb exec` so the fetch happens **inside** the sandbox and respects the configured `network` policy — otherwise CC's built-in WebFetch would bypass every cc-msb config and hit the URL from the host.
+
+PreToolUse hooks can't return synthetic tool results, so this two-turn bounce (deny → next-turn Bash) is the cleanest path. There's no opt-out per se; `scope: host` already bypasses every cc-msb hook, including this one.
+
+For tests / projects that fetch URLs, choose a sandbox image that ships with curl preinstalled (e.g. `buildpack-deps:noble`) — the default `ubuntu` image doesn't have curl and Claude would have to `apt-get install` it first.
+
 ## Env-var naming
 
 - Main settings use a fixed name: `CC_MSB_MAIN_<SETTING>` (e.g. `CC_MSB_MAIN_SCOPE`).
