@@ -17,7 +17,7 @@ afterAll(() => {
   }
 });
 
-describe("config — named scope integration", () => {
+describe.concurrent("config — named scope integration", () => {
   it("named sandbox persists across sessions: state written in session 1 is readable in session 2", async () => {
     const projectDir = await mkdtemp(join(tmpdir(), "cc-msb-named-"));
     try {

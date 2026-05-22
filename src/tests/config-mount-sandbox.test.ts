@@ -1,47 +1,37 @@
-import { describe, it, expect, afterEach } from "vitest";
-import { mkdtemp, rm, writeFile, copyFile } from "node:fs/promises";
-import { tmpdir } from "node:os";
+import { describe, it, expect } from "vitest";
+import { writeFile, copyFile } from "node:fs/promises";
 import { join } from "node:path";
-import { createCleanSession, type CleanSession } from "../helpers/session.js";
+import { setupScenario } from "../helpers/scenario.js";
 import { fixturePath } from "../helpers/fixtures.js";
 
-describe("config — mount_workdir integration", () => {
-  let session: CleanSession | undefined;
-  let projectDir: string | undefined;
-
-  afterEach(async () => {
-    await session?.dispose();
-    if (projectDir) await rm(projectDir, { recursive: true, force: true });
-  });
-
+describe.concurrent("config — mount_workdir integration", () => {
   it("project files are visible inside the sandbox by default", async () => {
-    projectDir = await mkdtemp(join(tmpdir(), "cc-msb-mount-on-"));
-    await writeFile(join(projectDir, "marker.txt"), "project-marker-content");
-
-    session = await createCleanSession({ cwd: projectDir });
-    const result = await session.run(
-      "Run a bash command to print the contents of /workspace/marker.txt"
-    );
-
-    expect(result.exitCode).toBe(0);
-    expect(result.stdout).toMatch(/project-marker-content/i);
+    const { projectDir, session, teardown } = await setupScenario("cc-msb-mount-on-");
+    try {
+      await writeFile(join(projectDir, "marker.txt"), "project-marker-content");
+      const result = await session.run(
+        "Run a bash command to print the contents of /workspace/marker.txt"
+      );
+      expect(result.exitCode).toBe(0);
+      expect(result.stdout).toMatch(/project-marker-content/i);
+    } finally {
+      await teardown();
+    }
   });
 
   it("project files are not visible when mount_workdir: false", async () => {
-    projectDir = await mkdtemp(join(tmpdir(), "cc-msb-mount-off-"));
-    await writeFile(join(projectDir, "marker.txt"), "project-marker-content");
-    await copyFile(
-      fixturePath("config-mount-off", ".cc-msb.yml"),
-      join(projectDir, ".cc-msb.yml")
-    );
-
-    session = await createCleanSession({ cwd: projectDir });
-    const result = await session.run(
-      "Run a bash command: does /workspace/marker.txt exist? Answer yes or no."
-    );
-
-    expect(result.exitCode).toBe(0);
-    expect(result.stdout).not.toMatch(/project-marker-content/i);
-    expect(result.stdout).toMatch(/no|not exist|cannot|doesn.t exist/i);
+    const { projectDir, session, teardown } = await setupScenario("cc-msb-mount-off-");
+    try {
+      await writeFile(join(projectDir, "marker.txt"), "project-marker-content");
+      await copyFile(fixturePath("config-mount-off", ".cc-msb.yml"), join(projectDir, ".cc-msb.yml"));
+      const result = await session.run(
+        "Run a bash command: does /workspace/marker.txt exist? Answer yes or no."
+      );
+      expect(result.exitCode).toBe(0);
+      expect(result.stdout).not.toMatch(/project-marker-content/i);
+      expect(result.stdout).toMatch(/no|not exist|cannot|doesn.t exist/i);
+    } finally {
+      await teardown();
+    }
   });
 });

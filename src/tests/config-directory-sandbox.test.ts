@@ -25,7 +25,7 @@ afterAll(async () => {
   }
 });
 
-describe("config — directory scope integration", () => {
+describe.concurrent("config — directory scope integration", () => {
   it("state written in session 1 is readable in session 2 (same directory)", async () => {
     const projectDir = await mkdtemp(join(tmpdir(), "cc-msb-dir-scope-"));
     await cp(fixturePath("config-scope-directory"), projectDir, { recursive: true });
