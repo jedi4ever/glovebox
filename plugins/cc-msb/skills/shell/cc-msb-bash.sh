@@ -25,6 +25,15 @@ set -uo pipefail
 
 HOST_BASH="${CC_MSB_HOST_BASH:-/bin/bash}"
 
+# Opt-in invocation log. When CC_MSB_SHELL_TRACE_LOG is set, append a single
+# line per invocation: `<iso-timestamp>\t<argc>\t<first-arg-or-->`. Used by
+# the integration test to prove CC honored CLAUDE_CODE_SHELL; harmless in
+# production unless the var is set.
+if [ -n "${CC_MSB_SHELL_TRACE_LOG:-}" ]; then
+  printf '%s\t%s\t%s\n' "$(date -Iseconds 2>/dev/null || date)" "$#" "${1:--}" \
+    >>"$CC_MSB_SHELL_TRACE_LOG" 2>/dev/null || true
+fi
+
 # Normalise the invocation into "CMD = a single command string we should
 # run" or hand the whole thing off to real bash and exit.
 case "$#" in
