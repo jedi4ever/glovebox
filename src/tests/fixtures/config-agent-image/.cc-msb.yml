@@ -4,4 +4,5 @@ defaults:
 
 agents:
   test-agent:
+    scope: per-agent
     sandbox_image: debian

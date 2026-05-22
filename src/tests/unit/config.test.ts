@@ -155,8 +155,10 @@ describe("config — sandbox_image", () => {
 
 describe("config — agent-specific image", () => {
   it("uses agent-specific image from config when agent_type matches", () => {
+    // config-agent-image sets scope: per-agent on test-agent, so create-args
+    // land at the per-agent sandbox name, not the session sandbox.
     runHook(fixturePath("config-agent-image"), {}, "test-agent");
-    expect(readCreateArgs()[0]).toBe("debian");
+    expect(readCreateArgs(PER_AGENT_SANDBOX)[0]).toBe("debian");
   });
 
   it("falls back to global sandbox_image for an unlisted agent", () => {
@@ -170,8 +172,9 @@ describe("config — agent-specific image", () => {
   });
 
   it("env var CC_MSB_AGENT_IMAGE_<NAME> overrides config file for that agent", () => {
+    // config-agent-image sets scope: per-agent on test-agent.
     runHook(fixturePath("config-agent-image"), { CC_MSB_AGENT_IMAGE_TEST_AGENT: "alpine" }, "test-agent");
-    expect(readCreateArgs()[0]).toBe("alpine");
+    expect(readCreateArgs(PER_AGENT_SANDBOX)[0]).toBe("alpine");
   });
 
   it("env var CC_MSB_AGENT_IMAGE_<NAME> with hyphenated agent name (test-agent → TEST_AGENT)", () => {
