@@ -31,11 +31,12 @@ EOF
   exit 0
 fi
 
-cat <<EOF
-{
-  "hookSpecificOutput": {
-    "hookEventName": "SessionStart",
-    "additionalContext": "cc-msb sandbox is active (node=$(node --version), jq=$(jq --version), msb=$(msb --version 2>&1 | head -1))."
+VERSIONS="node=$(node --version), jq=$(jq --version), msb=$(msb --version 2>&1 | head -1)"
+EDIT_HINT="Edit is not available for files inside the sandbox — use Bash to edit them."
+
+jq -nc --arg ctx "cc-msb sandbox is active ($VERSIONS). $EDIT_HINT" '{
+  hookSpecificOutput: {
+    hookEventName: "SessionStart",
+    additionalContext: $ctx
   }
-}
-EOF
+}'

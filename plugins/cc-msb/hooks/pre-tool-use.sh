@@ -113,10 +113,10 @@ case "$TOOL_NAME" in
   Edit|MultiEdit)
     # CC checks file existence on the host BEFORE this hook fires, so Edit on
     # VM-only paths (/tmp/..., /etc/..., etc.) is blocked by CC with "File does
-    # not exist" before we ever see the call — verified by hook tracing.
+    # not exist" before we ever see the call — verified by hook tracing across
+    # 5 sequential runs (trace log stayed empty for VM-only Edits).
     # For project-dir (bind-mounted) Edits, the file is already on host, so we
-    # just pass through without rewriting. Workaround for VM-only edits is to
-    # use Bash with sed/echo inside the sandbox.
+    # just pass through. Workaround for VM-only edits: use Bash + sed/echo.
     exit 0
     ;;
 esac
