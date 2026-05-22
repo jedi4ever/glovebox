@@ -89,6 +89,55 @@ case "$TOOL_NAME" in
     mkdir -p "$STATE_DIR"
 
     sandbox_resolve_path "$FILE_PATH" "$PROJECT_DIR" "$STATE_DIR"
+
+    if [[ "$SANDBOX_NEEDS_SYNC" == "yes" ]]; then
+      # Write at the original host path (transparent — shadow path never shown to Claude).
+      # Ensure the sandbox exists so post-tool-use can sync the file into it.
+      SANDBOX="$(sandbox_name_for "$SESSION_ID" "$AGENT_TYPE" "$EFFECTIVE_SANDBOX_NAME" "$EFFECTIVE_SCOPE" "$PROJECT_DIR")"
+      sandbox_ensure_running "$SANDBOX" "$PROJECT_DIR" "$STATE_DIR/sandbox.log" "$EFFECTIVE_IMAGE" "$EFFECTIVE_MOUNT_WORKDIR" || true
+      if [[ "$EFFECTIVE_SCOPE" != "directory" ]] && [[ "$EFFECTIVE_SCOPE" != "named" || -z "$EFFECTIVE_SANDBOX_NAME" ]]; then
+        sandbox_track "$SESSION_ID" "$SANDBOX"
+      fi
+      mkdir -p "$(dirname "$FILE_PATH")" 2>/dev/null || true
+      SANDBOX_HOST_PATH="$FILE_PATH"
+    fi
+
+    emit_allow_file_path "$SANDBOX_HOST_PATH" "$EVENT"
+    exit 0
+    ;;
+
+  Edit|MultiEdit)
+    SESSION_ID="$(printf '%s' "$EVENT" | jq -r '.session_id // empty')"
+    FILE_PATH="$(printf '%s' "$EVENT" | jq -r '.tool_input.file_path // empty')"
+    [[ -z "$SESSION_ID" || -z "$FILE_PATH" ]] && exit 0
+
+    SANDBOX="$(sandbox_name_for_file_op "$SESSION_ID" "$AGENT_TYPE" "$EFFECTIVE_SANDBOX_NAME" "$EFFECTIVE_SCOPE" "$PROJECT_DIR")"
+    STATE_DIR="$(sandbox_state_dir "$SESSION_ID")"
+    mkdir -p "$STATE_DIR"
+
+    sandbox_resolve_path "$FILE_PATH" "$PROJECT_DIR" "$STATE_DIR"
+
+    if [[ "$SANDBOX_NEEDS_SYNC" == "yes" ]]; then
+      sandbox_ensure_running "$SANDBOX" "$PROJECT_DIR" "$STATE_DIR/sandbox.log" "$EFFECTIVE_IMAGE" "$EFFECTIVE_MOUNT_WORKDIR" || {
+        emit_deny "cc-msb: failed to start sandbox for edit of $FILE_PATH"
+        exit 0
+      }
+      if [[ "$EFFECTIVE_SCOPE" != "directory" ]] && [[ "$EFFECTIVE_SCOPE" != "named" || -z "$EFFECTIVE_SANDBOX_NAME" ]]; then
+        sandbox_track "$SESSION_ID" "$SANDBOX"
+      fi
+      # Try to sync from sandbox to original host path (transparent).
+      # Fall back to the shadow path for host locations that aren't writable (e.g. /etc).
+      if mkdir -p "$(dirname "$FILE_PATH")" 2>/dev/null && \
+         sandbox_read_into_shadow "$SANDBOX" "$FILE_PATH" "$FILE_PATH" 2>/dev/null; then
+        SANDBOX_HOST_PATH="$FILE_PATH"
+      else
+        sandbox_read_into_shadow "$SANDBOX" "$FILE_PATH" "$SANDBOX_HOST_PATH" || {
+          emit_deny "cc-msb: cannot read $FILE_PATH from sandbox for editing"
+          exit 0
+        }
+      fi
+    fi
+
     emit_allow_file_path "$SANDBOX_HOST_PATH" "$EVENT"
     exit 0
     ;;

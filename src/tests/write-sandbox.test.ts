@@ -24,6 +24,31 @@ describe("write sandboxing", () => {
   });
 });
 
+describe("edit sandboxing", () => {
+  let session: CleanSession | undefined;
+
+  afterEach(async () => {
+    await session?.dispose();
+  });
+
+  it("bash creates a file, write appends, edit updates, read verifies — all outside workdir", async () => {
+    session = await createCleanSession();
+
+    const result = await session.run(
+      "Do these 4 steps in order using separate tool calls:\n" +
+      "1. Run bash: `echo original-line > /tmp/cc-msb-edit-test.txt`\n" +
+      "2. Use the Write tool to write the text 'written-line\\n' to /tmp/cc-msb-edit-test.txt\n" +
+      "3. Use the Edit tool to replace 'written-line' with 'edited-line' in /tmp/cc-msb-edit-test.txt\n" +
+      "4. Read /tmp/cc-msb-edit-test.txt and report the exact contents.\n" +
+      "Label each step's output clearly."
+    );
+
+    expect(result.exitCode).toBe(0);
+    expect(result.stdout).toMatch(/edited-line/i);
+    expect(result.stdout).not.toMatch(/written-line/i);
+  });
+});
+
 describe("full hook round-trip", () => {
   let session: CleanSession | undefined;
 
