@@ -179,6 +179,77 @@ describe("sandbox-build.mjs — applyConfig", () => {
   });
 });
 
+describe("sandbox-build.mjs — applyGitIdentity", () => {
+  // Build a minimal mock Sandbox class that records exec calls. The real
+  // SDK isn't needed.
+  function makeMockSandboxClass(): { Sandbox: any; lastExec: () => unknown[] | null } {
+    const calls: unknown[][] = [];
+    const live = {
+      exec: async (...args: unknown[]) => {
+        calls.push(args);
+        return { stdout: () => "" };
+      },
+    };
+    const handle = { connect: async () => live };
+    const Sandbox = { get: async () => handle };
+    return { Sandbox, lastExec: () => (calls.length ? calls[calls.length - 1]! : null) };
+  }
+
+  it("no-op when neither gitUserName nor gitUserEmail is set", async () => {
+    const { applyGitIdentity } = await import(MODULE_URL);
+    const { Sandbox, lastExec } = makeMockSandboxClass();
+    await applyGitIdentity(Sandbox, { sandboxName: "test", gitUserName: "", gitUserEmail: "" });
+    expect(lastExec()).toBeNull();
+  });
+
+  it("execs `git config --global user.name` when only name is set", async () => {
+    const { applyGitIdentity } = await import(MODULE_URL);
+    const { Sandbox, lastExec } = makeMockSandboxClass();
+    await applyGitIdentity(Sandbox, { sandboxName: "test", gitUserName: "Alice", gitUserEmail: "" });
+    const call = lastExec();
+    expect(call).not.toBeNull();
+    expect(call?.[0]).toBe("sh");
+    const script = (call?.[1] as string[])[1];
+    expect(script).toMatch(/git config --global user\.name "Alice"/);
+    expect(script).not.toMatch(/user\.email/);
+  });
+
+  it("execs both user.name and user.email when both set, AND-chained", async () => {
+    const { applyGitIdentity } = await import(MODULE_URL);
+    const { Sandbox, lastExec } = makeMockSandboxClass();
+    await applyGitIdentity(Sandbox, {
+      sandboxName: "test",
+      gitUserName: "Alice",
+      gitUserEmail: "alice@example.com",
+    });
+    const script = ((lastExec()?.[1] as string[]) || [])[1] || "";
+    expect(script).toMatch(/git config --global user\.name "Alice"/);
+    expect(script).toMatch(/&& git config --global user\.email "alice@example\.com"/);
+  });
+
+  it("shell-escapes quotes / backslashes / `$` / backticks in the values", async () => {
+    const { applyGitIdentity } = await import(MODULE_URL);
+    const { Sandbox, lastExec } = makeMockSandboxClass();
+    await applyGitIdentity(Sandbox, {
+      sandboxName: "test",
+      gitUserName: 'Bob "the Builder" $WHO',
+      gitUserEmail: "bob`echo`@host",
+    });
+    const script = ((lastExec()?.[1] as string[]) || [])[1] || "";
+    expect(script).toContain('user.name "Bob \\"the Builder\\" \\$WHO"');
+    expect(script).toContain('user.email "bob\\`echo\\`@host"');
+  });
+
+  it("swallows SDK errors silently (best-effort)", async () => {
+    const { applyGitIdentity } = await import(MODULE_URL);
+    const Sandbox = { get: async () => { throw new Error("sandbox vanished"); } };
+    // Should resolve, not reject.
+    await expect(applyGitIdentity(Sandbox, {
+      sandboxName: "test", gitUserName: "x", gitUserEmail: "y@z",
+    })).resolves.toBeUndefined();
+  });
+});
+
 describe("sandbox-build.mjs — dumpFake", () => {
   const NAME = "cc-msb-sandbox-build-test";
   const FAKE_FILE = `/tmp/fake-msb-${NAME}.create-args`;

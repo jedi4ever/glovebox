@@ -14,7 +14,7 @@
 // Exit: 0 / 1 respectively.
 
 import { readFileSync } from "node:fs";
-import { applyConfig, dumpFake, loadSdk } from "./lib/sandbox-build.mjs";
+import { applyConfig, applyGitIdentity, dumpFake, loadSdk } from "./lib/sandbox-build.mjs";
 
 function fatal(msg) {
   process.stdout.write(JSON.stringify({ ok: false, error: msg }) + "\n");
@@ -52,6 +52,9 @@ try {
 } catch (e) {
   fatal(`create failed: ${e.message}`);
 }
+
+// Apply git identity inside the sandbox (best-effort).
+await applyGitIdentity(Sandbox, cfg);
 
 process.stdout.write(JSON.stringify({ ok: true }) + "\n");
 process.exit(0);

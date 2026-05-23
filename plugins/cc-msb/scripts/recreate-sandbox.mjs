@@ -12,7 +12,7 @@
 // full recreate with state loss).
 
 import { readFileSync } from "node:fs";
-import { applyConfig, dumpFake, loadSdk } from "./lib/sandbox-build.mjs";
+import { applyConfig, applyGitIdentity, dumpFake, loadSdk } from "./lib/sandbox-build.mjs";
 
 function fatal(msg, extra = {}) {
   process.stdout.write(JSON.stringify({ ok: false, error: msg, ...extra }) + "\n");
@@ -97,6 +97,9 @@ try {
 } catch (e) {
   fatal(`recreate failed: ${e.message}`);
 }
+
+// Apply git identity inside the freshly-restored sandbox (best-effort).
+await applyGitIdentity(Sandbox, cfg);
 
 // 6. Snapshot served its purpose; drop it.
 try {

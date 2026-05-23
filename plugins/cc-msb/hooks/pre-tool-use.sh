@@ -30,6 +30,19 @@ EFFECTIVE_TLS_INTERCEPT_PORT="$(config_agent_tls_intercept_port "$AGENT_TYPE" "$
 EFFECTIVE_TLS_BYPASS="$(config_agent_tls_bypass "$AGENT_TYPE" "$PROJECT_DIR/.cc-msb.yml")"
 EFFECTIVE_TRUST_HOST_CAS="$(config_agent_trust_host_cas "$AGENT_TYPE" "$PROJECT_DIR/.cc-msb.yml")"
 EFFECTIVE_AUTO_RECREATE="$(config_agent_auto_recreate "$AGENT_TYPE" "$PROJECT_DIR/.cc-msb.yml")"
+EFFECTIVE_GIT_USER_NAME="$(config_agent_git_user_name "$AGENT_TYPE" "$PROJECT_DIR/.cc-msb.yml")"
+EFFECTIVE_GIT_USER_EMAIL="$(config_agent_git_user_email "$AGENT_TYPE" "$PROJECT_DIR/.cc-msb.yml")"
+EFFECTIVE_GITHUB_TOKEN="$(config_agent_github_token "$AGENT_TYPE" "$PROJECT_DIR/.cc-msb.yml")"
+EFFECTIVE_GITHUB_HOSTS="$(config_agent_github_hosts "$AGENT_TYPE" "$PROJECT_DIR/.cc-msb.yml")"
+EFFECTIVE_GIT_USER_AUTODETECT="$(config_agent_git_user_autodetect "$AGENT_TYPE" "$PROJECT_DIR/.cc-msb.yml")"
+EFFECTIVE_GIT_TOKEN_AUTODETECT="$(config_agent_git_token_autodetect "$AGENT_TYPE" "$PROJECT_DIR/.cc-msb.yml")"
+# Fill in any unset git/github fields from the host (git config + gh auth token).
+sandbox_autodetect_git_identity \
+  "$EFFECTIVE_GIT_USER_NAME" "$EFFECTIVE_GIT_USER_EMAIL" "$EFFECTIVE_GITHUB_TOKEN" \
+  "$EFFECTIVE_GIT_USER_AUTODETECT" "$EFFECTIVE_GIT_TOKEN_AUTODETECT"
+EFFECTIVE_GIT_USER_NAME="$AUTODETECTED_GIT_USER_NAME"
+EFFECTIVE_GIT_USER_EMAIL="$AUTODETECTED_GIT_USER_EMAIL"
+EFFECTIVE_GITHUB_TOKEN="$AUTODETECTED_GITHUB_TOKEN"
 
 # Handle a drift signal from sandbox_ensure_running. Either:
 #   (a) auto_recreate=true → run the SDK-backed recreate script in place;
@@ -49,7 +62,9 @@ handle_drift_if_any() {
       "$EFFECTIVE_MOUNT_WORKDIR" "$EFFECTIVE_NETWORK" "$EFFECTIVE_PORTS" \
       "$EFFECTIVE_SECRETS" "$EFFECTIVE_ON_SECRET_VIOLATION" \
       "$EFFECTIVE_TLS_INTERCEPT" "$EFFECTIVE_TLS_INTERCEPT_PORT" \
-      "$EFFECTIVE_TLS_BYPASS" "$EFFECTIVE_TRUST_HOST_CAS")"
+      "$EFFECTIVE_TLS_BYPASS" "$EFFECTIVE_TRUST_HOST_CAS" \
+      "$EFFECTIVE_GIT_USER_NAME" "$EFFECTIVE_GIT_USER_EMAIL" \
+      "$EFFECTIVE_GITHUB_TOKEN" "$EFFECTIVE_GITHUB_HOSTS")"
     recreate_out="$(printf '%s' "$recreate_payload" \
       | node "$PLUGIN_ROOT/scripts/recreate-sandbox.mjs" 2>>"$STATE_DIR/recreate.log")" || true
     local ok image_changed recreate_err
@@ -58,12 +73,20 @@ handle_drift_if_any() {
     recreate_err="$(printf '%s' "$recreate_out" | jq -r '.error // ""' 2>/dev/null || echo "")"
     if [[ "$ok" == "true" ]]; then
       # Recreate succeeded — rewrite the fingerprint to silence drift.
+      # Apply the same github expansion the payload builder did, so the
+      # fingerprint matches what sandbox_ensure_running computes on the
+      # next call (which reads post-expansion network/secrets out of the
+      # payload).
+      sandbox_apply_github_expansion \
+        "$EFFECTIVE_NETWORK" "$EFFECTIVE_SECRETS" \
+        "$EFFECTIVE_GITHUB_TOKEN" "$EFFECTIVE_GITHUB_HOSTS"
       local new_fp fp_path
       new_fp="$(sandbox_config_fingerprint \
-        "$EFFECTIVE_IMAGE" "$EFFECTIVE_MOUNT_WORKDIR" "$EFFECTIVE_NETWORK" "$EFFECTIVE_PORTS" \
-        "$EFFECTIVE_SECRETS" "$EFFECTIVE_ON_SECRET_VIOLATION" \
+        "$EFFECTIVE_IMAGE" "$EFFECTIVE_MOUNT_WORKDIR" "$GH_EXPANDED_NETWORK" "$EFFECTIVE_PORTS" \
+        "$GH_EXPANDED_SECRETS" "$EFFECTIVE_ON_SECRET_VIOLATION" \
         "$EFFECTIVE_TLS_INTERCEPT" "$EFFECTIVE_TLS_INTERCEPT_PORT" \
-        "$EFFECTIVE_TLS_BYPASS" "$EFFECTIVE_TRUST_HOST_CAS")"
+        "$EFFECTIVE_TLS_BYPASS" "$EFFECTIVE_TRUST_HOST_CAS" \
+        "$EFFECTIVE_GIT_USER_NAME" "$EFFECTIVE_GIT_USER_EMAIL")"
       fp_path="$(sandbox_fingerprint_path "$name")"
       mkdir -p "$(dirname "$fp_path")"
       printf '%s\n' "$new_fp" > "$fp_path"
@@ -109,7 +132,9 @@ case "$TOOL_NAME" in
       "$EFFECTIVE_MOUNT_WORKDIR" "$EFFECTIVE_NETWORK" "$EFFECTIVE_PORTS" \
       "$EFFECTIVE_SECRETS" "$EFFECTIVE_ON_SECRET_VIOLATION" \
       "$EFFECTIVE_TLS_INTERCEPT" "$EFFECTIVE_TLS_INTERCEPT_PORT" \
-      "$EFFECTIVE_TLS_BYPASS" "$EFFECTIVE_TRUST_HOST_CAS")"
+      "$EFFECTIVE_TLS_BYPASS" "$EFFECTIVE_TRUST_HOST_CAS" \
+      "$EFFECTIVE_GIT_USER_NAME" "$EFFECTIVE_GIT_USER_EMAIL" \
+      "$EFFECTIVE_GITHUB_TOKEN" "$EFFECTIVE_GITHUB_HOSTS")"
     sandbox_ensure_running "$SANDBOX" "$PROJECT_DIR" "$STATE_DIR/sandbox.log" "$CREATE_PAYLOAD" || {
       emit_deny "cc-msb: failed to start sandbox (see $STATE_DIR/sandbox.log)"
       exit 0

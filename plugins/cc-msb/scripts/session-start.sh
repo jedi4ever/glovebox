@@ -37,6 +37,18 @@ EFFECTIVE_TLS_INTERCEPT="$(config_agent_tls_intercept "" "$PROJECT_DIR/.cc-msb.y
 EFFECTIVE_TLS_INTERCEPT_PORT="$(config_agent_tls_intercept_port "" "$PROJECT_DIR/.cc-msb.yml")"
 EFFECTIVE_TLS_BYPASS="$(config_agent_tls_bypass "" "$PROJECT_DIR/.cc-msb.yml")"
 EFFECTIVE_TRUST_HOST_CAS="$(config_agent_trust_host_cas "" "$PROJECT_DIR/.cc-msb.yml")"
+EFFECTIVE_GIT_USER_NAME="$(config_agent_git_user_name "" "$PROJECT_DIR/.cc-msb.yml")"
+EFFECTIVE_GIT_USER_EMAIL="$(config_agent_git_user_email "" "$PROJECT_DIR/.cc-msb.yml")"
+EFFECTIVE_GITHUB_TOKEN="$(config_agent_github_token "" "$PROJECT_DIR/.cc-msb.yml")"
+EFFECTIVE_GITHUB_HOSTS="$(config_agent_github_hosts "" "$PROJECT_DIR/.cc-msb.yml")"
+EFFECTIVE_GIT_USER_AUTODETECT="$(config_agent_git_user_autodetect "" "$PROJECT_DIR/.cc-msb.yml")"
+EFFECTIVE_GIT_TOKEN_AUTODETECT="$(config_agent_git_token_autodetect "" "$PROJECT_DIR/.cc-msb.yml")"
+sandbox_autodetect_git_identity \
+  "$EFFECTIVE_GIT_USER_NAME" "$EFFECTIVE_GIT_USER_EMAIL" "$EFFECTIVE_GITHUB_TOKEN" \
+  "$EFFECTIVE_GIT_USER_AUTODETECT" "$EFFECTIVE_GIT_TOKEN_AUTODETECT"
+EFFECTIVE_GIT_USER_NAME="$AUTODETECTED_GIT_USER_NAME"
+EFFECTIVE_GIT_USER_EMAIL="$AUTODETECTED_GIT_USER_EMAIL"
+EFFECTIVE_GITHUB_TOKEN="$AUTODETECTED_GITHUB_TOKEN"
 
 # scope=host: nothing to boot. Just tell Claude that tools run on the host.
 if [[ "$EFFECTIVE_SCOPE" == "host" ]]; then
@@ -56,7 +68,9 @@ CREATE_PAYLOAD="$(sandbox_build_create_payload \
   "$EFFECTIVE_MOUNT_WORKDIR" "$EFFECTIVE_NETWORK" "$EFFECTIVE_PORTS" \
   "$EFFECTIVE_SECRETS" "$EFFECTIVE_ON_SECRET_VIOLATION" \
   "$EFFECTIVE_TLS_INTERCEPT" "$EFFECTIVE_TLS_INTERCEPT_PORT" \
-  "$EFFECTIVE_TLS_BYPASS" "$EFFECTIVE_TRUST_HOST_CAS")"
+  "$EFFECTIVE_TLS_BYPASS" "$EFFECTIVE_TRUST_HOST_CAS" \
+  "$EFFECTIVE_GIT_USER_NAME" "$EFFECTIVE_GIT_USER_EMAIL" \
+  "$EFFECTIVE_GITHUB_TOKEN" "$EFFECTIVE_GITHUB_HOSTS")"
 sandbox_ensure_running "$SANDBOX" "$PROJECT_DIR" "$STATE_DIR/sandbox.log" \
   "$CREATE_PAYLOAD" >/dev/null 2>&1 || exit 0
 

@@ -716,3 +716,55 @@ config_agent_auto_recreate() {
   _config_setting "$1" "auto_recreate" "false" \
     "CC_MSB_MAIN_AUTO_RECREATE" "CC_MSB_AGENT_AUTO_RECREATE" "$2"
 }
+
+# ============================================================================
+# git_* / github_* — sandbox-side git identity + GitHub token auto-scoping
+# ============================================================================
+# These follow the standard resolution chain. Keys are flat under `main:` /
+# `agents.<name>:` / `defaults*:` (matching every other setting). Future
+# refactor could group them under `git:` / `github:` sub-mappings if we
+# extend the YAML parser to handle 4-level paths.
+
+# Applied via `git config --global` inside the sandbox once it's up.
+# Empty value → no `git config` run for that field.
+config_agent_git_user_name() {
+  _config_setting "$1" "git_user_name" "" \
+    "CC_MSB_MAIN_GIT_USER_NAME" "CC_MSB_AGENT_GIT_USER_NAME" "$2"
+}
+
+config_agent_git_user_email() {
+  _config_setting "$1" "git_user_email" "" \
+    "CC_MSB_MAIN_GIT_USER_EMAIL" "CC_MSB_AGENT_GIT_USER_EMAIL" "$2"
+}
+
+# Either a literal token VALUE or `$VAR` to interpolate from the host env at
+# hook time (same semantics as `secrets`). When set, the hook auto-appends
+# one `--secret GH_TOKEN=<resolved>@<host>` per github host AND merges the
+# hosts into the `network` allowlist.
+config_agent_github_token() {
+  _config_setting "$1" "github_token" "" \
+    "CC_MSB_MAIN_GITHUB_TOKEN" "CC_MSB_AGENT_GITHUB_TOKEN" "$2"
+}
+
+# Comma-separated host allowlist scoped for the token. Empty → fall back to
+# `sandbox_github_default_hosts`. Accepts a YAML list (parsed → joined).
+config_agent_github_hosts() {
+  _config_setting "$1" "github_hosts" "" \
+    "CC_MSB_MAIN_GITHUB_HOSTS" "CC_MSB_AGENT_GITHUB_HOSTS" "$2"
+}
+
+# Boolean "true"/"false": when true (default), unset git_user_name /
+# git_user_email fall back to the host's `git config --global --get
+# user.name` / `user.email`. Explicit config values always win.
+config_agent_git_user_autodetect() {
+  _config_setting "$1" "git_user_autodetect" "true" \
+    "CC_MSB_MAIN_GIT_USER_AUTODETECT" "CC_MSB_AGENT_GIT_USER_AUTODETECT" "$2"
+}
+
+# Boolean "true"/"false": when true (default), an unset github_token
+# falls back to the host's `gh auth token` output (silently no-op if
+# `gh` isn't on PATH or isn't authenticated). Explicit config wins.
+config_agent_git_token_autodetect() {
+  _config_setting "$1" "git_token_autodetect" "true" \
+    "CC_MSB_MAIN_GIT_TOKEN_AUTODETECT" "CC_MSB_AGENT_GIT_TOKEN_AUTODETECT" "$2"
+}

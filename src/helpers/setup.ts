@@ -22,3 +22,11 @@ if (existsSync(envPath)) {
 // ~/.config/cc-msb/ on the host. Individual tests that need to exercise
 // the global config still override this for the duration of their spawn.
 process.env["CC_MSB_CONFIG_DIR"] = mkdtempSync(join(tmpdir(), "cc-msb-test-config-"));
+
+// Disable the git-identity / gh-token autodetect fallbacks by default in
+// the test suite. Otherwise the hooks would pick up the developer's real
+// `~/.gitconfig` and `gh auth token`, polluting every test that asserts
+// on the resolved JSON payload. Tests that explicitly exercise the
+// autodetect path re-enable via extraEnv on the spawn call.
+process.env["CC_MSB_MAIN_GIT_USER_AUTODETECT"] = "false";
+process.env["CC_MSB_MAIN_GIT_TOKEN_AUTODETECT"] = "false";

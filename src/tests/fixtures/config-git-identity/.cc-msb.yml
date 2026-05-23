@@ -1,0 +1,4 @@
+main:
+  sandbox_image: buildpack-deps:noble
+  git_user_name: "Probe Bot"
+  git_user_email: "probe@example.com"

@@ -239,6 +239,49 @@ main:
 
 **Env overrides**: `CC_MSB_MAIN_TLS_INTERCEPT`, `CC_MSB_MAIN_TLS_INTERCEPT_PORT`, `CC_MSB_MAIN_TLS_BYPASS`, `CC_MSB_MAIN_TRUST_HOST_CAS` (and the `CC_MSB_AGENT_…_<NAME>` equivalents).
 
+### `git_user_name` / `git_user_email` — sandbox-side git identity
+
+Applied via `git config --global` inside the guest right after sandbox creation. Best-effort: silently skipped if the image lacks `git`. Empty values are no-ops.
+
+```yaml
+main:
+  git_user_name: "Alice Example"
+  git_user_email: "alice@example.com"
+```
+
+Both fields participate in the drift fingerprint, so changing them on a long-lived sandbox triggers the standard recreate path (or `auto_recreate` if set).
+
+**Autodetect**: by default, an unset `git_user_name` / `git_user_email` falls back to the host's `git config --global --get user.name` / `user.email` — so most users don't need to set these explicitly; their normal git identity flows through. Disable with `git_user_autodetect: false`.
+
+**Env overrides**: `CC_MSB_MAIN_GIT_USER_NAME`, `CC_MSB_MAIN_GIT_USER_EMAIL`, `CC_MSB_MAIN_GIT_USER_AUTODETECT`, plus the `CC_MSB_AGENT_…_<NAME>` equivalents.
+
+### `github_token` / `github_hosts` — scoped GitHub auth
+
+Sugar over `secrets` + `network`. When `github_token` is set, the plugin auto-wires the standard GitHub host set:
+
+```yaml
+main:
+  github_token: $GH_TOKEN     # literal value or $VAR (resolved from host env)
+  # github_hosts:             # optional; defaults to the 5-host set below
+  #   - github.com
+  #   - api.github.com
+```
+
+Default hosts: `github.com`, `api.github.com`, `codeload.github.com`, `objects.githubusercontent.com`, `raw.githubusercontent.com`.
+
+For each host in the (effective) list, the plugin emits one `--secret GH_TOKEN=<resolved>@<host>`. msb's egress proxy substitutes the placeholder into outbound traffic for that host only — the real token never reaches the sandbox env or filesystem. The hosts are also unioned into the `network` allowlist so the requests can actually leave.
+
+Behavior with explicit `network:`:
+- `network: enabled` (or unset): replaced with the github host list.
+- `network: disabled`: **left alone**. The user opted out of egress; secrets are still configured but won't be usable until network is re-enabled.
+- `network: "a,b"`: unioned with the github hosts (no duplicates).
+
+If `github_token: $VAR` and `$VAR` is unset on the host, the entire expansion is silently skipped (matches `secrets`' behavior for unresolved `$VAR`s).
+
+**Autodetect**: by default, an unset `github_token` falls back to the output of `gh auth token` on the host. If `gh` isn't on PATH or you aren't authenticated, the fallback silently no-ops (no secrets injected, no network change). Disable with `git_token_autodetect: false`.
+
+**Env overrides**: `CC_MSB_MAIN_GITHUB_TOKEN`, `CC_MSB_MAIN_GITHUB_HOSTS`, `CC_MSB_MAIN_GIT_TOKEN_AUTODETECT`, plus the `CC_MSB_AGENT_…_<NAME>` equivalents.
+
 ## Behavior
 
 ### `auto_recreate` — preserve state on drift
@@ -371,6 +414,29 @@ main:
   scope: named
   sandbox_name: my-app-dev
   ports: "3000:3000,9229:9229"   # web + node inspector
+```
+
+### GitHub authentication with proper identity + scoped token
+
+In the common case — your machine has `git config --global user.name`/`user.email` set and you're logged in via `gh auth login` — **no config is needed at all**. The plugin autodetects both. Just leave the new sections out of your `.cc-msb.yml`.
+
+To override either piece explicitly:
+
+```yaml
+main:
+  git_user_name: "Alice Example"           # overrides host git config
+  git_user_email: "alice@example.com"
+  github_token: $GH_TOKEN                  # overrides `gh auth token`
+```
+
+In both cases, the PAT is exposed *only* to outbound HTTPS to the standard GitHub host set (github.com, api.github.com, codeload.github.com, objects.githubusercontent.com, raw.githubusercontent.com). Any other host attempting to use `$GH_TOKEN` sees the placeholder unsubstituted. Hosts are also auto-allowlisted into `network:` so the requests can actually leave.
+
+To opt out of autodetect:
+
+```yaml
+main:
+  git_user_autodetect:  false   # don't read host git config
+  git_token_autodetect: false   # don't call `gh auth token`
 ```
 
 ### Global defaults across every project

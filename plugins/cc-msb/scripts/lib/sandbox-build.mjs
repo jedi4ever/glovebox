@@ -146,6 +146,34 @@ function applyTls(nb, cfg) {
   });
 }
 
+// ---------------------------------------------------------------------------
+// applyGitIdentity — run `git config --global user.name/email` inside the
+// guest. Called by create-sandbox.mjs / recreate-sandbox.mjs after
+// createDetached, before the process.exit(0) clean-exit bypass. Idempotent:
+// re-running on every create overwrites whatever was there. Best-effort:
+// silently swallowed if the guest lacks git (rare for our use cases).
+// ---------------------------------------------------------------------------
+export async function applyGitIdentity(SandboxClass, cfg) {
+  const name = cfg.gitUserName ?? "";
+  const email = cfg.gitUserEmail ?? "";
+  if (!name && !email) return;
+  try {
+    const handle = await SandboxClass.get(cfg.sandboxName);
+    const live = await handle.connect();
+    const parts = [];
+    if (name) parts.push(`git config --global user.name "${shellEscape(name)}"`);
+    if (email) parts.push(`git config --global user.email "${shellEscape(email)}"`);
+    await live.exec("sh", ["-c", parts.join(" && ")]);
+  } catch {
+    // No git in the image, or transient SDK hiccup — non-fatal.
+  }
+}
+
+function shellEscape(s) {
+  // Double-quoted shell strings only need to escape: \  $  `  "
+  return String(s).replace(/[\\$`"]/g, "\\$&");
+}
+
 function applySecrets(nb, cfg) {
   const entries = (cfg.secrets || "")
     .split(",")
