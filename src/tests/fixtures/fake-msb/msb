@@ -14,19 +14,10 @@ case "$SUBCMD" in
       exit 1
     fi
     ;;
-  create)
-    shift  # skip "create"
-    NAME=""
-    ARGS=("$@")
-    while [[ $# -gt 0 ]]; do
-      if [[ "$1" == "--name" ]]; then NAME="$2"; fi
-      shift
-    done
-    [[ -z "$NAME" ]] && NAME="unnamed"
-    echo "Running" > "/tmp/fake-msb-${NAME}.state"
-    # Log the full create args for test assertions
-    printf '%s\n' "${ARGS[@]}" > "/tmp/fake-msb-${NAME}.create-args"
-    ;;
+  # `create` is no longer invoked from production code — sandbox creation
+  # now goes through scripts/create-sandbox.mjs (the SDK path). Tests
+  # toggle CC_MSB_FAKE_CREATE=1 and that script writes the same
+  # /tmp/fake-msb-<name>.create-args fixture file (as JSON now, not argv).
   start)
     NAME="${2:-}"
     echo "Running" > "/tmp/fake-msb-${NAME}.state"

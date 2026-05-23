@@ -24,6 +24,7 @@ function runHook(hook: string, event: object, extraEnv: Record<string, string> =
       PATH: `${FAKE_MSB_DIR}:${process.env["PATH"]}`,
       CLAUDE_PLUGIN_ROOT: PLUGIN_ROOT,
       CLAUDE_PROJECT_DIR: PROJECT_DIR,
+      CC_MSB_FAKE_CREATE: "1",
       ...extraEnv,
     },
   });

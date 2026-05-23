@@ -137,12 +137,15 @@ sandbox_status() {
   printf '%s' "$json" | jq -r '.status // empty' 2>/dev/null || echo ""
 }
 
-# Computes a stable 16-char fingerprint of every msb-create-time setting so we
-# can detect when the config drifted from what the sandbox was created with.
-# Args: image mount_workdir network_spec ports_spec security_args_str
+# Computes a stable 16-char fingerprint of every sandbox-create-time setting
+# so we can detect when the config drifted from what the sandbox was created
+# with. Inputs match the JSON payload fields that the SDK consumer (the
+# create-sandbox.mjs script) sees, so a fingerprint mismatch precisely
+# means "the SDK would build a different sandbox now".
+# Args: image mount network ports secrets on_violation tls_on tls_port tls_bypass trust_cas
 sandbox_config_fingerprint() {
   local payload
-  payload="image=${1}|mount=${2}|net=${3}|ports=${4}|sec=${5}"
+  payload="image=${1}|mount=${2}|net=${3}|ports=${4}|secrets=${5}|onv=${6}|tls=${7}|tlsp=${8}|tlsb=${9}|trust=${10}"
   printf '%s' "$payload" | openssl dgst -sha256 2>/dev/null \
     | sed -E 's/^.*= //' | cut -c1-16
 }
@@ -153,138 +156,104 @@ sandbox_fingerprint_path() {
   echo "$HOME/.cache/cc-msb/fingerprints/$1.fp"
 }
 
-# Emits one shell-quoted token per line per `msb create` network flag derived
-# from a network spec. Output is suitable for: `mapfile -t arr < <(sandbox_network_args "$spec")`.
-# Spec values:
-#   "enabled" (or empty) — no flags (msb default = full access)
-#   "disabled"           — emits `--no-net`
-#   "d1,d2,..."          — emits `--net-rule allow@<domain>` per entry
-# Args: spec
-sandbox_network_args() {
-  local spec="$1"
-  case "$spec" in
-    ""|enabled|Enabled|ENABLED)
-      return 0
-      ;;
-    disabled|Disabled|DISABLED)
-      printf '%s\n' "--no-net"
-      ;;
-    *)
-      local domain
-      while IFS= read -r domain || [[ -n "$domain" ]]; do
-        domain="${domain#"${domain%%[![:space:]]*}"}"
-        domain="${domain%"${domain##*[![:space:]]}"}"
-        [[ -z "$domain" ]] && continue
-        printf '%s\n' "--net-rule"
-        printf '%s\n' "allow@${domain}"
-      done < <(printf '%s' "$spec" | tr ',' '\n')
-      ;;
-  esac
+# Builds the canonical JSON payload that the Node create/recreate scripts
+# consume. Single source of truth for the wire format between bash and
+# the SDK-backed creator — used by both sandbox_ensure_running and
+# pre-tool-use.sh::handle_drift_if_any. The shape matches scripts/lib/
+# sandbox-build.mjs::applyConfig.
+# Args: name image project_dir mount_workdir network ports
+#       secrets on_violation tls_intercept tls_port tls_bypass trust_cas
+sandbox_build_create_payload() {
+  local name="$1" image="$2" project_dir="$3"
+  local mount_workdir="$4" network="$5" ports="$6"
+  local secrets="$7" on_violation="$8"
+  local tls_intercept="$9" tls_port="${10}" tls_bypass="${11}" trust_cas="${12}"
+  local _b_mount _b_tls _b_trust
+  [[ "$mount_workdir" == "true" ]] && _b_mount=true || _b_mount=false
+  [[ "$tls_intercept" == "true" ]] && _b_tls=true   || _b_tls=false
+  [[ "$trust_cas"     == "true" ]] && _b_trust=true || _b_trust=false
+  jq -nc \
+    --arg name "$name" --arg image "$image" --arg projectDir "$project_dir" \
+    --argjson mount "$_b_mount" \
+    --arg network "$network" --arg ports "$ports" \
+    --arg secrets "$secrets" --arg onViol "$on_violation" \
+    --argjson tlsOn "$_b_tls" --arg tlsPort "$tls_port" --arg tlsBypass "$tls_bypass" \
+    --argjson trust "$_b_trust" \
+    '{sandboxName:$name, image:$image, projectDir:$projectDir, mountWorkdir:$mount,
+      network:$network, ports:$ports, secrets:$secrets, onSecretViolation:$onViol,
+      tlsIntercept:$tlsOn,
+      tlsInterceptPort: (if ($tlsPort|length) > 0 then ($tlsPort|tonumber) else null end),
+      tlsBypass:$tlsBypass, trustHostCas:$trust}'
 }
 
-# Emits one shell-token-per-line per `msb create --port HOST:GUEST` mapping
-# derived from a comma-separated `ports` spec. Empty/unset spec emits nothing.
-# Args: spec
-sandbox_port_args() {
+# Expands `$VAR` references in a comma-separated `secrets` spec using the
+# host env, so the resolved values can be embedded in the JSON payload.
+# Entries whose `$VAR` is unset are silently skipped (same semantics as
+# pass_env list items that reference missing host vars). Quoted-empty
+# input passes through unchanged.
+# Args: secrets_spec
+sandbox_resolve_secrets() {
   local spec="$1"
   [[ -z "$spec" ]] && return 0
-  local mapping
-  while IFS= read -r mapping || [[ -n "$mapping" ]]; do
-    mapping="${mapping#"${mapping%%[![:space:]]*}"}"
-    mapping="${mapping%"${mapping##*[![:space:]]}"}"
-    [[ -z "$mapping" ]] && continue
-    printf '%s\n' "--port"
-    printf '%s\n' "$mapping"
+  local entry env_name rest value host var_name resolved out=""
+  while IFS= read -r entry || [[ -n "$entry" ]]; do
+    entry="${entry#"${entry%%[![:space:]]*}"}"
+    entry="${entry%"${entry##*[![:space:]]}"}"
+    [[ -z "$entry" ]] && continue
+    [[ "$entry" != *=*@* ]] && continue
+    env_name="${entry%%=*}"
+    rest="${entry#*=}"
+    value="${rest%@*}"
+    host="${rest##*@}"
+    if [[ "$value" == \$* ]]; then
+      var_name="${value:1}"
+      resolved="${!var_name:-}"
+      [[ -z "$resolved" ]] && continue
+      value="$resolved"
+    fi
+    if [[ -n "$out" ]]; then
+      out="${out},${env_name}=${value}@${host}"
+    else
+      out="${env_name}=${value}@${host}"
+    fi
   done < <(printf '%s' "$spec" | tr ',' '\n')
+  printf '%s' "$out"
 }
 
-# Emits newline-separated `msb create` tokens for the security settings
-# (--secret, --on-secret-violation, --tls-intercept, --tls-intercept-port,
-# --tls-bypass, --trust-host-cas). Args use the same comma-separated string
-# format as `network` / `ports` for list values. Secret VALUE that starts
-# with `$` is interpolated from the host env; if that env var is unset, the
-# secret is silently skipped (matching `pass_env`'s list-skip semantics).
-# Args: secrets on_violation tls_intercept tls_port tls_bypass trust_cas
-sandbox_security_args() {
-  local secrets="$1" on_violation="$2"
-  local tls_intercept="$3" tls_port="$4" tls_bypass="$5" trust_cas="$6"
-
-  if [[ -n "$secrets" ]]; then
-    local entry env_name rest value host var_name resolved
-    while IFS= read -r entry || [[ -n "$entry" ]]; do
-      entry="${entry#"${entry%%[![:space:]]*}"}"
-      entry="${entry%"${entry##*[![:space:]]}"}"
-      [[ -z "$entry" ]] && continue
-      # Expected format: ENV=VALUE@HOST
-      [[ "$entry" != *=*@* ]] && continue
-      env_name="${entry%%=*}"
-      rest="${entry#*=}"
-      value="${rest%@*}"
-      host="${rest##*@}"
-      if [[ "$value" == \$* ]]; then
-        var_name="${value:1}"
-        resolved="${!var_name:-}"
-        [[ -z "$resolved" ]] && continue
-        value="$resolved"
-      fi
-      printf '%s\n' "--secret"
-      printf '%s\n' "${env_name}=${value}@${host}"
-    done < <(printf '%s' "$secrets" | tr ',' '\n')
-  fi
-
-  if [[ -n "$on_violation" ]]; then
-    printf '%s\n' "--on-secret-violation"
-    printf '%s\n' "$on_violation"
-  fi
-
-  if [[ "$tls_intercept" == "true" ]]; then
-    printf '%s\n' "--tls-intercept"
-  fi
-
-  if [[ -n "$tls_port" ]]; then
-    printf '%s\n' "--tls-intercept-port"
-    printf '%s\n' "$tls_port"
-  fi
-
-  if [[ -n "$tls_bypass" ]]; then
-    local domain
-    while IFS= read -r domain || [[ -n "$domain" ]]; do
-      domain="${domain#"${domain%%[![:space:]]*}"}"
-      domain="${domain%"${domain##*[![:space:]]}"}"
-      [[ -z "$domain" ]] && continue
-      printf '%s\n' "--tls-bypass"
-      printf '%s\n' "$domain"
-    done < <(printf '%s' "$tls_bypass" | tr ',' '\n')
-  fi
-
-  if [[ "$trust_cas" == "true" ]]; then
-    printf '%s\n' "--trust-host-cas"
-  fi
-}
-
-# Ensures the named sandbox is running. Creates it if it doesn't exist.
-# Args: name, project_dir, log_file [image [mount_workdir [network_spec
-#       [ports_spec [security_args_str]]]]]
-# security_args_str: newline-separated msb create tokens, typically built by
-#   sandbox_security_args.
+# Ensures the named sandbox is running. Creates it if it doesn't exist by
+# piping the canonical JSON payload into scripts/create-sandbox.mjs (which
+# uses the microsandbox SDK). The CLI's `msb create` is no longer used.
+#
+# Args: name, project_dir, log_file, payload_json
 sandbox_ensure_running() {
   local name="$1" project_dir="$2" log_file="$3"
-  local image="${4:-${CC_MSB_SANDBOX_IMAGE:-ubuntu}}"
-  local mount_workdir="${5:-true}"
-  local network_spec="${6:-enabled}"
-  local ports_spec="${7:-}"
-  local security_args_str="${8:-}"
+  local payload="${4:-}"
   local status
   status=$(sandbox_status "$name")
 
   # Fingerprint of the *currently desired* settings. We re-check on every
   # call against what was stored when the sandbox was created — if they
   # differ, the sandbox is using stale flags (since most of these only
-  # apply at `msb create` time, not at exec). The caller decides what to
-  # do via the SANDBOX_CONFIG_DRIFT global.
+  # apply at create time, not at exec). The caller decides what to do via
+  # the SANDBOX_CONFIG_DRIFT global.
   SANDBOX_CONFIG_DRIFT=""
+  local image mount_workdir network_spec ports_spec
+  local secrets on_violation tls_intercept tls_port tls_bypass trust_cas
+  image="$(printf '%s' "$payload" | jq -r '.image // "ubuntu"')"
+  mount_workdir="$(printf '%s' "$payload" | jq -r 'if .mountWorkdir then "true" else "false" end')"
+  network_spec="$(printf '%s' "$payload" | jq -r '.network // "enabled"')"
+  ports_spec="$(printf '%s' "$payload" | jq -r '.ports // ""')"
+  secrets="$(printf '%s' "$payload" | jq -r '.secrets // ""')"
+  on_violation="$(printf '%s' "$payload" | jq -r '.onSecretViolation // ""')"
+  tls_intercept="$(printf '%s' "$payload" | jq -r 'if .tlsIntercept then "true" else "false" end')"
+  tls_port="$(printf '%s' "$payload" | jq -r '.tlsInterceptPort // "" | tostring | sub("^null$"; "")')"
+  tls_bypass="$(printf '%s' "$payload" | jq -r '.tlsBypass // ""')"
+  trust_cas="$(printf '%s' "$payload" | jq -r 'if .trustHostCas then "true" else "false" end')"
+
   local current_fp fp_path stored_fp=""
-  current_fp="$(sandbox_config_fingerprint "$image" "$mount_workdir" "$network_spec" "$ports_spec" "$security_args_str")"
+  current_fp="$(sandbox_config_fingerprint \
+    "$image" "$mount_workdir" "$network_spec" "$ports_spec" \
+    "$secrets" "$on_violation" "$tls_intercept" "$tls_port" "$tls_bypass" "$trust_cas")"
   fp_path="$(sandbox_fingerprint_path "$name")"
   [[ -f "$fp_path" ]] && stored_fp="$(< "$fp_path")"
 
@@ -303,34 +272,7 @@ sandbox_ensure_running() {
       msb start "$name" --quiet 2>>"$log_file"
       ;;
     *)
-      local create_args=("$image" --name "$name" --workdir /workspace --quiet)
-      if [[ "$mount_workdir" == "true" ]]; then
-        create_args+=(--volume "$project_dir:/workspace")
-      fi
-      local net_args=()
-      while IFS= read -r line; do
-        [[ -n "$line" ]] && net_args+=("$line")
-      done < <(sandbox_network_args "$network_spec")
-      if (( ${#net_args[@]} > 0 )); then
-        create_args+=("${net_args[@]}")
-      fi
-      local port_args=()
-      while IFS= read -r line; do
-        [[ -n "$line" ]] && port_args+=("$line")
-      done < <(sandbox_port_args "$ports_spec")
-      if (( ${#port_args[@]} > 0 )); then
-        create_args+=("${port_args[@]}")
-      fi
-      if [[ -n "$security_args_str" ]]; then
-        local sec_args=()
-        while IFS= read -r line; do
-          [[ -n "$line" ]] && sec_args+=("$line")
-        done <<< "$security_args_str"
-        if (( ${#sec_args[@]} > 0 )); then
-          create_args+=("${sec_args[@]}")
-        fi
-      fi
-      if msb create "${create_args[@]}" 2>>"$log_file"; then
+      if printf '%s' "$payload" | node "$PLUGIN_ROOT/scripts/create-sandbox.mjs" >>"$log_file" 2>&1; then
         mkdir -p "$(dirname "$fp_path")"
         printf '%s\n' "$current_fp" > "$fp_path"
       else

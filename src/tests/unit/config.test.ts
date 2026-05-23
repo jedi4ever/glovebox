@@ -40,6 +40,10 @@ function runHook(
       PATH: `${FAKE_MSB_DIR}:${process.env["PATH"]}`,
       CLAUDE_PLUGIN_ROOT: PLUGIN_ROOT,
       CLAUDE_PROJECT_DIR: projectDir,
+      // scripts/create-sandbox.mjs honors this and dumps the resolved
+      // config to /tmp/fake-msb-<name>.create-args as JSON, then skips
+      // the real SDK call. Keeps unit tests offline + fast.
+      CC_MSB_FAKE_CREATE: "1",
       ...extraEnv,
     },
   });
@@ -51,10 +55,58 @@ function runHook(
 const PER_AGENT_SANDBOX = `cc-msb-${SESSION_ID.slice(0, 8)}-test_age`;
 const SESSION_PREFIX = `cc-msb-${SESSION_ID.slice(0, 8)}`;
 
+// Shape of the JSON payload our SDK-backed create scripts dump when the
+// CC_MSB_FAKE_CREATE seam is on. Matches scripts/lib/sandbox-build.mjs.
+interface CreateConfig {
+  sandboxName: string;
+  image: string;
+  projectDir: string;
+  mountWorkdir: boolean;
+  network: string;
+  ports: string;
+  secrets: string;
+  onSecretViolation: string;
+  tlsIntercept: boolean;
+  tlsInterceptPort: number | null;
+  tlsBypass: string;
+  trustHostCas: boolean;
+}
+
+// Native: returns the resolved config the SDK would have built from.
+function readCreateConfig(sandboxName: string = SANDBOX_NAME): CreateConfig | null {
+  const f = `/tmp/fake-msb-${sandboxName}.create-args`;
+  if (!existsSync(f)) return null;
+  try { return JSON.parse(readFileSync(f, "utf8")) as CreateConfig; } catch { return null; }
+}
+
+// Compatibility shim: synthesize the `msb create` argv that the OLD CLI
+// path would have produced, so existing assertions (`--volume`, `--no-net`,
+// `allow@<domain>`, `--secret`, etc.) keep working without per-test edits.
 function readCreateArgs(sandboxName: string = SANDBOX_NAME): string[] {
-  const argsFile = `/tmp/fake-msb-${sandboxName}.create-args`;
-  if (!existsSync(argsFile)) return [];
-  return readFileSync(argsFile, "utf8").trim().split("\n").filter(Boolean);
+  const cfg = readCreateConfig(sandboxName);
+  if (!cfg) return [];
+  const args: string[] = [cfg.image, "--name", cfg.sandboxName, "--workdir", "/workspace", "--quiet"];
+  if (cfg.mountWorkdir) args.push("--volume", `${cfg.projectDir}:/workspace`);
+  if (cfg.network === "disabled") args.push("--no-net");
+  else if (cfg.network && cfg.network !== "enabled") {
+    for (const d of cfg.network.split(",").map((s) => s.trim()).filter(Boolean)) {
+      args.push("--net-rule", `allow@${d}`);
+    }
+  }
+  for (const p of cfg.ports.split(",").map((s) => s.trim()).filter(Boolean)) {
+    args.push("--port", p);
+  }
+  for (const s of cfg.secrets.split(",").map((x) => x.trim()).filter(Boolean)) {
+    args.push("--secret", s);
+  }
+  if (cfg.onSecretViolation) args.push("--on-secret-violation", cfg.onSecretViolation);
+  if (cfg.tlsIntercept) args.push("--tls-intercept");
+  if (cfg.tlsInterceptPort != null) args.push("--tls-intercept-port", String(cfg.tlsInterceptPort));
+  for (const b of cfg.tlsBypass.split(",").map((s) => s.trim()).filter(Boolean)) {
+    args.push("--tls-bypass", b);
+  }
+  if (cfg.trustHostCas) args.push("--trust-host-cas");
+  return args;
 }
 
 // Returns the first per-run create-args file for this session (name != main sandbox).

@@ -22,16 +22,13 @@ EFFECTIVE_MOUNT_WORKDIR="$(config_agent_mount_workdir "$AGENT_TYPE" "$PROJECT_DI
 EFFECTIVE_PASS_ENV="$(config_agent_pass_env "$AGENT_TYPE" "$PROJECT_DIR/.cc-msb.yml")"
 EFFECTIVE_NETWORK="$(config_agent_network "$AGENT_TYPE" "$PROJECT_DIR/.cc-msb.yml")"
 EFFECTIVE_PORTS="$(config_agent_ports "$AGENT_TYPE" "$PROJECT_DIR/.cc-msb.yml")"
-EFFECTIVE_SECRETS="$(config_agent_secrets "$AGENT_TYPE" "$PROJECT_DIR/.cc-msb.yml")"
+EFFECTIVE_SECRETS_RAW="$(config_agent_secrets "$AGENT_TYPE" "$PROJECT_DIR/.cc-msb.yml")"
+EFFECTIVE_SECRETS="$(sandbox_resolve_secrets "$EFFECTIVE_SECRETS_RAW")"
 EFFECTIVE_ON_SECRET_VIOLATION="$(config_agent_on_secret_violation "$AGENT_TYPE" "$PROJECT_DIR/.cc-msb.yml")"
 EFFECTIVE_TLS_INTERCEPT="$(config_agent_tls_intercept "$AGENT_TYPE" "$PROJECT_DIR/.cc-msb.yml")"
 EFFECTIVE_TLS_INTERCEPT_PORT="$(config_agent_tls_intercept_port "$AGENT_TYPE" "$PROJECT_DIR/.cc-msb.yml")"
 EFFECTIVE_TLS_BYPASS="$(config_agent_tls_bypass "$AGENT_TYPE" "$PROJECT_DIR/.cc-msb.yml")"
 EFFECTIVE_TRUST_HOST_CAS="$(config_agent_trust_host_cas "$AGENT_TYPE" "$PROJECT_DIR/.cc-msb.yml")"
-EFFECTIVE_SECURITY_ARGS="$(sandbox_security_args \
-  "$EFFECTIVE_SECRETS" "$EFFECTIVE_ON_SECRET_VIOLATION" \
-  "$EFFECTIVE_TLS_INTERCEPT" "$EFFECTIVE_TLS_INTERCEPT_PORT" \
-  "$EFFECTIVE_TLS_BYPASS" "$EFFECTIVE_TRUST_HOST_CAS")"
 EFFECTIVE_AUTO_RECREATE="$(config_agent_auto_recreate "$AGENT_TYPE" "$PROJECT_DIR/.cc-msb.yml")"
 
 # Handle a drift signal from sandbox_ensure_running. Either:
@@ -47,28 +44,12 @@ handle_drift_if_any() {
 
   if [[ "$EFFECTIVE_AUTO_RECREATE" == "true" ]]; then
     local recreate_payload recreate_out
-    local _bool_mount _bool_tls _bool_trust
-    [[ "$EFFECTIVE_MOUNT_WORKDIR" == "true" ]] && _bool_mount=true || _bool_mount=false
-    [[ "$EFFECTIVE_TLS_INTERCEPT" == "true" ]] && _bool_tls=true || _bool_tls=false
-    [[ "$EFFECTIVE_TRUST_HOST_CAS" == "true" ]] && _bool_trust=true || _bool_trust=false
-    recreate_payload="$(jq -nc \
-      --arg name "$name" \
-      --arg image "$EFFECTIVE_IMAGE" \
-      --arg projectDir "$PROJECT_DIR" \
-      --argjson mount "$_bool_mount" \
-      --arg network "$EFFECTIVE_NETWORK" \
-      --arg ports "$EFFECTIVE_PORTS" \
-      --arg secrets "$EFFECTIVE_SECRETS" \
-      --arg onViol "$EFFECTIVE_ON_SECRET_VIOLATION" \
-      --argjson tlsOn "$_bool_tls" \
-      --arg tlsPort "$EFFECTIVE_TLS_INTERCEPT_PORT" \
-      --arg tlsBypass "$EFFECTIVE_TLS_BYPASS" \
-      --argjson trust "$_bool_trust" \
-      '{sandboxName:$name, image:$image, projectDir:$projectDir, mountWorkdir:$mount,
-        network:$network, ports:$ports, secrets:$secrets, onSecretViolation:$onViol,
-        tlsIntercept:$tlsOn,
-        tlsInterceptPort: (if ($tlsPort|length) > 0 then ($tlsPort|tonumber) else null end),
-        tlsBypass:$tlsBypass, trustHostCas:$trust}')"
+    recreate_payload="$(sandbox_build_create_payload \
+      "$name" "$EFFECTIVE_IMAGE" "$PROJECT_DIR" \
+      "$EFFECTIVE_MOUNT_WORKDIR" "$EFFECTIVE_NETWORK" "$EFFECTIVE_PORTS" \
+      "$EFFECTIVE_SECRETS" "$EFFECTIVE_ON_SECRET_VIOLATION" \
+      "$EFFECTIVE_TLS_INTERCEPT" "$EFFECTIVE_TLS_INTERCEPT_PORT" \
+      "$EFFECTIVE_TLS_BYPASS" "$EFFECTIVE_TRUST_HOST_CAS")"
     recreate_out="$(printf '%s' "$recreate_payload" \
       | node "$PLUGIN_ROOT/scripts/recreate-sandbox.mjs" 2>>"$STATE_DIR/recreate.log")" || true
     local ok image_changed recreate_err
@@ -76,9 +57,13 @@ handle_drift_if_any() {
     image_changed="$(printf '%s' "$recreate_out" | jq -r '.imageChanged // false' 2>/dev/null || echo "false")"
     recreate_err="$(printf '%s' "$recreate_out" | jq -r '.error // ""' 2>/dev/null || echo "")"
     if [[ "$ok" == "true" ]]; then
-      # Recreate succeeded — write the new fingerprint to silence drift.
+      # Recreate succeeded — rewrite the fingerprint to silence drift.
       local new_fp fp_path
-      new_fp="$(sandbox_config_fingerprint "$EFFECTIVE_IMAGE" "$EFFECTIVE_MOUNT_WORKDIR" "$EFFECTIVE_NETWORK" "$EFFECTIVE_PORTS" "$EFFECTIVE_SECURITY_ARGS")"
+      new_fp="$(sandbox_config_fingerprint \
+        "$EFFECTIVE_IMAGE" "$EFFECTIVE_MOUNT_WORKDIR" "$EFFECTIVE_NETWORK" "$EFFECTIVE_PORTS" \
+        "$EFFECTIVE_SECRETS" "$EFFECTIVE_ON_SECRET_VIOLATION" \
+        "$EFFECTIVE_TLS_INTERCEPT" "$EFFECTIVE_TLS_INTERCEPT_PORT" \
+        "$EFFECTIVE_TLS_BYPASS" "$EFFECTIVE_TRUST_HOST_CAS")"
       fp_path="$(sandbox_fingerprint_path "$name")"
       mkdir -p "$(dirname "$fp_path")"
       printf '%s\n' "$new_fp" > "$fp_path"
@@ -119,7 +104,13 @@ case "$TOOL_NAME" in
     STATE_DIR="$(sandbox_state_dir "$SESSION_ID")"
     mkdir -p "$STATE_DIR"
 
-    sandbox_ensure_running "$SANDBOX" "$PROJECT_DIR" "$STATE_DIR/sandbox.log" "$EFFECTIVE_IMAGE" "$EFFECTIVE_MOUNT_WORKDIR" "$EFFECTIVE_NETWORK" "$EFFECTIVE_PORTS" "$EFFECTIVE_SECURITY_ARGS" || {
+    CREATE_PAYLOAD="$(sandbox_build_create_payload \
+      "$SANDBOX" "$EFFECTIVE_IMAGE" "$PROJECT_DIR" \
+      "$EFFECTIVE_MOUNT_WORKDIR" "$EFFECTIVE_NETWORK" "$EFFECTIVE_PORTS" \
+      "$EFFECTIVE_SECRETS" "$EFFECTIVE_ON_SECRET_VIOLATION" \
+      "$EFFECTIVE_TLS_INTERCEPT" "$EFFECTIVE_TLS_INTERCEPT_PORT" \
+      "$EFFECTIVE_TLS_BYPASS" "$EFFECTIVE_TRUST_HOST_CAS")"
+    sandbox_ensure_running "$SANDBOX" "$PROJECT_DIR" "$STATE_DIR/sandbox.log" "$CREATE_PAYLOAD" || {
       emit_deny "cc-msb: failed to start sandbox (see $STATE_DIR/sandbox.log)"
       exit 0
     }
@@ -154,7 +145,13 @@ case "$TOOL_NAME" in
     sandbox_resolve_path "$FILE_PATH" "$PROJECT_DIR" "$STATE_DIR"
 
     if [[ "$SANDBOX_NEEDS_SYNC" == "yes" ]]; then
-      sandbox_ensure_running "$SANDBOX" "$PROJECT_DIR" "$STATE_DIR/sandbox.log" "$EFFECTIVE_IMAGE" "$EFFECTIVE_MOUNT_WORKDIR" "$EFFECTIVE_NETWORK" "$EFFECTIVE_PORTS" "$EFFECTIVE_SECURITY_ARGS" || {
+      CREATE_PAYLOAD="$(sandbox_build_create_payload \
+        "$SANDBOX" "$EFFECTIVE_IMAGE" "$PROJECT_DIR" \
+        "$EFFECTIVE_MOUNT_WORKDIR" "$EFFECTIVE_NETWORK" "$EFFECTIVE_PORTS" \
+        "$EFFECTIVE_SECRETS" "$EFFECTIVE_ON_SECRET_VIOLATION" \
+        "$EFFECTIVE_TLS_INTERCEPT" "$EFFECTIVE_TLS_INTERCEPT_PORT" \
+        "$EFFECTIVE_TLS_BYPASS" "$EFFECTIVE_TRUST_HOST_CAS")"
+      sandbox_ensure_running "$SANDBOX" "$PROJECT_DIR" "$STATE_DIR/sandbox.log" "$CREATE_PAYLOAD" || {
         emit_deny "cc-msb: failed to start sandbox for read of $FILE_PATH"
         exit 0
       }
@@ -185,7 +182,13 @@ case "$TOOL_NAME" in
     if [[ "$SANDBOX_NEEDS_SYNC" == "yes" ]]; then
       # Ensure the sandbox exists so post-tool-use can sync the shadow file into it.
       SANDBOX="$(sandbox_name_for "$SESSION_ID" "$AGENT_TYPE" "$EFFECTIVE_SANDBOX_NAME" "$EFFECTIVE_SCOPE" "$PROJECT_DIR")"
-      sandbox_ensure_running "$SANDBOX" "$PROJECT_DIR" "$STATE_DIR/sandbox.log" "$EFFECTIVE_IMAGE" "$EFFECTIVE_MOUNT_WORKDIR" "$EFFECTIVE_NETWORK" "$EFFECTIVE_PORTS" "$EFFECTIVE_SECURITY_ARGS" || true
+      CREATE_PAYLOAD="$(sandbox_build_create_payload \
+        "$SANDBOX" "$EFFECTIVE_IMAGE" "$PROJECT_DIR" \
+        "$EFFECTIVE_MOUNT_WORKDIR" "$EFFECTIVE_NETWORK" "$EFFECTIVE_PORTS" \
+        "$EFFECTIVE_SECRETS" "$EFFECTIVE_ON_SECRET_VIOLATION" \
+        "$EFFECTIVE_TLS_INTERCEPT" "$EFFECTIVE_TLS_INTERCEPT_PORT" \
+        "$EFFECTIVE_TLS_BYPASS" "$EFFECTIVE_TRUST_HOST_CAS")"
+      sandbox_ensure_running "$SANDBOX" "$PROJECT_DIR" "$STATE_DIR/sandbox.log" "$CREATE_PAYLOAD" || true
       handle_drift_if_any
       if [[ "$EFFECTIVE_SCOPE" != "directory" ]] && [[ "$EFFECTIVE_SCOPE" != "named" || -z "$EFFECTIVE_SANDBOX_NAME" ]]; then
         sandbox_track "$SESSION_ID" "$SANDBOX"
