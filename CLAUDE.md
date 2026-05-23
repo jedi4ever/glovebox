@@ -63,3 +63,6 @@ Use fixtures instead of creating config files adhoc
 
 We use ANthropic API key because  just changing the claude config dir would make login fail 
 Before you commit always run the tests, unless specifically told so
+
+Code/Script/Test Files should be max 300 lines long . refactor to make files focused
+Make filenames meaniful and consistent

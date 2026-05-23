@@ -5,3 +5,6 @@ msb
 
 ====
 only macOS
+
+gh
+git

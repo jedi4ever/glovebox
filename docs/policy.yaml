@@ -1,0 +1,29 @@
+main:
+    network:
+    # Ubuntu / Debian apt
+      - archive.ubuntu.com
+      - security.ubuntu.com
+      - ports.ubuntu.com
+      - keyserver.ubuntu.com
+      - deb.debian.org
+      - security.debian.org
+
+      # Node / npm
+      - registry.npmjs.org
+      - nodejs.org
+
+      # Python / pip
+      - pypi.org
+      - files.pythonhosted.org    # required — pip downloads wheels here
+
+      # Go modules
+      - proxy.golang.org
+      - sum.golang.org
+
+      # GitHub
+      - github.com
+      - api.github.com
+      - codeload.github.com         # tarballs, used by `go get`
+      - objects.githubusercontent.com   # release assets
+      - raw.githubusercontent.com       # raw file fetches
+      - ghcr.io                         # drop if you don't pull containers
