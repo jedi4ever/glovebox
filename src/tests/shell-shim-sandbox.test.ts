@@ -8,7 +8,7 @@ import { spawnSync, execSync } from "node:child_process";
 import { spawnTUI, type TUI } from "../helpers/tui.js";
 
 const PLUGIN_ROOT = fileURLToPath(new URL("../../plugins/cc-msb", import.meta.url));
-const SHIM = join(PLUGIN_ROOT, "skills/shell/cc-msb-bash.sh");
+const SHIM = join(PLUGIN_ROOT, "skills/shell/cc-msb-bash.mjs");
 
 const PROBE_SANDBOX = "cc-msb-shim-tui-probe";
 const CLAUDE_BIN = execSync("which claude", { encoding: "utf8" }).trim();
@@ -108,7 +108,7 @@ async function setupScenario(settingsEnv: Record<string, string>): Promise<Scena
   return { tui, projectDir, configDir, traceLog, teardown };
 }
 
-describe("cc-msb-bash.sh — interactive TUI", () => {
+describe("cc-msb-bash.mjs — interactive TUI", () => {
   it("with CLAUDE_CODE_SHELL=shim: `!uname -srm` reports Linux (sandbox)", async () => {
     const s = await setupScenario({ CLAUDE_CODE_SHELL: SHIM });
     // Refresh settings.local.json now that we know the trace path.

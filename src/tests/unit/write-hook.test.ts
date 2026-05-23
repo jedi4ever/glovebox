@@ -6,8 +6,8 @@ import { rmSync, mkdirSync, writeFileSync, existsSync } from "node:fs";
 
 const PLUGIN_ROOT = fileURLToPath(new URL("../../../plugins/cc-msb", import.meta.url));
 const FAKE_MSB_DIR = fileURLToPath(new URL("../fixtures/fake-msb", import.meta.url));
-const PRE_HOOK = join(PLUGIN_ROOT, "hooks/pre-tool-use.sh");
-const POST_HOOK = join(PLUGIN_ROOT, "hooks/post-tool-use.sh");
+const PRE_HOOK = join(PLUGIN_ROOT, "hooks/pre-tool-use.mjs");
+const POST_HOOK = join(PLUGIN_ROOT, "hooks/post-tool-use.mjs");
 
 const SESSION_ID = "unit-write-test-001";
 const SANDBOX_NAME = `cc-msb-${SESSION_ID.slice(0, 16)}`;
@@ -16,7 +16,7 @@ const SHADOW_ROOT = `${process.env["HOME"]}/.cache/cc-msb/${SESSION_ID}/shadow`;
 const EDIT_TEST_FILE = "/tmp/cc-msb-edit-test.txt";
 
 function runHook(hook: string, event: object, extraEnv: Record<string, string> = {}) {
-  const result = spawnSync("bash", [hook], {
+  const result = spawnSync("node", [hook], {
     input: JSON.stringify(event),
     encoding: "utf8",
     env: {

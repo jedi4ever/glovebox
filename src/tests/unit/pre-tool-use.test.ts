@@ -6,13 +6,13 @@ import { rmSync } from "node:fs";
 
 const PLUGIN_ROOT = fileURLToPath(new URL("../../../plugins/cc-msb", import.meta.url));
 const FAKE_MSB_DIR = fileURLToPath(new URL("../fixtures/fake-msb", import.meta.url));
-const HOOK = join(PLUGIN_ROOT, "hooks/pre-tool-use.sh");
+const HOOK = join(PLUGIN_ROOT, "hooks/pre-tool-use.mjs");
 
 const SESSION_ID = "unit-test-session-001";
 const SANDBOX_NAME = `cc-msb-${SESSION_ID.slice(0, 16)}`;
 
 function runHook(event: object, extraEnv: Record<string, string> = {}) {
-  const result = spawnSync("bash", [HOOK], {
+  const result = spawnSync("node", [HOOK], {
     input: JSON.stringify(event),
     encoding: "utf8",
     env: {
