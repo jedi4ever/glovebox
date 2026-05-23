@@ -1,8 +1,13 @@
+====
+bun --compile
 
-replace config etc shell with node?
-split config unit tests
+  The better Bun option: bun build --compile bundles the hook into a single native executable. Startup is ~1ms, no runtime dependency
+  needed at all — the binary is self-contained. That's closer to the SEA approach but much more mature today.
+
 ====
 readme / design decisions / install
+====
+stop executing it error
 ====
 directory based should they keep on running ?
 ====
@@ -16,6 +21,14 @@ fix claude-safe
 inject hint port mapping
 =====
 git as plugin enable ?
+===
+check if existing hooks are firing too. security issue
+===
+prompt inject monitoring?
+===
+longer agent names thrinking
+====
+uid fixing
 ===
 plugins for:
 node,python, golang. etc..
