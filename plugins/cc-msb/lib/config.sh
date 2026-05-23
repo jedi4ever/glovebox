@@ -5,14 +5,18 @@
 #   2. Global: ${CC_MSB_CONFIG_DIR:-$HOME/.config/cc-msb}/config.yml
 #
 # Env vars beat both files. Within each file, lookups cascade from the
-# most specific section to the most general (main.X → defaults.agents.X
-# for the main session; agents.<name>.X → defaults.agents.X for agents).
+# most specific section to the most general:
+#   - Main session:  main.X → defaults.main.X → defaults.agents.X
+#   - Agent:         agents.<name>.X → defaults.agents.X
 # The first non-empty value wins; the local file is fully consulted
 # before the global file.
 #
 # Supported format (same for local + global):
 #   defaults:
-#     agents:                  # defaults for all agents
+#     main:                    # main-only defaults (not inherited by agents)
+#       sandbox_image: debian
+#       network: enabled
+#     agents:                  # baseline for agents AND fallback for main
 #       sandbox_image: ubuntu
 #       mount_workdir: true
 #       scope: session         # session | per-agent | per-run | named | directory | host
@@ -20,7 +24,7 @@
 #       network: enabled       # enabled | disabled | "domain1,domain2"
 #       ports: ""              # "" | "HOST:GUEST[,HOST:GUEST/udp,...]"
 #
-#   main:                      # main session settings (always explicit)
+#   main:                      # main session settings (per-project overrides)
 #     scope: named
 #     sandbox_name: foo
 #     sandbox_image: debian
@@ -84,6 +88,66 @@ _config_extract_value() {
   '
 }
 
+# Returns the value of a key that is a DIRECT child of <section> (not buried
+# inside a nested sub-mapping like defaults.main: or defaults.agents:).
+# Locks onto the indent of the section's first non-blank child line and
+# only matches keys at that exact indent. Supports inline and block-list
+# values, same rules as _config_extract_value.
+# Usage: config_yaml_get_direct file section key
+# Example: config_yaml_get_direct .cc-msb.yml defaults sandbox_image
+config_yaml_get_direct() {
+  local file="$1" section="$2" key="$3"
+  local pattern="^${section}:[[:space:]]*$"
+  # Friendly alias: accept `default:` as shorthand for `defaults:`.
+  [[ "$section" == "defaults" ]] && pattern="^defaults?:[[:space:]]*$"
+  awk -v s="$pattern" -v k="$key" '
+    BEGIN { in_section = 0; first_indent = -1; mode = 0; result = "" }
+    {
+      if (in_section && /^[^[:space:]]/) in_section = 0
+      if (!in_section) {
+        if ($0 ~ s) { in_section = 1; first_indent = -1; mode = 0; result = "" }
+        next
+      }
+      if ($0 ~ /^[[:space:]]*$/) next
+      ind = match($0, /[^ ]/) - 1
+      if (first_indent == -1) first_indent = ind
+      if (mode == 0) {
+        if (ind != first_indent) next
+        if ($0 ~ "^[[:space:]]*" k "[[:space:]]*:") {
+          line = $0
+          sub("^[[:space:]]*" k "[[:space:]]*:[[:space:]]*", "", line)
+          sub("[[:space:]]*#.*$", "", line)
+          sub("[[:space:]]*$", "", line)
+          sub("^[\"\047]", "", line)
+          sub("[\"\047]$", "", line)
+          if (length(line) > 0) { print line; exit }
+          mode = 1
+        }
+        next
+      }
+      # mode == 1: collecting list items deeper than first_indent
+      if (ind <= first_indent) {
+        if (result != "") print result
+        exit
+      }
+      if ($0 ~ /^[[:space:]]*#/) next
+      if ($0 !~ /^[[:space:]]*-[[:space:]]+/) {
+        if (result != "") print result
+        exit
+      }
+      item = $0
+      sub("^[[:space:]]*-[[:space:]]+", "", item)
+      sub("[[:space:]]*#.*$", "", item)
+      sub("[[:space:]]*$", "", item)
+      sub("^[\"\047]", "", item)
+      sub("[\"\047]$", "", item)
+      if (result == "") result = item
+      else result = result "," item
+    }
+    END { if (mode == 1 && result != "") print result }
+  ' "$file"
+}
+
 # Returns a value from a named top-level section block.
 # Usage: config_yaml_get_section file section key
 # Example: config_yaml_get_section .cc-msb.yml main sandbox_name
@@ -102,7 +166,10 @@ config_yaml_get_section() {
 # Example: config_yaml_get_nested .cc-msb.yml agents test-agent scope
 config_yaml_get_nested() {
   local file="$1" section="$2" subsection="$3" key="$4"
-  awk -v s="^${section}:[[:space:]]*$" \
+  local pattern="^${section}:[[:space:]]*$"
+  # Friendly alias: accept `default:` as shorthand for `defaults:`.
+  [[ "$section" == "defaults" ]] && pattern="^defaults?:[[:space:]]*$"
+  awk -v s="$pattern" \
     '$0~s{f=1;next} f&&/^[^[:space:]]/{f=0} f{print}' "$file" \
   | awk -v ss="$subsection" \
     '$0~("^  "ss":[[:space:]]*$"){f=1;next} f&&/^  [^[:space:]]/{f=0} f{print}' \
@@ -127,6 +194,11 @@ config_load() {
       file_sandbox_name="$val"
       break
     fi
+    val="$(config_yaml_get_nested "$file" "defaults" "main" "sandbox_name")"
+    if [[ -n "$val" ]]; then
+      file_sandbox_name="$val"
+      break
+    fi
   done
 
   CC_MSB_SANDBOX_NAME="${CC_MSB_SANDBOX_NAME:-$file_sandbox_name}"
@@ -137,14 +209,14 @@ config_load() {
 #
 # Main session (no agent_type):
 #   1. CC_MSB_MAIN_SCOPE env var
-#   2. main.scope / defaults.agents.scope in local file
-#   3. main.scope / defaults.agents.scope in global file
+#   2. main.scope → defaults.main.scope → defaults.agents.scope in local file
+#   3. main.scope → defaults.main.scope → defaults.agents.scope in global file
 #   4. session
 #
 # Agents:
 #   1. CC_MSB_AGENT_SCOPE_<UPPER_SNAKE> env var
-#   2. agents.<name>.scope / defaults.agents.scope in local file
-#   3. agents.<name>.scope / defaults.agents.scope in global file
+#   2. agents.<name>.scope → defaults.agents.scope in local file
+#   3. agents.<name>.scope → defaults.agents.scope in global file
 #   4. session
 #
 # Args: agent_type, local_config_file
@@ -160,7 +232,11 @@ config_agent_scope() {
       [[ -f "$file" ]] || continue
       val="$(config_yaml_get_section "$file" "main" "scope")"
       [[ -n "$val" ]] && echo "$val" && return
+      val="$(config_yaml_get_nested "$file" "defaults" "main" "scope")"
+      [[ -n "$val" ]] && echo "$val" && return
       val="$(config_yaml_get_nested "$file" "defaults" "agents" "scope")"
+      [[ -n "$val" ]] && echo "$val" && return
+      val="$(config_yaml_get_direct "$file" "defaults" "scope")"
       [[ -n "$val" ]] && echo "$val" && return
     done
     echo "session"
@@ -185,6 +261,8 @@ config_agent_scope() {
     [[ -n "$val" ]] && echo "$val" && return
     val="$(config_yaml_get_nested "$file" "defaults" "agents" "scope")"
     [[ -n "$val" ]] && echo "$val" && return
+    val="$(config_yaml_get_direct "$file" "defaults" "scope")"
+    [[ -n "$val" ]] && echo "$val" && return
   done
   echo "session"
 }
@@ -204,7 +282,11 @@ config_agent_mount_workdir() {
       [[ -f "$file" ]] || continue
       val="$(config_yaml_get_section "$file" "main" "mount_workdir")"
       [[ -n "$val" ]] && echo "$val" && return
+      val="$(config_yaml_get_nested "$file" "defaults" "main" "mount_workdir")"
+      [[ -n "$val" ]] && echo "$val" && return
       val="$(config_yaml_get_nested "$file" "defaults" "agents" "mount_workdir")"
+      [[ -n "$val" ]] && echo "$val" && return
+      val="$(config_yaml_get_direct "$file" "defaults" "mount_workdir")"
       [[ -n "$val" ]] && echo "$val" && return
     done
     echo "true"
@@ -220,6 +302,8 @@ config_agent_mount_workdir() {
     [[ -n "$val" ]] && echo "$val" && return
     val="$(config_yaml_get_nested "$file" "defaults" "agents" "mount_workdir")"
     [[ -n "$val" ]] && echo "$val" && return
+    val="$(config_yaml_get_direct "$file" "defaults" "mount_workdir")"
+    [[ -n "$val" ]] && echo "$val" && return
   done
   echo "true"
 }
@@ -228,8 +312,8 @@ config_agent_mount_workdir() {
 #
 # Main session (no agent_type):
 #   1. CC_MSB_SANDBOX_IMAGE env var
-#   2. main.sandbox_image / defaults.agents.sandbox_image in local file
-#   3. main.sandbox_image / defaults.agents.sandbox_image in global file
+#   2. main.sandbox_image → defaults.main.sandbox_image → defaults.agents.sandbox_image in local file
+#   3. main.sandbox_image → defaults.main.sandbox_image → defaults.agents.sandbox_image in global file
 #   4. ubuntu
 #
 # Agents:
@@ -252,7 +336,11 @@ config_agent_image() {
       [[ -f "$file" ]] || continue
       val="$(config_yaml_get_section "$file" "main" "sandbox_image")"
       [[ -n "$val" ]] && echo "$val" && return
+      val="$(config_yaml_get_nested "$file" "defaults" "main" "sandbox_image")"
+      [[ -n "$val" ]] && echo "$val" && return
       val="$(config_yaml_get_nested "$file" "defaults" "agents" "sandbox_image")"
+      [[ -n "$val" ]] && echo "$val" && return
+      val="$(config_yaml_get_direct "$file" "defaults" "sandbox_image")"
       [[ -n "$val" ]] && echo "$val" && return
     done
     echo "ubuntu"
@@ -285,6 +373,8 @@ config_agent_image() {
   for file in "$local_file" "$global_file"; do
     [[ -f "$file" ]] || continue
     val="$(config_yaml_get_nested "$file" "defaults" "agents" "sandbox_image")"
+    [[ -n "$val" ]] && echo "$val" && return
+    val="$(config_yaml_get_direct "$file" "defaults" "sandbox_image")"
     [[ -n "$val" ]] && echo "$val" && return
   done
   echo "ubuntu"
@@ -358,7 +448,11 @@ config_agent_pass_env() {
       [[ -f "$file" ]] || continue
       val="$(config_yaml_get_section "$file" "main" "pass_env")"
       [[ -n "$val" ]] && echo "$val" && return
+      val="$(config_yaml_get_nested "$file" "defaults" "main" "pass_env")"
+      [[ -n "$val" ]] && echo "$val" && return
       val="$(config_yaml_get_nested "$file" "defaults" "agents" "pass_env")"
+      [[ -n "$val" ]] && echo "$val" && return
+      val="$(config_yaml_get_direct "$file" "defaults" "pass_env")"
       [[ -n "$val" ]] && echo "$val" && return
     done
     echo "none"
@@ -382,6 +476,8 @@ config_agent_pass_env() {
     val="$(config_yaml_get_nested "$file" "agents" "$agent_type" "pass_env")"
     [[ -n "$val" ]] && echo "$val" && return
     val="$(config_yaml_get_nested "$file" "defaults" "agents" "pass_env")"
+    [[ -n "$val" ]] && echo "$val" && return
+    val="$(config_yaml_get_direct "$file" "defaults" "pass_env")"
     [[ -n "$val" ]] && echo "$val" && return
   done
   echo "none"
@@ -408,7 +504,11 @@ config_agent_network() {
       [[ -f "$file" ]] || continue
       val="$(config_yaml_get_section "$file" "main" "network")"
       [[ -n "$val" ]] && echo "$val" && return
+      val="$(config_yaml_get_nested "$file" "defaults" "main" "network")"
+      [[ -n "$val" ]] && echo "$val" && return
       val="$(config_yaml_get_nested "$file" "defaults" "agents" "network")"
+      [[ -n "$val" ]] && echo "$val" && return
+      val="$(config_yaml_get_direct "$file" "defaults" "network")"
       [[ -n "$val" ]] && echo "$val" && return
     done
     echo "enabled"
@@ -432,6 +532,8 @@ config_agent_network() {
     val="$(config_yaml_get_nested "$file" "agents" "$agent_type" "network")"
     [[ -n "$val" ]] && echo "$val" && return
     val="$(config_yaml_get_nested "$file" "defaults" "agents" "network")"
+    [[ -n "$val" ]] && echo "$val" && return
+    val="$(config_yaml_get_direct "$file" "defaults" "network")"
     [[ -n "$val" ]] && echo "$val" && return
   done
   echo "enabled"
@@ -457,7 +559,11 @@ config_agent_ports() {
       [[ -f "$file" ]] || continue
       val="$(config_yaml_get_section "$file" "main" "ports")"
       [[ -n "$val" ]] && echo "$val" && return
+      val="$(config_yaml_get_nested "$file" "defaults" "main" "ports")"
+      [[ -n "$val" ]] && echo "$val" && return
       val="$(config_yaml_get_nested "$file" "defaults" "agents" "ports")"
+      [[ -n "$val" ]] && echo "$val" && return
+      val="$(config_yaml_get_direct "$file" "defaults" "ports")"
       [[ -n "$val" ]] && echo "$val" && return
     done
     echo ""
@@ -481,6 +587,8 @@ config_agent_ports() {
     val="$(config_yaml_get_nested "$file" "agents" "$agent_type" "ports")"
     [[ -n "$val" ]] && echo "$val" && return
     val="$(config_yaml_get_nested "$file" "defaults" "agents" "ports")"
+    [[ -n "$val" ]] && echo "$val" && return
+    val="$(config_yaml_get_direct "$file" "defaults" "ports")"
     [[ -n "$val" ]] && echo "$val" && return
   done
   echo ""

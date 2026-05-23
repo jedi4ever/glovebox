@@ -1,0 +1,3 @@
+defaults:
+  sandbox_image: debian
+  scope: directory

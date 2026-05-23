@@ -29,15 +29,22 @@ The list form keeps long allowlists readable and lets you put a `# comment` on e
 
 ```yaml
 defaults:
-  agents:                 # defaults inherited by every agent — and by `main`
-    scope: session        # as a fallback when main.<setting> is not set
-    sandbox_image: ubuntu
-    mount_workdir: true
-    pass_env: none
-    network: enabled
-    ports: ""
+  # Bare keys directly under `defaults:` apply to BOTH main and agents.
+  # Use this for settings you want shared across the board.
+  sandbox_image: ubuntu
+  mount_workdir: true
+  pass_env: none
+  ports: ""
 
-main:                     # main-session settings
+  main:                   # main-only overrides of the shared defaults
+    sandbox_image: debian
+    network: "github.com,api.openai.com"
+
+  agents:                 # agents-only overrides of the shared defaults
+    scope: session
+    network: enabled
+
+main:                     # main-session overrides (per-project)
   scope: named
   sandbox_name: my-project
   sandbox_image: debian
@@ -57,7 +64,13 @@ agents:                   # per-agent overrides — inherit from defaults.agents
     network: disabled
 ```
 
-There is no `defaults.main:` sub-section. The `defaults.agents:` block doubles as the fallback layer for `main` settings that aren't explicitly set under `main:` (except `sandbox_name`, which is per-context).
+The `defaults:` block has three layers, in order of specificity:
+
+- `defaults.main:` — overrides used **only** by the main session.
+- `defaults.agents:` — overrides used **only** by agents (and as a fallback for main, for backwards compatibility).
+- bare `defaults.<key>:` — shared baseline used by **both** main and agents when nothing more specific is set.
+
+Typical use: put truly shared values (image, mount_workdir, pass_env) directly under `defaults:`, then specialize per-context only where you need to.
 
 ## Resolution order
 
@@ -65,14 +78,14 @@ Every setting follows the same precedence chain, from highest to lowest:
 
 **Main session** (no agent context)
 1. Env var (`CC_MSB_MAIN_*` or the legacy `CC_MSB_SANDBOX_IMAGE`/`CC_MSB_SANDBOX_NAME`)
-2. `main.<setting>` in the **local** file, then `defaults.agents.<setting>` in the local file
-3. `main.<setting>` in the **global** file, then `defaults.agents.<setting>` in the global file
+2. `main.X` → `defaults.main.X` → `defaults.agents.X` → `defaults.X` in the **local** file
+3. `main.X` → `defaults.main.X` → `defaults.agents.X` → `defaults.X` in the **global** file
 4. Built-in default
 
 **Agent** (`agent_type` present in the event)
 1. Env var `CC_MSB_AGENT_<SETTING>_<AGENT_NAME>` (agent name uppercased with `-` → `_`)
-2. `agents.<name>.<setting>` in the **local** file, then `defaults.agents.<setting>` in the local file
-3. `agents.<name>.<setting>` in the **global** file, then `defaults.agents.<setting>` in the global file
+2. `agents.<name>.X` → `defaults.agents.X` → `defaults.X` in the **local** file
+3. `agents.<name>.X` → `defaults.agents.X` → `defaults.X` in the **global** file
 4. Built-in default
 
 The local file is treated as a complete layer: its `main.X → defaults.agents.X` cascade runs fully before the global file is consulted. So if your local file sets *anything* relevant to a given setting (even via `defaults.agents.X`), the global file's `main.X` for that setting is ignored.
@@ -263,12 +276,15 @@ main:
 ### Global defaults across every project
 Put this in `~/.config/cc-msb/config.yml` (or `$CC_MSB_CONFIG_DIR/config.yml`). Any project without its own `.cc-msb.yml` inherits these settings; projects with a local file can selectively override.
 
+Use `defaults.main:` for main-only baselines that you don't want agents to inherit:
+
 ```yaml
 defaults:
+  main:
+    sandbox_image: debian
+    network: "github.com,registry.npmjs.org,api.openai.com"
   agents:
     sandbox_image: ubuntu
     pass_env: none
-main:
-  sandbox_image: debian
-  network: "github.com,registry.npmjs.org,api.openai.com"
+    network: disabled        # agents air-gapped by default
 ```
