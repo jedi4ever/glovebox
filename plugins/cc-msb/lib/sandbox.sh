@@ -137,6 +137,22 @@ sandbox_status() {
   printf '%s' "$json" | jq -r '.status // empty' 2>/dev/null || echo ""
 }
 
+# Computes a stable 16-char fingerprint of every msb-create-time setting so we
+# can detect when the config drifted from what the sandbox was created with.
+# Args: image mount_workdir network_spec ports_spec security_args_str
+sandbox_config_fingerprint() {
+  local payload
+  payload="image=${1}|mount=${2}|net=${3}|ports=${4}|sec=${5}"
+  printf '%s' "$payload" | openssl dgst -sha256 2>/dev/null \
+    | sed -E 's/^.*= //' | cut -c1-16
+}
+
+# Where the per-sandbox config fingerprint is persisted. Survives across CC
+# sessions, alongside other long-lived state under ~/.cache/cc-msb/.
+sandbox_fingerprint_path() {
+  echo "$HOME/.cache/cc-msb/fingerprints/$1.fp"
+}
+
 # Emits one shell-quoted token per line per `msb create` network flag derived
 # from a network spec. Output is suitable for: `mapfile -t arr < <(sandbox_network_args "$spec")`.
 # Spec values:
@@ -261,11 +277,29 @@ sandbox_ensure_running() {
   local status
   status=$(sandbox_status "$name")
 
+  # Fingerprint of the *currently desired* settings. We re-check on every
+  # call against what was stored when the sandbox was created — if they
+  # differ, the sandbox is using stale flags (since most of these only
+  # apply at `msb create` time, not at exec). The caller decides what to
+  # do via the SANDBOX_CONFIG_DRIFT global.
+  SANDBOX_CONFIG_DRIFT=""
+  local current_fp fp_path stored_fp=""
+  current_fp="$(sandbox_config_fingerprint "$image" "$mount_workdir" "$network_spec" "$ports_spec" "$security_args_str")"
+  fp_path="$(sandbox_fingerprint_path "$name")"
+  [[ -f "$fp_path" ]] && stored_fp="$(< "$fp_path")"
+
   case "$status" in
     Running)
+      if [[ -n "$stored_fp" && "$stored_fp" != "$current_fp" ]]; then
+        SANDBOX_CONFIG_DRIFT="$name"
+      fi
       return 0
       ;;
     Stopped)
+      if [[ -n "$stored_fp" && "$stored_fp" != "$current_fp" ]]; then
+        SANDBOX_CONFIG_DRIFT="$name"
+        return 0
+      fi
       msb start "$name" --quiet 2>>"$log_file"
       ;;
     *)
@@ -296,7 +330,12 @@ sandbox_ensure_running() {
           create_args+=("${sec_args[@]}")
         fi
       fi
-      msb create "${create_args[@]}" 2>>"$log_file"
+      if msb create "${create_args[@]}" 2>>"$log_file"; then
+        mkdir -p "$(dirname "$fp_path")"
+        printf '%s\n' "$current_fp" > "$fp_path"
+      else
+        return 1
+      fi
       ;;
   esac
 }

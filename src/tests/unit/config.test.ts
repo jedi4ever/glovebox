@@ -4,7 +4,7 @@ import { createHash } from "node:crypto";
 import { fileURLToPath } from "node:url";
 import { join } from "node:path";
 import { rmSync, readFileSync, existsSync, readdirSync, mkdtempSync, writeFileSync } from "node:fs";
-import { tmpdir } from "node:os";
+import { tmpdir, homedir } from "node:os";
 import { fixturePath } from "../../helpers/fixtures.js";
 
 function dirSandboxName(dir: string): string {
@@ -75,6 +75,7 @@ const NAMED_PREFIXES = [
   "cc-msb-global-named",
   "cc-msb-local-named",
   "cc-msb-global-agent",
+  "cc-msb-drift-",
 ];
 
 function cleanupFakeMsbFiles() {
@@ -1665,6 +1666,233 @@ describe("config — global config file", () => {
       expect(args).toContain("allow@example.com");
     } finally {
       rmSync(globalDir, { recursive: true, force: true });
+    }
+  });
+});
+
+describe("config — config-drift detection", () => {
+  // The hook persists a fingerprint of all create-time settings to
+  // ~/.cache/cc-msb/fingerprints/<sandbox>.fp on every successful `msb create`.
+  // On subsequent calls, when the sandbox is already Running, we compare the
+  // current fingerprint to the stored one and deny with a recreate hint if
+  // they differ. These tests exercise both the local-file and global-file
+  // change paths, plus the happy "no drift" case.
+
+  function fpPath(sandboxName: string): string {
+    return join(homedir(), ".cache", "cc-msb", "fingerprints", `${sandboxName}.fp`);
+  }
+  function clearFp(sandboxName: string): void {
+    try { rmSync(fpPath(sandboxName)); } catch {}
+  }
+  function decisionOf(stdout: string): { decision: string; reason?: string } {
+    if (!stdout.trim()) return { decision: "(no-op)" };
+    const o = JSON.parse(stdout).hookSpecificOutput;
+    return { decision: o.permissionDecision, reason: o.permissionDecisionReason };
+  }
+
+  it("first-time create writes a fingerprint file", () => {
+    const sandboxName = "cc-msb-drift-first-create";
+    clearFp(sandboxName);
+    const projectDir = mkdtempSync(join(tmpdir(), "cc-msb-drift-"));
+    writeFileSync(
+      join(projectDir, ".cc-msb.yml"),
+      `main:\n  scope: named\n  sandbox_name: ${sandboxName}\n  sandbox_image: ubuntu\n`
+    );
+    try {
+      runHook(projectDir);
+      expect(existsSync(fpPath(sandboxName))).toBe(true);
+      const fp = readFileSync(fpPath(sandboxName), "utf8").trim();
+      // 16 hex chars
+      expect(fp).toMatch(/^[0-9a-f]{16}$/);
+    } finally {
+      rmSync(projectDir, { recursive: true, force: true });
+      clearFp(sandboxName);
+    }
+  });
+
+  it("re-running with the same config produces no drift (allow)", () => {
+    const sandboxName = "cc-msb-drift-stable";
+    clearFp(sandboxName);
+    const projectDir = mkdtempSync(join(tmpdir(), "cc-msb-drift-"));
+    const cfg = `main:\n  scope: named\n  sandbox_name: ${sandboxName}\n  sandbox_image: ubuntu\n`;
+    writeFileSync(join(projectDir, ".cc-msb.yml"), cfg);
+    try {
+      const r1 = runHook(projectDir);
+      expect(decisionOf(r1.stdout).decision).toBe("allow");
+      // Second call against the same fingerprint — still allow, no drift.
+      const r2 = runHook(projectDir);
+      expect(decisionOf(r2.stdout).decision).toBe("allow");
+    } finally {
+      rmSync(projectDir, { recursive: true, force: true });
+      clearFp(sandboxName);
+    }
+  });
+
+  it("local-file change (image): emits a deny pointing at the named sandbox", () => {
+    const sandboxName = "cc-msb-drift-local-change";
+    clearFp(sandboxName);
+    const projectDir = mkdtempSync(join(tmpdir(), "cc-msb-drift-"));
+    writeFileSync(
+      join(projectDir, ".cc-msb.yml"),
+      `main:\n  scope: named\n  sandbox_name: ${sandboxName}\n  sandbox_image: ubuntu\n`
+    );
+    try {
+      const r1 = runHook(projectDir);
+      expect(decisionOf(r1.stdout).decision).toBe("allow");
+      // Flip image — drift expected.
+      writeFileSync(
+        join(projectDir, ".cc-msb.yml"),
+        `main:\n  scope: named\n  sandbox_name: ${sandboxName}\n  sandbox_image: alpine\n`
+      );
+      const r2 = runHook(projectDir);
+      const { decision, reason } = decisionOf(r2.stdout);
+      expect(decision).toBe("deny");
+      expect(reason).toContain(sandboxName);
+      expect(reason).toMatch(/msb stop/);
+      expect(reason).toMatch(/msb remove/);
+    } finally {
+      rmSync(projectDir, { recursive: true, force: true });
+      clearFp(sandboxName);
+    }
+  });
+
+  it("local-file change (network): emits a deny", () => {
+    const sandboxName = "cc-msb-drift-net-change";
+    clearFp(sandboxName);
+    const projectDir = mkdtempSync(join(tmpdir(), "cc-msb-drift-"));
+    writeFileSync(
+      join(projectDir, ".cc-msb.yml"),
+      `main:\n  scope: named\n  sandbox_name: ${sandboxName}\n`
+    );
+    try {
+      const r1 = runHook(projectDir);
+      expect(decisionOf(r1.stdout).decision).toBe("allow");
+      writeFileSync(
+        join(projectDir, ".cc-msb.yml"),
+        `main:\n  scope: named\n  sandbox_name: ${sandboxName}\n  network: disabled\n`
+      );
+      const r2 = runHook(projectDir);
+      expect(decisionOf(r2.stdout).decision).toBe("deny");
+    } finally {
+      rmSync(projectDir, { recursive: true, force: true });
+      clearFp(sandboxName);
+    }
+  });
+
+  it("global-file change is also detected (no local file in between)", () => {
+    const sandboxName = "cc-msb-drift-global-change";
+    clearFp(sandboxName);
+    const projectDir = mkdtempSync(join(tmpdir(), "cc-msb-drift-"));
+    const globalDir = mkdtempSync(join(tmpdir(), "cc-msb-drift-glob-"));
+    writeFileSync(
+      join(globalDir, "config.yml"),
+      `main:\n  scope: named\n  sandbox_name: ${sandboxName}\n  sandbox_image: ubuntu\n`
+    );
+    try {
+      const r1 = runHook(projectDir, { CC_MSB_CONFIG_DIR: globalDir });
+      expect(decisionOf(r1.stdout).decision).toBe("allow");
+      // Flip the GLOBAL config — local stays empty. Drift should still fire.
+      writeFileSync(
+        join(globalDir, "config.yml"),
+        `main:\n  scope: named\n  sandbox_name: ${sandboxName}\n  sandbox_image: alpine\n`
+      );
+      const r2 = runHook(projectDir, { CC_MSB_CONFIG_DIR: globalDir });
+      const { decision, reason } = decisionOf(r2.stdout);
+      expect(decision).toBe("deny");
+      expect(reason).toContain(sandboxName);
+    } finally {
+      rmSync(projectDir, { recursive: true, force: true });
+      rmSync(globalDir, { recursive: true, force: true });
+      clearFp(sandboxName);
+    }
+  });
+
+  it("local change overriding global: still drifts when value flips", () => {
+    const sandboxName = "cc-msb-drift-mixed-change";
+    clearFp(sandboxName);
+    const projectDir = mkdtempSync(join(tmpdir(), "cc-msb-drift-"));
+    const globalDir = mkdtempSync(join(tmpdir(), "cc-msb-drift-glob-"));
+    writeFileSync(
+      join(globalDir, "config.yml"),
+      `main:\n  scope: named\n  sandbox_name: ${sandboxName}\n  sandbox_image: ubuntu\n`
+    );
+    try {
+      // Pass 1: only global → effective image = ubuntu
+      const r1 = runHook(projectDir, { CC_MSB_CONFIG_DIR: globalDir });
+      expect(decisionOf(r1.stdout).decision).toBe("allow");
+      // Pass 2: add a local override → effective image = alpine. Drift.
+      writeFileSync(
+        join(projectDir, ".cc-msb.yml"),
+        "main:\n  sandbox_image: alpine\n"
+      );
+      const r2 = runHook(projectDir, { CC_MSB_CONFIG_DIR: globalDir });
+      expect(decisionOf(r2.stdout).decision).toBe("deny");
+    } finally {
+      rmSync(projectDir, { recursive: true, force: true });
+      rmSync(globalDir, { recursive: true, force: true });
+      clearFp(sandboxName);
+    }
+  });
+
+  it("recreate after drift: remove sandbox → next call re-creates + rewrites fingerprint", () => {
+    const sandboxName = "cc-msb-drift-recreate-cycle";
+    clearFp(sandboxName);
+    const projectDir = mkdtempSync(join(tmpdir(), "cc-msb-drift-"));
+    writeFileSync(
+      join(projectDir, ".cc-msb.yml"),
+      `main:\n  scope: named\n  sandbox_name: ${sandboxName}\n  sandbox_image: ubuntu\n`
+    );
+    try {
+      runHook(projectDir);
+      const fp1 = readFileSync(fpPath(sandboxName), "utf8").trim();
+
+      // Drift
+      writeFileSync(
+        join(projectDir, ".cc-msb.yml"),
+        `main:\n  scope: named\n  sandbox_name: ${sandboxName}\n  sandbox_image: alpine\n`
+      );
+      expect(decisionOf(runHook(projectDir).stdout).decision).toBe("deny");
+      // Fingerprint NOT updated yet — sandbox still has old config.
+      expect(readFileSync(fpPath(sandboxName), "utf8").trim()).toBe(fp1);
+
+      // Simulate user running `msb stop && msb remove`: clear fake-msb state.
+      try { rmSync(`/tmp/fake-msb-${sandboxName}.state`); } catch {}
+      try { rmSync(`/tmp/fake-msb-${sandboxName}.create-args`); } catch {}
+
+      // Next call: sandbox absent → create with new image → new fingerprint.
+      const r3 = runHook(projectDir);
+      expect(decisionOf(r3.stdout).decision).toBe("allow");
+      const fp2 = readFileSync(fpPath(sandboxName), "utf8").trim();
+      expect(fp2).not.toBe(fp1);
+    } finally {
+      rmSync(projectDir, { recursive: true, force: true });
+      clearFp(sandboxName);
+    }
+  });
+
+  it("pre-existing sandbox without a stored fingerprint: no drift (backwards-compat)", () => {
+    // Sandboxes that pre-date the fingerprint feature have no .fp on disk.
+    // We must NOT treat that as drift — that would block every existing
+    // long-lived sandbox until the user recreated it.
+    const sandboxName = "cc-msb-drift-no-stored-fp";
+    clearFp(sandboxName);
+    // Pre-create the fake sandbox's state file so the hook sees it as
+    // "Running" without going through the create path (which would write
+    // a fingerprint).
+    writeFileSync(`/tmp/fake-msb-${sandboxName}.state`, "Running\n");
+    const projectDir = mkdtempSync(join(tmpdir(), "cc-msb-drift-"));
+    writeFileSync(
+      join(projectDir, ".cc-msb.yml"),
+      `main:\n  scope: named\n  sandbox_name: ${sandboxName}\n  sandbox_image: alpine\n`
+    );
+    try {
+      const r = runHook(projectDir);
+      // No stored fingerprint → can't detect drift → must allow.
+      expect(decisionOf(r.stdout).decision).toBe("allow");
+    } finally {
+      rmSync(projectDir, { recursive: true, force: true });
+      try { rmSync(`/tmp/fake-msb-${sandboxName}.state`); } catch {}
+      clearFp(sandboxName);
     }
   });
 });

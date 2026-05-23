@@ -57,6 +57,10 @@ case "$TOOL_NAME" in
       emit_deny "cc-msb: failed to start sandbox (see $STATE_DIR/sandbox.log)"
       exit 0
     }
+    if [[ -n "${SANDBOX_CONFIG_DRIFT:-}" ]]; then
+      emit_deny "cc-msb: settings in .cc-msb.yml changed since sandbox '$SANDBOX_CONFIG_DRIFT' was created. msb applies most flags (image, network, ports, secrets, tls_*) only at create time, so the running sandbox still uses the old config. To apply: \`msb stop '$SANDBOX_CONFIG_DRIFT' && msb remove '$SANDBOX_CONFIG_DRIFT'\` — your next tool call will recreate it. Files in /workspace are bind-mounted and unaffected; other in-sandbox state (apt installs, /etc edits) will be lost."
+      exit 0
+    fi
     # named and directory sandboxes persist across sessions — don't add to cleanup list
     if [[ "$EFFECTIVE_SCOPE" != "directory" ]] && [[ "$EFFECTIVE_SCOPE" != "named" || -z "$EFFECTIVE_SANDBOX_NAME" ]]; then
       sandbox_track "$SESSION_ID" "$SANDBOX"
@@ -91,6 +95,10 @@ case "$TOOL_NAME" in
         emit_deny "cc-msb: failed to start sandbox for read of $FILE_PATH"
         exit 0
       }
+      if [[ -n "${SANDBOX_CONFIG_DRIFT:-}" ]]; then
+        emit_deny "cc-msb: settings in .cc-msb.yml changed since sandbox '$SANDBOX_CONFIG_DRIFT' was created. To apply: \`msb stop '$SANDBOX_CONFIG_DRIFT' && msb remove '$SANDBOX_CONFIG_DRIFT'\` — your next tool call will recreate it. Files in /workspace are bind-mounted and unaffected; other in-sandbox state will be lost."
+        exit 0
+      fi
       if [[ "$EFFECTIVE_SCOPE" != "directory" ]] && [[ "$EFFECTIVE_SCOPE" != "named" || -z "$EFFECTIVE_SANDBOX_NAME" ]]; then
         sandbox_track "$SESSION_ID" "$SANDBOX"
       fi
@@ -118,6 +126,10 @@ case "$TOOL_NAME" in
       # Ensure the sandbox exists so post-tool-use can sync the shadow file into it.
       SANDBOX="$(sandbox_name_for "$SESSION_ID" "$AGENT_TYPE" "$EFFECTIVE_SANDBOX_NAME" "$EFFECTIVE_SCOPE" "$PROJECT_DIR")"
       sandbox_ensure_running "$SANDBOX" "$PROJECT_DIR" "$STATE_DIR/sandbox.log" "$EFFECTIVE_IMAGE" "$EFFECTIVE_MOUNT_WORKDIR" "$EFFECTIVE_NETWORK" "$EFFECTIVE_PORTS" "$EFFECTIVE_SECURITY_ARGS" || true
+      if [[ -n "${SANDBOX_CONFIG_DRIFT:-}" ]]; then
+        emit_deny "cc-msb: settings in .cc-msb.yml changed since sandbox '$SANDBOX_CONFIG_DRIFT' was created. To apply: \`msb stop '$SANDBOX_CONFIG_DRIFT' && msb remove '$SANDBOX_CONFIG_DRIFT'\` — your next tool call will recreate it. Files in /workspace are bind-mounted and unaffected; other in-sandbox state will be lost."
+        exit 0
+      fi
       if [[ "$EFFECTIVE_SCOPE" != "directory" ]] && [[ "$EFFECTIVE_SCOPE" != "named" || -z "$EFFECTIVE_SANDBOX_NAME" ]]; then
         sandbox_track "$SESSION_ID" "$SANDBOX"
       fi

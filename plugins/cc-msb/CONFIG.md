@@ -241,6 +241,25 @@ main:
 
 ## Behavior
 
+### Config-drift detection (persistent sandboxes)
+
+msb applies most settings (`sandbox_image`, `network`, `ports`, `secrets`, `on_secret_violation`, `tls_intercept`, `tls_intercept_port`, `tls_bypass`, `trust_host_cas`, `mount_workdir`) **only at `msb create` time**. They're baked into the sandbox's lifetime. If you edit `.cc-msb.yml` (or `~/.config/cc-msb/config.yml`) while a long-lived sandbox is up (e.g. `scope: named` / `scope: directory`), the running sandbox keeps using the old flags — silently.
+
+To make this fail loudly, the plugin persists a 16-char fingerprint of every create-time setting to `~/.cache/cc-msb/fingerprints/<sandbox>.fp` whenever it creates a sandbox. On every subsequent hook call, the current effective config is re-hashed and compared. If the fingerprints differ, the hook emits a **deny** with a one-line recreate instruction:
+
+```
+cc-msb: settings in .cc-msb.yml changed since sandbox 'my-project' was created.
+To apply: `msb stop 'my-project' && msb remove 'my-project'` — your next tool
+call will recreate it. Files in /workspace are bind-mounted and unaffected;
+other in-sandbox state (apt installs, /etc edits) will be lost.
+```
+
+Notes:
+- Both local *and* global config changes are detected — the fingerprint hashes the *effective* (resolved) values, not the file contents.
+- `pass_env` is **not** included in the fingerprint: it's applied at `msb exec` time per call, so changes take effect immediately without a recreate.
+- Sandboxes that pre-date this feature (no `.fp` file on disk) are *not* flagged as drifted, so adopting the new version doesn't block existing long-lived sandboxes.
+- `scope: per-run` sandboxes are created fresh per call → no drift is possible. `session` / `per-agent` sandboxes will drift on edits made mid-session.
+
 ### WebFetch interception
 
 The plugin denies the `WebFetch` tool with a hint telling Claude to use `Bash` with `curl` instead. The Bash hook then routes that curl call through `msb exec` so the fetch happens **inside** the sandbox and respects the configured `network` policy — otherwise CC's built-in WebFetch would bypass every cc-msb config and hit the URL from the host.
