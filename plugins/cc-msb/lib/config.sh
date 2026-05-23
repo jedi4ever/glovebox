@@ -45,6 +45,99 @@ config_global_file() {
   echo "${CC_MSB_CONFIG_DIR:-$HOME/.config/cc-msb}/config.yml"
 }
 
+# Returns the directory user presets live in. Override with
+# CC_MSB_PRESETS_DIR (handy for tests).
+config_user_presets_dir() {
+  echo "${CC_MSB_PRESETS_DIR:-$HOME/.cc-msb/presets}"
+}
+
+# Returns the directory built-in presets ship in (inside the plugin).
+config_builtin_presets_dir() {
+  echo "${PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-}}/presets"
+}
+
+# Resolves a preset name to a YAML file path. User dir wins over built-in.
+# Emits the path on success, empty string if not found.
+# Args: name
+config_preset_path() {
+  local name="$1"
+  [[ -z "$name" ]] && return 0
+  local user_dir builtin_dir candidate
+  user_dir="$(config_user_presets_dir)"
+  builtin_dir="$(config_builtin_presets_dir)"
+  for candidate in "$user_dir/$name.yml" "$user_dir/$name.yaml" \
+                   "$builtin_dir/$name.yml" "$builtin_dir/$name.yaml"; do
+    [[ -f "$candidate" ]] && { echo "$candidate"; return 0; }
+  done
+}
+
+# Reads a top-level YAML key as a list (inline `[a, b]` or block `- a\n- b`).
+# Returns items joined with commas; empty if the key is missing.
+# Args: file key
+config_yaml_get_top_list() {
+  local file="$1" key="$2"
+  [[ -f "$file" ]] || return 0
+  awk -v k="$key" '
+    BEGIN { mode = 0; result = "" }
+    mode == 0 {
+      if ($0 ~ "^" k "[[:space:]]*:") {
+        line = $0
+        sub("^" k "[[:space:]]*:[[:space:]]*", "", line)
+        sub("[[:space:]]*#.*$", "", line)
+        sub("[[:space:]]*$", "", line)
+        # inline list: [a, b, c]
+        if (line ~ /^\[.*\]$/) {
+          sub(/^\[/, "", line); sub(/\]$/, "", line)
+          n = split(line, parts, ",")
+          for (i = 1; i <= n; i++) {
+            item = parts[i]
+            sub(/^[[:space:]]+/, "", item); sub(/[[:space:]]+$/, "", item)
+            sub(/^["\047]/, "", item); sub(/["\047]$/, "", item)
+            if (item != "") { result = (result == "" ? item : result "," item) }
+          }
+          print result; exit
+        }
+        if (length(line) > 0) { print line; exit }
+        mode = 1
+        next
+      }
+    }
+    mode == 1 {
+      if ($0 ~ /^[[:space:]]*$/) next
+      if ($0 ~ /^[[:space:]]*#/) next
+      if ($0 ~ /^[^[:space:]]/) { if (result != "") print result; exit }
+      if ($0 !~ /^[[:space:]]*-[[:space:]]+/) { if (result != "") print result; exit }
+      item = $0
+      sub(/^[[:space:]]*-[[:space:]]+/, "", item)
+      sub(/[[:space:]]*#.*$/, "", item)
+      sub(/[[:space:]]*$/, "", item)
+      sub(/^["\047]/, "", item); sub(/["\047]$/, "", item)
+      result = (result == "" ? item : result "," item)
+    }
+    END { if (mode == 1 && result != "") print result }
+  ' "$file"
+}
+
+# Returns the resolved preset name list (comma-separated, in declaration order).
+# Chain: CC_MSB_PRESETS env → local file `presets:` → global file `presets:`.
+# Args: local_file
+config_presets_list() {
+  local local_file="$1"
+  if [[ -n "${CC_MSB_PRESETS:-}" ]]; then
+    echo "$CC_MSB_PRESETS"
+    return
+  fi
+  local global_file val
+  global_file="$(config_global_file)"
+  for f in "$local_file" "$global_file"; do
+    val="$(config_yaml_get_top_list "$f" "presets")"
+    if [[ -n "$val" ]]; then
+      echo "$val"
+      return
+    fi
+  done
+}
+
 # Reads pre-isolated section content from stdin and emits the value of <key>.
 # Supports two forms:
 #   1. Inline:  "key: value"        → emits "value"
@@ -239,6 +332,8 @@ config_agent_scope() {
       val="$(config_yaml_get_direct "$file" "defaults" "scope")"
       [[ -n "$val" ]] && echo "$val" && return
     done
+    val="$(_config_preset_lookup "$local_file" "" "scope")"
+    [[ -n "$val" ]] && echo "$val" && return
     echo "session"
     return
   fi
@@ -264,6 +359,8 @@ config_agent_scope() {
     val="$(config_yaml_get_direct "$file" "defaults" "scope")"
     [[ -n "$val" ]] && echo "$val" && return
   done
+  val="$(_config_preset_lookup "$local_file" "$agent_type" "scope")"
+  [[ -n "$val" ]] && echo "$val" && return
   echo "session"
 }
 
@@ -289,6 +386,8 @@ config_agent_mount_workdir() {
       val="$(config_yaml_get_direct "$file" "defaults" "mount_workdir")"
       [[ -n "$val" ]] && echo "$val" && return
     done
+    val="$(_config_preset_lookup "$local_file" "" "mount_workdir")"
+    [[ -n "$val" ]] && echo "$val" && return
     echo "true"
     return
   fi
@@ -305,6 +404,8 @@ config_agent_mount_workdir() {
     val="$(config_yaml_get_direct "$file" "defaults" "mount_workdir")"
     [[ -n "$val" ]] && echo "$val" && return
   done
+  val="$(_config_preset_lookup "$local_file" "$agent_type" "mount_workdir")"
+  [[ -n "$val" ]] && echo "$val" && return
   echo "true"
 }
 
@@ -343,6 +444,8 @@ config_agent_image() {
       val="$(config_yaml_get_direct "$file" "defaults" "sandbox_image")"
       [[ -n "$val" ]] && echo "$val" && return
     done
+    val="$(_config_preset_lookup "$local_file" "" "sandbox_image")"
+    [[ -n "$val" ]] && echo "$val" && return
     echo "ubuntu"
     return
   fi
@@ -377,6 +480,8 @@ config_agent_image() {
     val="$(config_yaml_get_direct "$file" "defaults" "sandbox_image")"
     [[ -n "$val" ]] && echo "$val" && return
   done
+  val="$(_config_preset_lookup "$local_file" "$agent_type" "sandbox_image")"
+  [[ -n "$val" ]] && echo "$val" && return
   echo "ubuntu"
 }
 
@@ -455,6 +560,8 @@ config_agent_pass_env() {
       val="$(config_yaml_get_direct "$file" "defaults" "pass_env")"
       [[ -n "$val" ]] && echo "$val" && return
     done
+    val="$(_config_preset_lookup "$local_file" "" "pass_env")"
+    [[ -n "$val" ]] && echo "$val" && return
     echo "none"
     return
   fi
@@ -480,6 +587,8 @@ config_agent_pass_env() {
     val="$(config_yaml_get_direct "$file" "defaults" "pass_env")"
     [[ -n "$val" ]] && echo "$val" && return
   done
+  val="$(_config_preset_lookup "$local_file" "$agent_type" "pass_env")"
+  [[ -n "$val" ]] && echo "$val" && return
   echo "none"
 }
 
@@ -511,6 +620,8 @@ config_agent_network() {
       val="$(config_yaml_get_direct "$file" "defaults" "network")"
       [[ -n "$val" ]] && echo "$val" && return
     done
+    val="$(_config_preset_lookup "$local_file" "" "network")"
+    [[ -n "$val" ]] && echo "$val" && return
     echo "enabled"
     return
   fi
@@ -536,6 +647,8 @@ config_agent_network() {
     val="$(config_yaml_get_direct "$file" "defaults" "network")"
     [[ -n "$val" ]] && echo "$val" && return
   done
+  val="$(_config_preset_lookup "$local_file" "$agent_type" "network")"
+  [[ -n "$val" ]] && echo "$val" && return
   echo "enabled"
 }
 
@@ -566,6 +679,8 @@ config_agent_ports() {
       val="$(config_yaml_get_direct "$file" "defaults" "ports")"
       [[ -n "$val" ]] && echo "$val" && return
     done
+    val="$(_config_preset_lookup "$local_file" "" "ports")"
+    [[ -n "$val" ]] && echo "$val" && return
     echo ""
     return
   fi
@@ -591,12 +706,55 @@ config_agent_ports() {
     val="$(config_yaml_get_direct "$file" "defaults" "ports")"
     [[ -n "$val" ]] && echo "$val" && return
   done
+  val="$(_config_preset_lookup "$local_file" "$agent_type" "ports")"
+  [[ -n "$val" ]] && echo "$val" && return
   echo ""
 }
 
+# Walks resolved preset files in declaration order and echoes the LAST
+# non-empty value found. Presets are read like the user's `defaults:`
+# section — meaning a preset file with `defaults: { main: {…}, agents:
+# {…}, … }` plugs straight into the defaults layer. Last-listed preset
+# wins among the chosen set.
+#
+# Args: local_file agent_type key
+#   agent_type empty → consults defaults.main → defaults.agents → defaults
+#   agent_type set   → consults defaults.agents → defaults
+_config_preset_lookup() {
+  local local_file="$1" agent_type="$2" key="$3"
+  local list
+  list="$(config_presets_list "$local_file")"
+  [[ -z "$list" ]] && return 0
+  local name path val winner=""
+  while IFS= read -r name || [[ -n "$name" ]]; do
+    name="${name#"${name%%[![:space:]]*}"}"
+    name="${name%"${name##*[![:space:]]}"}"
+    [[ -z "$name" ]] && continue
+    path="$(config_preset_path "$name")"
+    [[ -z "$path" ]] && continue
+    if [[ -z "$agent_type" ]]; then
+      val="$(config_yaml_get_nested "$path" "defaults" "main" "$key")"
+      if [[ -n "$val" ]]; then winner="$val"; continue; fi
+    fi
+    val="$(config_yaml_get_nested "$path" "defaults" "agents" "$key")"
+    if [[ -n "$val" ]]; then winner="$val"; continue; fi
+    val="$(config_yaml_get_direct "$path" "defaults" "$key")"
+    [[ -n "$val" ]] && winner="$val"
+  done < <(printf '%s' "$list" | tr ',' '\n')
+  [[ -n "$winner" ]] && echo "$winner"
+}
+
 # Generic per-key resolvers used by the security settings below.
-# Main-session chain: main.X → defaults.main.X → defaults.agents.X → defaults.X
-# Agent chain:        agents.<name>.X → defaults.agents.X → defaults.X
+# Main-session chain:
+#   main.X
+#   → defaults.main.X → defaults.agents.X → defaults.X     (user-written)
+#   → presets[last-wins].defaults.{main,agents,_}.X        (opted-in defaults)
+# Agent chain:
+#   agents.<name>.X
+#   → defaults.agents.X → defaults.X                       (user-written)
+#   → presets[last-wins].defaults.{agents,_}.X             (opted-in defaults)
+# Presets live in `defaults:` semantically — user-explicit values in either
+# `main:` or `defaults:` always win over a preset.
 # Args (main):  key default_val local_file global_file
 # Args (agent): agent_type key default_val local_file global_file
 _config_resolve_main_chain() {
@@ -613,6 +771,9 @@ _config_resolve_main_chain() {
     val="$(config_yaml_get_direct "$file" "defaults" "$key")"
     [[ -n "$val" ]] && echo "$val" && return
   done
+  # Presets consulted once, after every user-file default.
+  val="$(_config_preset_lookup "$local_file" "" "$key")"
+  [[ -n "$val" ]] && echo "$val" && return
   echo "$default_val"
 }
 
@@ -628,6 +789,8 @@ _config_resolve_agent_chain() {
     val="$(config_yaml_get_direct "$file" "defaults" "$key")"
     [[ -n "$val" ]] && echo "$val" && return
   done
+  val="$(_config_preset_lookup "$local_file" "$agent_type" "$key")"
+  [[ -n "$val" ]] && echo "$val" && return
   echo "$default_val"
 }
 

@@ -1,0 +1,15 @@
+# Preset: github — wire host credentials into the sandbox so `gh`, `git`,
+# and direct REST calls just work. Picks up `gh auth token` and the host's
+# `git config --global` user.name/user.email at sandbox-create time.
+#
+# Activate via `.cc-msb.yml`:
+#   presets: [github]
+#
+# Note: an actual `github_token` value (autodetected here) triggers
+# automatic TLS-intercept enable so the secret proxy can substitute the
+# placeholder inside HTTPS payloads. `github_hosts` defaults to the
+# standard 5-host GitHub list when unset.
+
+defaults:
+  git_user_autodetect: true
+  git_token_autodetect: true

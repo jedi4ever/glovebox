@@ -1,0 +1,15 @@
+# Preset: dev — opinionated baseline for daily development against the
+# bundled devbox image (gh, git, ripgrep, node, go, uv pre-installed).
+#
+# Activate via `.cc-msb.yml`:
+#   presets: [dev]
+#
+# These are *defaults*: anything the user sets in `main:` or `defaults:`
+# of their own `.cc-msb.yml` always wins. Last-listed preset wins among
+# overlapping keys.
+
+defaults:
+  sandbox_image: localhost:5123/devbox
+  mount_workdir: true
+  scope: directory
+  auto_recreate: true
