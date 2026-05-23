@@ -1,9 +1,9 @@
-# Preset: npm — pin the network allowlist to the registries `npm`/`yarn`
-# need at install time. Combine with other presets to add their hosts on
-# top once list-union resolution lands (iteration 2).
+# Preset: npm — pin the network allowlist to the hosts npm/yarn/pnpm need
+# at install time, including registries and the node.org binary CDN used
+# by node-pre-gyp and similar postinstall downloaders.
 #
 # Activate via `.cc-msb.yml`:
 #   presets: [npm]
 
 defaults:
-  network: "registry.npmjs.org,registry.yarnpkg.com"
+  network: "registry.npmjs.org,registry.yarnpkg.com,nodejs.org"

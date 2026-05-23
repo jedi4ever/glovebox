@@ -5,11 +5,12 @@
 # Activate via `.cc-msb.yml`:
 #   presets: [github]
 #
-# Note: an actual `github_token` value (autodetected here) triggers
-# automatic TLS-intercept enable so the secret proxy can substitute the
-# placeholder inside HTTPS payloads. `github_hosts` defaults to the
-# standard 5-host GitHub list when unset.
+# The network list opens the standard GitHub hosts (git clone, API, release
+# downloads, raw content, GitHub Packages npm registry). When a token is
+# autodetected, config.mjs also enables TLS-intercept and injects GH_TOKEN
+# into the sandbox as a secret for those same hosts.
 
 defaults:
+  network: "github.com,api.github.com,codeload.github.com,objects.githubusercontent.com,raw.githubusercontent.com,npm.pkg.github.com"
   git_user_autodetect: true
   git_token_autodetect: true

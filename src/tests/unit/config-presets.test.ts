@@ -153,7 +153,7 @@ describe("config — presets", () => {
       const cfg = readCreateConfig();
       // dev → devbox image; npm → network allowlist
       expect(cfg?.image).toBe("localhost:5123/devbox");
-      expect(cfg?.network).toBe("registry.npmjs.org,registry.yarnpkg.com");
+      expect(cfg?.network).toBe("registry.npmjs.org,registry.yarnpkg.com,nodejs.org");
     } finally {
       rmSync(dir, { recursive: true, force: true });
     }
@@ -167,7 +167,7 @@ describe("config — presets", () => {
       runHook(dir);
       const cfg = readCreateConfig();
       expect(cfg?.image).toBe("localhost:5123/devbox");
-      expect(cfg?.network).toBe("registry.npmjs.org,registry.yarnpkg.com");
+      expect(cfg?.network).toBe("registry.npmjs.org,registry.yarnpkg.com,nodejs.org");
     } finally {
       rmSync(dir, { recursive: true, force: true });
     }
@@ -229,7 +229,35 @@ describe("config — presets", () => {
       // dev's image wins because env replaced the list
       expect(cfg?.image).toBe("localhost:5123/devbox");
       // npm's network should NOT be applied
-      expect(cfg?.network).not.toBe("registry.npmjs.org,registry.yarnpkg.com");
+      expect(cfg?.network).not.toContain("registry.npmjs.org");
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  it("github preset sets the standard GitHub network hosts", () => {
+    const dir = makeProject("presets: [github]\n");
+    try {
+      runHook(dir, { CC_MSB_MAIN_GIT_TOKEN_AUTODETECT: "" });
+      const cfg = readCreateConfig();
+      expect(cfg?.network).toContain("github.com");
+      expect(cfg?.network).toContain("api.github.com");
+      expect(cfg?.network).toContain("objects.githubusercontent.com");
+      expect(cfg?.network).toContain("npm.pkg.github.com");
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  it("npm + github presets union their network hosts", () => {
+    const dir = makeProject("presets: [npm, github]\n");
+    try {
+      runHook(dir, { CC_MSB_MAIN_GIT_TOKEN_AUTODETECT: "" });
+      const cfg = readCreateConfig();
+      expect(cfg?.network).toContain("registry.npmjs.org");
+      expect(cfg?.network).toContain("nodejs.org");
+      expect(cfg?.network).toContain("github.com");
+      expect(cfg?.network).toContain("npm.pkg.github.com");
     } finally {
       rmSync(dir, { recursive: true, force: true });
     }
