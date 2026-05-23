@@ -1,5 +1,20 @@
 # Sandbox lifecycle helpers. Sourced — not executed directly.
 
+# Lexically resolves ../ and ./ components in an absolute path.
+# Does not resolve symlinks or require the path to exist.
+path_normalize() {
+  local path="$1" result="" part
+  local IFS='/'
+  for part in $path; do
+    case "$part" in
+      ''|.) ;;
+      ..) result="${result%/*}" ;;
+      *)   result="$result/$part" ;;
+    esac
+  done
+  printf '%s' "${result:-/}"
+}
+
 sandbox_name() {
   echo "cc-msb-${1:0:16}"
 }
@@ -16,7 +31,9 @@ sandbox_name_for() {
 
   # named scope with a configured name — use it directly (persists across sessions)
   if [[ "$mode" == "named" && -n "$explicit_name" ]]; then
-    echo "$explicit_name"
+    # Strip chars that would break single-quote context in sandbox_wrap_command
+    local safe_name="${explicit_name//[^a-zA-Z0-9_-]/}"
+    echo "${safe_name:-cc-msb-named}"
     return
   fi
 
@@ -36,6 +53,8 @@ sandbox_name_for() {
 
   local lower
   lower="$(printf '%s' "${agent_type//-/_}" | tr '[:upper:]' '[:lower:]')"
+  # Strip chars that would break single-quote context in sandbox_wrap_command
+  lower="${lower//[^a-z0-9_]/}"
 
   case "$mode" in
     per-agent)
@@ -235,17 +254,22 @@ sandbox_resolve_path() {
   local file_path="$1" project_dir="$2" state_dir="$3"
   local shadow_root="$state_dir/shadow"
 
-  case "$file_path" in
+  # Normalize to resolve ../ components before prefix-matching.
+  # Prevents path traversal like /project/../../../etc/passwd matching the project_dir case.
+  local canonical
+  canonical="$(path_normalize "$file_path")"
+
+  case "$canonical" in
     "$project_dir"|"$project_dir"/*)
       SANDBOX_HOST_PATH="$file_path"
       SANDBOX_NEEDS_SYNC="no"
       ;;
     /workspace|/workspace/*)
-      SANDBOX_HOST_PATH="$project_dir/${file_path#/workspace/}"
+      SANDBOX_HOST_PATH="$project_dir/${canonical#/workspace/}"
       SANDBOX_NEEDS_SYNC="no"
       ;;
     /*)
-      SANDBOX_HOST_PATH="$shadow_root$file_path"
+      SANDBOX_HOST_PATH="$shadow_root$canonical"
       SANDBOX_NEEDS_SYNC="yes"
       ;;
     *)

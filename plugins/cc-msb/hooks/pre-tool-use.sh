@@ -95,6 +95,7 @@ case "$TOOL_NAME" in
     SESSION_ID="$(printf '%s' "$EVENT" | jq -r '.session_id // empty')"
     COMMAND="$(printf '%s' "$EVENT" | jq -r '.tool_input.command // empty')"
     [[ -z "$SESSION_ID" || -z "$COMMAND" ]] && exit 0
+    [[ "$SESSION_ID" =~ ^[a-zA-Z0-9_-]{1,64}$ ]] || exit 0
 
     SANDBOX="$(sandbox_name_for "$SESSION_ID" "$AGENT_TYPE" "$EFFECTIVE_SANDBOX_NAME" "$EFFECTIVE_SCOPE" "$PROJECT_DIR")"
     STATE_DIR="$(sandbox_state_dir "$SESSION_ID")"
@@ -128,6 +129,7 @@ case "$TOOL_NAME" in
     SESSION_ID="$(printf '%s' "$EVENT" | jq -r '.session_id // empty')"
     FILE_PATH="$(printf '%s' "$EVENT" | jq -r '.tool_input.file_path // empty')"
     [[ -z "$SESSION_ID" || -z "$FILE_PATH" ]] && exit 0
+    [[ "$SESSION_ID" =~ ^[a-zA-Z0-9_-]{1,64}$ ]] || exit 0
 
     SANDBOX="$(sandbox_name_for_file_op "$SESSION_ID" "$AGENT_TYPE" "$EFFECTIVE_SANDBOX_NAME" "$EFFECTIVE_SCOPE" "$PROJECT_DIR")"
     STATE_DIR="$(sandbox_state_dir "$SESSION_ID")"
@@ -159,6 +161,7 @@ case "$TOOL_NAME" in
     SESSION_ID="$(printf '%s' "$EVENT" | jq -r '.session_id // empty')"
     FILE_PATH="$(printf '%s' "$EVENT" | jq -r '.tool_input.file_path // empty')"
     [[ -z "$SESSION_ID" || -z "$FILE_PATH" ]] && exit 0
+    [[ "$SESSION_ID" =~ ^[a-zA-Z0-9_-]{1,64}$ ]] || exit 0
 
     STATE_DIR="$(sandbox_state_dir "$SESSION_ID")"
     mkdir -p "$STATE_DIR"
