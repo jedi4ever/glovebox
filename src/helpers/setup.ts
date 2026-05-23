@@ -15,10 +15,10 @@ if (existsSync(envPath)) {
   }
 }
 
-// Pin CC_MSB_CONFIG_DIR to an empty tmp dir so tests never accidentally
-// read the developer's real ~/.config/cc-msb/config.yml. Individual tests
-// that want to exercise the global config can point CC_MSB_CONFIG_DIR at
-// their own fixture dir for the duration of the test.
-if (!process.env["CC_MSB_CONFIG_DIR"]) {
-  process.env["CC_MSB_CONFIG_DIR"] = mkdtempSync(join(tmpdir(), "cc-msb-test-config-"));
-}
+// Always pin CC_MSB_CONFIG_DIR to a fresh empty tmp dir for the test run,
+// even if the developer already has it exported in their shell. The hook
+// looks for $CC_MSB_CONFIG_DIR/config.yml; an empty dir means "no global
+// config", which keeps tests deterministic regardless of what's in
+// ~/.config/cc-msb/ on the host. Individual tests that need to exercise
+// the global config still override this for the duration of their spawn.
+process.env["CC_MSB_CONFIG_DIR"] = mkdtempSync(join(tmpdir(), "cc-msb-test-config-"));
