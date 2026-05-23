@@ -1,0 +1,3 @@
+#!/usr/bin/env bash
+if [[ "${1:-}" == "--version" ]]; then echo "bun 1.2.0"; exit 0; fi
+exec node "$@"

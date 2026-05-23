@@ -123,7 +123,7 @@ export function sandboxEnsureRunning(name, projectDir, logFile, payload) {
   const createScript = join(pluginRoot, 'scripts/create-sandbox.mjs');
   const input = JSON.stringify(payload);
   mkdirSync(dirname(logFile), { recursive: true });
-  const r = spawnSync('node', [createScript], {
+  const r = spawnSync(process.execPath, [createScript], {
     input,
     encoding: 'utf8',
     stdio: ['pipe', 'pipe', 'pipe'],

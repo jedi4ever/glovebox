@@ -8,9 +8,10 @@ function version(cmd) {
   return r.error ? null : (r.stdout || r.stderr || '').split('\n')[0].trim();
 }
 
+const bunVer  = version('bun');
 const nodeVer = version('node');
 const msbVer  = version('msb');
-const missing = [nodeVer ? null : 'node', msbVer ? null : 'msb'].filter(Boolean);
+const missing = [bunVer || nodeVer ? null : 'node (or bun)', msbVer ? null : 'msb'].filter(Boolean);
 
 if (missing.length) {
   const list = missing.map(c => `  - ${c}`).join('\n');
@@ -18,6 +19,7 @@ if (missing.length) {
   process.exit(0);
 }
 
-const versions = `node=${nodeVer}, msb=${msbVer}`;
+const runtime  = bunVer ? `bun=${bunVer}` : `node=${nodeVer}`;
+const versions = `${runtime}, msb=${msbVer}`;
 const hint = 'Edit is not available for files inside the sandbox — use Bash to edit them. WebFetch is also intercepted — use Bash with curl to fetch URLs so they go through the sandbox\'s network policy.';
 emit({ hookSpecificOutput: { hookEventName: 'SessionStart', additionalContext: `cc-msb sandbox is active (${versions}). ${hint}` } });

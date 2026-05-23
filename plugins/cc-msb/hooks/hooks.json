@@ -6,11 +6,11 @@
         "hooks": [
           {
             "type": "command",
-            "command": "node \"${CLAUDE_PLUGIN_ROOT}/scripts/preflight.mjs\""
+            "command": "\"${CLAUDE_PLUGIN_ROOT}/scripts/run.sh\" \"${CLAUDE_PLUGIN_ROOT}/scripts/preflight.mjs\""
           },
           {
             "type": "command",
-            "command": "node \"${CLAUDE_PLUGIN_ROOT}/scripts/session-start.mjs\""
+            "command": "\"${CLAUDE_PLUGIN_ROOT}/scripts/run.sh\" \"${CLAUDE_PLUGIN_ROOT}/scripts/session-start.mjs\""
           }
         ]
       }
@@ -21,7 +21,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "node \"${CLAUDE_PLUGIN_ROOT}/hooks/pre-tool-use.mjs\""
+            "command": "\"${CLAUDE_PLUGIN_ROOT}/scripts/run.sh\" \"${CLAUDE_PLUGIN_ROOT}/hooks/pre-tool-use.mjs\""
           }
         ]
       }
@@ -32,7 +32,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "node \"${CLAUDE_PLUGIN_ROOT}/hooks/post-tool-use.mjs\""
+            "command": "\"${CLAUDE_PLUGIN_ROOT}/scripts/run.sh\" \"${CLAUDE_PLUGIN_ROOT}/hooks/post-tool-use.mjs\""
           }
         ]
       }
@@ -42,7 +42,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "node \"${CLAUDE_PLUGIN_ROOT}/scripts/cleanup.mjs\""
+            "command": "\"${CLAUDE_PLUGIN_ROOT}/scripts/run.sh\" \"${CLAUDE_PLUGIN_ROOT}/scripts/cleanup.mjs\""
           }
         ]
       }

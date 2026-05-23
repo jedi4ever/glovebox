@@ -76,7 +76,7 @@ async function handleDrift(driftName, stateDir, createPayload) {
   }
 
   const recreateScript = join(pluginRoot, 'scripts/recreate-sandbox.mjs');
-  const r = spawnSync('node', [recreateScript], {
+  const r = spawnSync(process.execPath, [recreateScript], {
     input: JSON.stringify(createPayload),
     encoding: 'utf8',
     stdio: ['pipe', 'pipe', 'pipe'],
