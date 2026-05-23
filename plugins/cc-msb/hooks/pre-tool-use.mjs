@@ -178,7 +178,8 @@ if (toolName === 'Edit' || toolName === 'MultiEdit') {
 if (toolName === 'WebFetch') {
   const url    = event.tool_input?.url ?? '';
   const prompt = event.tool_input?.prompt ?? '';
-  deny(`cc-msb: WebFetch is intercepted so network calls run inside the sandbox. Use Bash instead: run \`curl -sSL '${url}'\` and then answer this question about the response: ${prompt}`);
+  const safeUrl = url.replace(/'/g, "%27");
+  deny(`cc-msb: WebFetch is intercepted — network requests run inside the sandbox. Use Bash with curl instead: \`curl -sSL '${safeUrl}'\`${prompt ? `. Question about the response: ${prompt}` : ''}`);
   process.exit(0);
 }
 

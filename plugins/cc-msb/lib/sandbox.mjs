@@ -29,7 +29,7 @@ export function sandboxTrack(sessionId, name) {
 // ---------------------------------------------------------------------------
 export function sandboxNameFor(sessionId, agentType = '', explicitName = '', scope = 'session', projectDir = '') {
   if (scope === 'named' && explicitName) {
-    const safe = explicitName.replace(/[^a-zA-Z0-9_-]/g, '');
+    const safe = explicitName.replace(/[^a-zA-Z0-9_-]/g, '').slice(0, 64);
     return safe || 'cc-msb-named';
   }
 

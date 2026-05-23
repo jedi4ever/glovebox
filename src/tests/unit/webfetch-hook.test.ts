@@ -50,6 +50,22 @@ describe("pre-tool-use.sh — WebFetch hook", () => {
     expect(reason).toContain("what is on this page?");
   });
 
+  it("URL with single-quote is percent-encoded in deny message (no shell injection)", () => {
+    const r = runHook({
+      tool_name: "WebFetch",
+      session_id: SESSION_ID,
+      tool_input: {
+        url: "https://evil.com/'$(id)",
+        prompt: "summarise",
+      },
+    });
+
+    expect(r.status).toBe(0);
+    const reason = r.json().hookSpecificOutput.permissionDecisionReason as string;
+    expect(reason).not.toContain("'$(id)");
+    expect(reason).toContain("%27$(id)");
+  });
+
   it("passes WebFetch through unmodified when scope=host (no sandbox)", () => {
     const r = runHook(
       {
