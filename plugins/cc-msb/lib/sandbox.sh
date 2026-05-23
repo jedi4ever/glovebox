@@ -1,3 +1,4 @@
+# DEPRECATED: replaced by sandbox.mjs — kept for reference only, not sourced by any hook.
 # Sandbox lifecycle helpers. Sourced — not executed directly.
 
 # Lexically resolves ../ and ./ components in an absolute path.

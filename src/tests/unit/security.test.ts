@@ -6,14 +6,14 @@ import { rmSync, mkdirSync, writeFileSync } from "node:fs";
 
 const PLUGIN_ROOT = fileURLToPath(new URL("../../../plugins/cc-msb", import.meta.url));
 const FAKE_MSB_DIR = fileURLToPath(new URL("../fixtures/fake-msb", import.meta.url));
-const PRE_HOOK = join(PLUGIN_ROOT, "hooks/pre-tool-use.sh");
+const PRE_HOOK = join(PLUGIN_ROOT, "hooks/pre-tool-use.mjs");
 
 const SESSION_ID = "unit-sec-test-00001";
 const PROJECT_DIR = "/tmp/cc-msb-sec-test-project";
 const SHADOW_ROOT = `${process.env["HOME"]}/.cache/cc-msb/${SESSION_ID}/shadow`;
 
 function runHook(event: object, extraEnv: Record<string, string> = {}) {
-  const result = spawnSync("bash", [PRE_HOOK], {
+  const result = spawnSync("node", [PRE_HOOK], {
     input: JSON.stringify(event),
     encoding: "utf8",
     env: {

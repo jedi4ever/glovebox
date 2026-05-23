@@ -1,3 +1,4 @@
+# DEPRECATED: replaced by pre-tool-use.mjs — kept for reference only, not sourced by any hook.
 #!/usr/bin/env bash
 set -euo pipefail
 

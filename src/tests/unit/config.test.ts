@@ -13,7 +13,7 @@ function dirSandboxName(dir: string): string {
 
 const PLUGIN_ROOT = fileURLToPath(new URL("../../../plugins/cc-msb", import.meta.url));
 const FAKE_MSB_DIR = fileURLToPath(new URL("../fixtures/fake-msb", import.meta.url));
-const PRE_HOOK = join(PLUGIN_ROOT, "hooks/pre-tool-use.sh");
+const PRE_HOOK = join(PLUGIN_ROOT, "hooks/pre-tool-use.mjs");
 
 const SESSION_ID = "unit-config-test-001";
 const SANDBOX_NAME = `cc-msb-${SESSION_ID.slice(0, 16)}`;
@@ -32,7 +32,7 @@ function runHook(
   extraEnv: Record<string, string> = {},
   agentType?: string
 ) {
-  return spawnSync("bash", [PRE_HOOK], {
+  return spawnSync("node", [PRE_HOOK], {
     input: JSON.stringify(bashEvent(agentType)),
     encoding: "utf8",
     env: {
@@ -748,7 +748,7 @@ describe("config — scope: host", () => {
   it("scope=host bypasses Read hook too (no shadow sync)", () => {
     const r = runHook(fixturePath("config-scope-host-main"));
     // Switch to a Read event by running the hook with a different tool_name
-    const result = spawnSync("bash", [PRE_HOOK], {
+    const result = spawnSync("node", [PRE_HOOK], {
       input: JSON.stringify({
         tool_name: "Read",
         session_id: SESSION_ID,

@@ -1,3 +1,4 @@
+# DEPRECATED: replaced by cleanup.mjs — kept for reference only, not sourced by any hook.
 #!/usr/bin/env bash
 # SessionEnd hook — stops and removes all MSB sandboxes created for this session.
 set -euo pipefail

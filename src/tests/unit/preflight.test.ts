@@ -4,10 +4,10 @@ import { fileURLToPath } from "node:url";
 import { join } from "node:path";
 
 const PLUGIN_ROOT = fileURLToPath(new URL("../../../plugins/cc-msb", import.meta.url));
-const PREFLIGHT = join(PLUGIN_ROOT, "scripts/preflight.sh");
+const PREFLIGHT = join(PLUGIN_ROOT, "scripts/preflight.mjs");
 
 function runPreflight(extraEnv: Record<string, string> = {}) {
-  const result = spawnSync("bash", [PREFLIGHT], {
+  const result = spawnSync("node", [PREFLIGHT], {
     encoding: "utf8",
     env: { ...process.env, CLAUDE_PLUGIN_ROOT: PLUGIN_ROOT, ...extraEnv },
   });

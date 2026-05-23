@@ -1,3 +1,4 @@
+# DEPRECATED: replaced by session-start.mjs — kept for reference only, not sourced by any hook.
 #!/usr/bin/env bash
 # SessionStart hook: pre-create/boot the main session sandbox so the first
 # Bash call isn't cold, then introspect the sandbox environment and emit it

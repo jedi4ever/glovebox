@@ -7,13 +7,13 @@ import { fixturePath } from "../../helpers/fixtures.js";
 
 const PLUGIN_ROOT = fileURLToPath(new URL("../../../plugins/cc-msb", import.meta.url));
 const FAKE_MSB_DIR = fileURLToPath(new URL("../fixtures/fake-msb", import.meta.url));
-const HOOK = join(PLUGIN_ROOT, "scripts/session-start.sh");
+const HOOK = join(PLUGIN_ROOT, "scripts/session-start.mjs");
 
 const SESSION_ID = "unit-session-start-001";
 const SANDBOX_NAME = `cc-msb-${SESSION_ID.slice(0, 16)}`;
 
 function runHook(projectDir: string, extraEnv: Record<string, string> = {}) {
-  const result = spawnSync("bash", [HOOK], {
+  const result = spawnSync("node", [HOOK], {
     input: JSON.stringify({ session_id: SESSION_ID }),
     encoding: "utf8",
     env: {
@@ -71,7 +71,7 @@ describe("session-start.sh — SessionStart hook", () => {
   });
 
   it("exits silently when session_id is missing", () => {
-    const r = spawnSync("bash", [HOOK], {
+    const r = spawnSync("node", [HOOK], {
       input: JSON.stringify({}),
       encoding: "utf8",
       env: { ...process.env, PATH: `${FAKE_MSB_DIR}:${process.env["PATH"]}`, CLAUDE_PLUGIN_ROOT: PLUGIN_ROOT, CLAUDE_PROJECT_DIR: fixturePath("simple-read") },

@@ -10,7 +10,7 @@ import { tmpdir } from "node:os";
 
 const PLUGIN_ROOT = fileURLToPath(new URL("../../../plugins/cc-msb", import.meta.url));
 const FAKE_MSB_DIR = fileURLToPath(new URL("../fixtures/fake-msb", import.meta.url));
-const PRE_HOOK = join(PLUGIN_ROOT, "hooks/pre-tool-use.sh");
+const PRE_HOOK = join(PLUGIN_ROOT, "hooks/pre-tool-use.mjs");
 
 const SESSION_ID = "unit-pres-union-1";
 const SANDBOX_NAME = `cc-msb-${SESSION_ID.slice(0, 16)}`;
@@ -37,7 +37,7 @@ function readCreateConfig(): CreateConfig | null {
 }
 
 function runHook(projectDir: string, extraEnv: Record<string, string> = {}) {
-  return spawnSync("bash", [PRE_HOOK], {
+  return spawnSync("node", [PRE_HOOK], {
     input: JSON.stringify(bashEvent()),
     encoding: "utf8",
     env: {
