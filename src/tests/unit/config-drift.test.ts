@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeEach, afterEach } from "vitest";
 import { join } from "node:path";
-import { mkdtempSync, writeFileSync, rmSync, readFileSync, existsSync, readdirSync } from "node:fs";
+import { mkdtempSync, mkdirSync, writeFileSync, rmSync, readFileSync, existsSync, readdirSync } from "node:fs";
 import { tmpdir, homedir } from "node:os";
 import { createConfigTestContext } from "../../helpers/config-hook.js";
 
@@ -205,6 +205,37 @@ describe("config — config-drift detection", () => {
       expect(JSON.parse(r.stdout).hookSpecificOutput.permissionDecision).toBe("allow");
     } finally {
       rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  it("drift on a running sandbox: hook exits 0 (not a hook error), returns deny", () => {
+    // Guards against the hook crashing (non-zero exit) instead of returning a clean deny.
+    // Regression: observed as "Failed with non-blocking status code: 113" in the wild.
+    const sandboxName = "cc-msb-drift-exit-code";
+    clearFp(sandboxName);
+    writeFileSync(`/tmp/fake-msb-${sandboxName}.state`, "Running\n");
+    const projectDir = mkdtempSync(join(tmpdir(), "cc-msb-drift-exit-"));
+    writeFileSync(
+      join(projectDir, ".cc-msb.yml"),
+      `main:\n  scope: named\n  sandbox_name: ${sandboxName}\n  sandbox_image: ubuntu\n`
+    );
+    // Write a fingerprint for a DIFFERENT config so drift is detected immediately.
+    const fpDir = join(homedir(), ".cache", "cc-msb", "fingerprints");
+    try {
+      // Simulate a stale fingerprint (as if sandbox was created with alpine, but config now says ubuntu).
+      mkdirSync(fpDir, { recursive: true });
+      writeFileSync(fpPath(sandboxName), "0000000000000000\n"); // clearly wrong fingerprint
+      const r = runHook(projectDir);
+      // The hook MUST exit 0 — any non-zero exit is a hook error, not a deny decision.
+      expect(r.status).toBe(0);
+      // And the decision must be a proper deny, not empty stdout (which would indicate a crash).
+      expect(r.stdout.trim()).not.toBe("");
+      const { decision } = decisionOf(r.stdout);
+      expect(decision).toBe("deny");
+    } finally {
+      rmSync(projectDir, { recursive: true, force: true });
+      try { rmSync(`/tmp/fake-msb-${sandboxName}.state`); } catch {}
+      clearFp(sandboxName);
     }
   });
 

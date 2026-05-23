@@ -3,7 +3,6 @@ FROM node:${NODE_VERSION}-slim
 
 # Build arguments for user ID and group ID
 ARG USER_ID=1000
-ARG GROUP_ID=1000
 ARG USERNAME=addt
 ARG GO_VERSION=1.23.5
 ARG UV_VERSION=0.5.11
@@ -52,12 +51,15 @@ RUN ARCH=$(dpkg --print-architecture) && \
 # Add Go to PATH
 ENV PATH="/usr/local/go/bin:${PATH}"
 
-# Create user with matching UID/GID from host
-# Note: node:*-slim images have a 'node' user with UID/GID 1000, remove it first to avoid conflicts
+# Create user with UID matching the host so bind-mounted /workspace is writable.
+# GID is auto-assigned (don't pin it to the host GID — Debian reserves low GIDs
+# like 20=dialout, causing groupadd to fail silently and useradd to land on the
+# wrong group).
+# Note: node:*-slim images have a 'node' user at UID/GID 1000; remove it first.
 RUN userdel -r node 2>/dev/null || true \
     && groupdel node 2>/dev/null || true \
-    && (groupadd -g ${GROUP_ID} ${USERNAME} 2>/dev/null || true) \
-    && useradd -m -u ${USER_ID} -g ${GROUP_ID} -s /bin/bash ${USERNAME} \
+    && groupadd ${USERNAME} \
+    && useradd -m -u ${USER_ID} -g ${USERNAME} -s /bin/bash ${USERNAME} \
     && echo "${USERNAME} ALL=(ALL) NOPASSWD:ALL" >> /etc/sudoers
 
 # Install UV (Python package manager) as the user using official install script

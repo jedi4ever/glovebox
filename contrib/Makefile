@@ -8,12 +8,10 @@ REGISTRY_PORT ?= 5123
 REGISTRY      ?= localhost:$(REGISTRY_PORT)
 REF           := $(REGISTRY)/$(IMAGE):$(TAG)
 
-# Match the in-guest user's UID/GID to the host's, so bind-mounted
-# `/workspace` is writable from inside the sandbox. Override to pin
-# specific values (e.g. for CI), or set to anything else if you don't
-# bind your host project dir in.
+# Pin the in-guest user's UID to the host's so bind-mounted `/workspace`
+# is writable from inside the sandbox. Override for CI or fixed-UID builds:
+#   make all USER_ID=1000
 USER_ID  ?= $(shell id -u)
-GROUP_ID ?= $(shell id -g)
 
 .PHONY: all build push pull registry-up registry-down clean
 
@@ -22,7 +20,6 @@ all: build push pull
 build:
 	docker build -t $(REF) -f Dockerfile \
 	  --build-arg USER_ID=$(USER_ID) \
-	  --build-arg GROUP_ID=$(GROUP_ID) \
 	  .
 
 push:
