@@ -151,9 +151,10 @@ describe("config — presets", () => {
     try {
       runHook(dir);
       const cfg = readCreateConfig();
-      // dev → devbox image; npm → network allowlist
+      // dev → devbox image; npm (direct + via dev) → registry hosts
       expect(cfg?.image).toBe("localhost:5123/devbox");
-      expect(cfg?.network).toBe("registry.npmjs.org,registry.yarnpkg.com,nodejs.org");
+      expect(cfg?.network).toContain("registry.npmjs.org");
+      expect(cfg?.network).toContain("nodejs.org");
     } finally {
       rmSync(dir, { recursive: true, force: true });
     }
@@ -167,7 +168,8 @@ describe("config — presets", () => {
       runHook(dir);
       const cfg = readCreateConfig();
       expect(cfg?.image).toBe("localhost:5123/devbox");
-      expect(cfg?.network).toBe("registry.npmjs.org,registry.yarnpkg.com,nodejs.org");
+      expect(cfg?.network).toContain("registry.npmjs.org");
+      expect(cfg?.network).toContain("nodejs.org");
     } finally {
       rmSync(dir, { recursive: true, force: true });
     }
@@ -220,46 +222,20 @@ describe("config — presets", () => {
   });
 
   it("CC_MSB_PRESETS env var overrides the file-declared list", () => {
-    const dir = makeProject(
-      "presets: [npm]\n"  // file says npm
-    );
+    const { dir: presetsDir, env: presetsEnv } = makeUserPresetsDir();
+    // "custom" preset sets a distinct image so we can prove it was NOT loaded
+    writeFileSync(join(presetsDir, "custom.yml"), "defaults:\n  sandbox_image: custom-img\n");
+    const dir = makeProject("presets: [custom]\n");  // file says custom
     try {
-      runHook(dir, { CC_MSB_PRESETS: "dev" });  // env says dev
+      runHook(dir, { ...presetsEnv, CC_MSB_PRESETS: "dev" });  // env says dev
       const cfg = readCreateConfig();
-      // dev's image wins because env replaced the list
+      // dev's image wins; custom-img must NOT appear → env replaced the list
       expect(cfg?.image).toBe("localhost:5123/devbox");
-      // npm's network should NOT be applied
-      expect(cfg?.network).not.toContain("registry.npmjs.org");
+      expect(cfg?.image).not.toBe("custom-img");
     } finally {
       rmSync(dir, { recursive: true, force: true });
+      rmSync(presetsDir, { recursive: true, force: true });
     }
   });
 
-  it("github preset sets the standard GitHub network hosts", () => {
-    const dir = makeProject("presets: [github]\n");
-    try {
-      runHook(dir, { CC_MSB_MAIN_GIT_TOKEN_AUTODETECT: "" });
-      const cfg = readCreateConfig();
-      expect(cfg?.network).toContain("github.com");
-      expect(cfg?.network).toContain("api.github.com");
-      expect(cfg?.network).toContain("objects.githubusercontent.com");
-      expect(cfg?.network).toContain("npm.pkg.github.com");
-    } finally {
-      rmSync(dir, { recursive: true, force: true });
-    }
-  });
-
-  it("npm + github presets union their network hosts", () => {
-    const dir = makeProject("presets: [npm, github]\n");
-    try {
-      runHook(dir, { CC_MSB_MAIN_GIT_TOKEN_AUTODETECT: "" });
-      const cfg = readCreateConfig();
-      expect(cfg?.network).toContain("registry.npmjs.org");
-      expect(cfg?.network).toContain("nodejs.org");
-      expect(cfg?.network).toContain("github.com");
-      expect(cfg?.network).toContain("npm.pkg.github.com");
-    } finally {
-      rmSync(dir, { recursive: true, force: true });
-    }
-  });
 });

@@ -77,15 +77,31 @@ export async function resolveConfig(projectDir, agentType = '') {
   const userPresetsDir    = process.env.CC_MSB_PRESETS_DIR || join(process.env.HOME || '~', '.cc-msb/presets');
   const builtinPresetsDir = join(pluginRoot, 'presets');
 
-  const presetDocs = presetNames.map(name => {
-    for (const dir of [userPresetsDir, builtinPresetsDir]) {
-      for (const ext of ['.yml', '.yaml']) {
-        const p = join(dir, name + ext);
-        if (existsSync(p)) return parseFile(p);
+  // Recursively expand preset names: sub-presets declared inside a preset file
+  // are loaded before their parent (post-order), so the parent's settings win
+  // over the sub-presets for scalar keys while list keys (e.g. network) union.
+  // Cycle detection prevents infinite loops.
+  function expandPresets(names) {
+    const loaded = new Set();
+    const docs = [];
+    function loadOne(name) {
+      if (loaded.has(name)) return;
+      loaded.add(name);
+      let doc = { presets: [], sections: {} };
+      outer: for (const dir of [userPresetsDir, builtinPresetsDir]) {
+        for (const ext of ['.yml', '.yaml']) {
+          const p = join(dir, name + ext);
+          if (existsSync(p)) { doc = parseFile(p); break outer; }
+        }
       }
+      for (const sub of doc.presets) loadOne(sub);
+      docs.push(doc);
     }
-    return { presets: [], sections: {} };
-  });
+    for (const name of names) loadOne(name);
+    return docs;
+  }
+
+  const presetDocs = expandPresets(presetNames);
 
   const cfg = resolveAll(agentType, localDoc, globalDoc, presetDocs);
 
