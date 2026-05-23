@@ -115,7 +115,7 @@ export function sandboxEnsureRunning(name, projectDir, logFile, payload) {
 
   if (status === 'Stopped') {
     if (storedFp && storedFp !== currentFp) return { drift: name };
-    spawnSync('msb', ['start', name, '--quiet'], { stdio: ['ignore', 'ignore', 'append'] });
+    spawnSync('msb', ['start', name, '--quiet'], { stdio: 'ignore' });
     return { drift: '' };
   }
 
