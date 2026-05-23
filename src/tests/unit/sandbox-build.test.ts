@@ -48,7 +48,20 @@ function makeBuilder() {
         portUdp: record("portUdp"),
         trustHostCAs: record("network.trustHostCAs"),
         onSecretViolation: record("network.onSecretViolation"),
+        // Legacy mock — kept around so older tests still pass; applyConfig
+        // no longer calls this (it uses .secret() instead for the
+        // multi-host placeholder bug fix).
         secretEnvSimple: record("network.secretEnvSimple"),
+        secret: (cb: (b: any) => any) => {
+          const sb: any = {
+            env: (v: string) => { calls.push({ method: "secret.env", args: [v] }); return sb; },
+            value: (v: string) => { calls.push({ method: "secret.value", args: [v] }); return sb; },
+            allowHost: (h: string) => { calls.push({ method: "secret.allowHost", args: [h] }); return sb; },
+          };
+          cb(sb);
+          calls.push({ method: "network.secret", args: [] });
+          return nb;
+        },
         tls: (cb: (tb: any) => any) => {
           const tb: any = {
             bypass: record("tls.bypass"),
@@ -155,7 +168,7 @@ describe("sandbox-build.mjs — applyConfig", () => {
     expect(calls.find((c) => c.method === "tls.interceptedPorts")?.args).toEqual([[8443]]);
   });
 
-  it("secrets → one secretEnvSimple call per ENV=VALUE@HOST entry", async () => {
+  it("secrets → one nb.secret(b => env.value.allowHost…) call per (env,value) group", async () => {
     const { applyConfig } = await import(MODULE_URL);
     const b = makeBuilder();
     applyConfig(b, {
@@ -164,12 +177,38 @@ describe("sandbox-build.mjs — applyConfig", () => {
       onSecretViolation: "block-and-log",
     });
     const calls = b.__calls() as Call[];
-    const secretCalls = calls.filter((c) => c.method === "network.secretEnvSimple").map((c) => c.args);
-    expect(secretCalls).toEqual([
-      ["GH_TOKEN", "ghp_abc", "github.com"],
-      ["NPM_TOKEN", "npm_xyz", "registry.npmjs.org"],
+    // Two distinct (env,value) pairs → two secret() invocations.
+    expect(calls.filter((c) => c.method === "network.secret")).toHaveLength(2);
+    expect(calls.filter((c) => c.method === "secret.env").map((c) => c.args)).toEqual([
+      ["GH_TOKEN"], ["NPM_TOKEN"],
+    ]);
+    expect(calls.filter((c) => c.method === "secret.allowHost").map((c) => c.args)).toEqual([
+      ["github.com"], ["registry.npmjs.org"],
     ]);
     expect(calls.find((c) => c.method === "network.onSecretViolation")?.args).toEqual(["block-and-log"]);
+  });
+
+  it("multi-host github expansion → ONE secret() with multiple allowHost calls (placeholder leak fix)", async () => {
+    const { applyConfig } = await import(MODULE_URL);
+    const b = makeBuilder();
+    applyConfig(b, {
+      ...baseCfg,
+      secrets: [
+        "GH_TOKEN=ghp_xyz@github.com",
+        "GH_TOKEN=ghp_xyz@api.github.com",
+        "GH_TOKEN=ghp_xyz@codeload.github.com",
+      ].join(","),
+    });
+    const calls = b.__calls() as Call[];
+    // Same (env,value) across three hosts → exactly ONE .secret() call.
+    expect(calls.filter((c) => c.method === "network.secret")).toHaveLength(1);
+    expect(calls.filter((c) => c.method === "secret.env")).toHaveLength(1);
+    expect(calls.filter((c) => c.method === "secret.value").map((c) => c.args)).toEqual([
+      ["ghp_xyz"],
+    ]);
+    expect(calls.filter((c) => c.method === "secret.allowHost").map((c) => c.args)).toEqual([
+      ["github.com"], ["api.github.com"], ["codeload.github.com"],
+    ]);
   });
 
   it("throws on malformed port specs", async () => {

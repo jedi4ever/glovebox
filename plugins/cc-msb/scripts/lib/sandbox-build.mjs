@@ -180,6 +180,15 @@ function applySecrets(nb, cfg) {
     .map((s) => s.trim())
     .filter(Boolean);
   if (entries.length === 0) return;
+
+  // Group by (envVar, value) → set of allowed hosts. Required because
+  // calling `secretEnvSimple(env, val, host)` multiple times with the
+  // same env name overwrites the placeholder behavior on the second
+  // call (the env var ends up holding the literal value, not the
+  // `$MSB_<env>` placeholder). Using the SecretBuilder with
+  // `.allowHost(host)` per host on a single .secret() call keeps the
+  // placeholder semantics intact.
+  const grouped = new Map();   // key: "ENV\0VALUE" → { envVar, value, hosts: string[] }
   for (const s of entries) {
     // ENV=VALUE@HOST  ($VAR substitution was done bash-side before piping)
     const eq = s.indexOf("=");
@@ -188,7 +197,21 @@ function applySecrets(nb, cfg) {
     const envVar = s.slice(0, eq);
     const value = s.slice(eq + 1, at);
     const host = s.slice(at + 1);
-    nb.secretEnvSimple(envVar, value, host);
+    const key = `${envVar}\0${value}`;
+    let entry = grouped.get(key);
+    if (!entry) {
+      entry = { envVar, value, hosts: [] };
+      grouped.set(key, entry);
+    }
+    if (!entry.hosts.includes(host)) entry.hosts.push(host);
+  }
+
+  for (const { envVar, value, hosts } of grouped.values()) {
+    nb.secret((b) => {
+      b.env(envVar).value(value);
+      for (const h of hosts) b.allowHost(h);
+      return b;
+    });
   }
   if (cfg.onSecretViolation) nb.onSecretViolation(cfg.onSecretViolation);
 }
