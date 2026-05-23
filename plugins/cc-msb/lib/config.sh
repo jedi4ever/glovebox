@@ -41,6 +41,49 @@ config_global_file() {
   echo "${CC_MSB_CONFIG_DIR:-$HOME/.config/cc-msb}/config.yml"
 }
 
+# Reads pre-isolated section content from stdin and emits the value of <key>.
+# Supports two forms:
+#   1. Inline:  "key: value"        → emits "value"
+#   2. Block:   "key:\n  - a\n  - b" → emits "a,b" (joined with commas)
+# Quotes around inline values and individual list items are stripped.
+# Inline comments (# ...) are stripped. Emits nothing if the key is absent.
+_config_extract_value() {
+  local key="$1"
+  awk -v k="$key" '
+    BEGIN { state = 0; result = ""; keyindent = -1 }
+    state == 0 {
+      if ($0 ~ "^[[:space:]]*" k "[[:space:]]*:") {
+        keyindent = match($0, /[^ ]/) - 1
+        line = $0
+        sub("^[[:space:]]*" k "[[:space:]]*:[[:space:]]*", "", line)
+        sub("[[:space:]]*#.*$", "", line)
+        sub("[[:space:]]*$", "", line)
+        sub("^[\"\047]", "", line)
+        sub("[\"\047]$", "", line)
+        if (length(line) > 0) { print line; exit }
+        state = 1
+        next
+      }
+    }
+    state == 1 {
+      if ($0 ~ /^[[:space:]]*$/) next
+      if ($0 ~ /^[[:space:]]*#/) next
+      ind = match($0, /[^ ]/) - 1
+      if (ind <= keyindent) exit
+      if ($0 !~ /^[[:space:]]*-[[:space:]]+/) exit
+      item = $0
+      sub("^[[:space:]]*-[[:space:]]+", "", item)
+      sub("[[:space:]]*#.*$", "", item)
+      sub("[[:space:]]*$", "", item)
+      sub("^[\"\047]", "", item)
+      sub("[\"\047]$", "", item)
+      if (result == "") result = item
+      else result = result "," item
+    }
+    END { if (state == 1 && result != "") print result }
+  '
+}
+
 # Returns a value from a named top-level section block.
 # Usage: config_yaml_get_section file section key
 # Example: config_yaml_get_section .cc-msb.yml main sandbox_name
@@ -48,12 +91,7 @@ config_yaml_get_section() {
   local file="$1" section="$2" key="$3"
   awk -v s="^${section}:[[:space:]]*$" \
     '$0~s{f=1;next} f&&/^[^[:space:]]/{f=0} f{print}' "$file" \
-  | grep -E "^[[:space:]]*${key}[[:space:]]*:" \
-  | head -1 \
-  | sed -E "s/^[^:]+:[[:space:]]*//" \
-  | sed -E "s/[[:space:]]*#.*//" \
-  | sed -E "s/^[[:space:]]+|[[:space:]]+\$//g" \
-  | sed -E "s/^['\"]|['\"]$//g" \
+  | _config_extract_value "$key" \
   || true
 }
 
@@ -68,12 +106,7 @@ config_yaml_get_nested() {
     '$0~s{f=1;next} f&&/^[^[:space:]]/{f=0} f{print}' "$file" \
   | awk -v ss="$subsection" \
     '$0~("^  "ss":[[:space:]]*$"){f=1;next} f&&/^  [^[:space:]]/{f=0} f{print}' \
-  | grep -E "^[[:space:]]*${key}[[:space:]]*:" \
-  | head -1 \
-  | sed -E "s/^[^:]+:[[:space:]]*//" \
-  | sed -E "s/[[:space:]]*#.*//" \
-  | sed -E "s/^[[:space:]]+|[[:space:]]+\$//g" \
-  | sed -E "s/^['\"]|['\"]$//g" \
+  | _config_extract_value "$key" \
   || true
 }
 

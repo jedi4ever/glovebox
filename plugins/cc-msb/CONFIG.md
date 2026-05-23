@@ -9,6 +9,22 @@ Both files are optional and share the exact same schema. The local file is consu
 
 Set `CC_MSB_CONFIG_DIR` to point the global file somewhere else (useful for testing, or for keeping your global config under a dotfiles repo).
 
+## List values
+
+Settings that take a comma-separated string (`network`, `pass_env`, `ports`) can also be written as a YAML block list — the two forms are equivalent:
+
+```yaml
+main:
+  network: "github.com,api.github.com,registry.npmjs.org"
+  # …or:
+  network:
+    - github.com
+    - api.github.com
+    - registry.npmjs.org
+```
+
+The list form keeps long allowlists readable and lets you put a `# comment` on each line.
+
 ## Top-level structure
 
 ```yaml
