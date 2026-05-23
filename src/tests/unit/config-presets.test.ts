@@ -70,8 +70,7 @@ function runHook(
 function cleanupFakeMsbFiles() {
   readdirSync("/tmp")
     .filter((f) =>
-      (f.startsWith(`fake-msb-${SANDBOX_NAME}`) ||
-       f.startsWith("fake-msb-cc-msb-unit-pres")) &&
+      f.startsWith(`fake-msb-${SANDBOX_NAME}`) &&
       (f.endsWith(".state") || f.endsWith(".create-args")))
     .forEach((f) => { try { rmSync(`/tmp/${f}`); } catch {} });
 }

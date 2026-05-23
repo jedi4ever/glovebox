@@ -4,45 +4,24 @@ set -euo pipefail
 PLUGIN_ROOT="${CLAUDE_PLUGIN_ROOT:-$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)}"
 # shellcheck source=../lib/sandbox.sh
 . "$PLUGIN_ROOT/lib/sandbox.sh"
-# shellcheck source=../lib/config.sh
-. "$PLUGIN_ROOT/lib/config.sh"
 # shellcheck source=../lib/emit.sh
 . "$PLUGIN_ROOT/lib/emit.sh"
 
 PROJECT_DIR="${CLAUDE_PROJECT_DIR:-$PWD}"
-config_load "$PROJECT_DIR"
 
 EVENT="$(cat)"
 TOOL_NAME="$(printf '%s' "$EVENT" | jq -r '.tool_name')"
 AGENT_TYPE="$(printf '%s' "$EVENT" | jq -r '.agent_type // empty')"
-EFFECTIVE_IMAGE="$(config_agent_image "$AGENT_TYPE" "$PROJECT_DIR/.cc-msb.yml")"
-EFFECTIVE_SANDBOX_NAME="$(config_agent_sandbox_name "$AGENT_TYPE" "$PROJECT_DIR/.cc-msb.yml")"
-EFFECTIVE_SCOPE="$(config_agent_scope "$AGENT_TYPE" "$PROJECT_DIR/.cc-msb.yml")"
-EFFECTIVE_MOUNT_WORKDIR="$(config_agent_mount_workdir "$AGENT_TYPE" "$PROJECT_DIR/.cc-msb.yml")"
-EFFECTIVE_PASS_ENV="$(config_agent_pass_env "$AGENT_TYPE" "$PROJECT_DIR/.cc-msb.yml")"
-EFFECTIVE_NETWORK="$(config_agent_network "$AGENT_TYPE" "$PROJECT_DIR/.cc-msb.yml")"
-EFFECTIVE_PORTS="$(config_agent_ports "$AGENT_TYPE" "$PROJECT_DIR/.cc-msb.yml")"
-EFFECTIVE_SECRETS_RAW="$(config_agent_secrets "$AGENT_TYPE" "$PROJECT_DIR/.cc-msb.yml")"
-EFFECTIVE_SECRETS="$(sandbox_resolve_secrets "$EFFECTIVE_SECRETS_RAW")"
-EFFECTIVE_ON_SECRET_VIOLATION="$(config_agent_on_secret_violation "$AGENT_TYPE" "$PROJECT_DIR/.cc-msb.yml")"
-EFFECTIVE_TLS_INTERCEPT="$(config_agent_tls_intercept "$AGENT_TYPE" "$PROJECT_DIR/.cc-msb.yml")"
-EFFECTIVE_TLS_INTERCEPT_PORT="$(config_agent_tls_intercept_port "$AGENT_TYPE" "$PROJECT_DIR/.cc-msb.yml")"
-EFFECTIVE_TLS_BYPASS="$(config_agent_tls_bypass "$AGENT_TYPE" "$PROJECT_DIR/.cc-msb.yml")"
-EFFECTIVE_TRUST_HOST_CAS="$(config_agent_trust_host_cas "$AGENT_TYPE" "$PROJECT_DIR/.cc-msb.yml")"
-EFFECTIVE_AUTO_RECREATE="$(config_agent_auto_recreate "$AGENT_TYPE" "$PROJECT_DIR/.cc-msb.yml")"
-EFFECTIVE_GIT_USER_NAME="$(config_agent_git_user_name "$AGENT_TYPE" "$PROJECT_DIR/.cc-msb.yml")"
-EFFECTIVE_GIT_USER_EMAIL="$(config_agent_git_user_email "$AGENT_TYPE" "$PROJECT_DIR/.cc-msb.yml")"
-EFFECTIVE_GITHUB_TOKEN="$(config_agent_github_token "$AGENT_TYPE" "$PROJECT_DIR/.cc-msb.yml")"
-EFFECTIVE_GITHUB_HOSTS="$(config_agent_github_hosts "$AGENT_TYPE" "$PROJECT_DIR/.cc-msb.yml")"
-EFFECTIVE_GIT_USER_AUTODETECT="$(config_agent_git_user_autodetect "$AGENT_TYPE" "$PROJECT_DIR/.cc-msb.yml")"
-EFFECTIVE_GIT_TOKEN_AUTODETECT="$(config_agent_git_token_autodetect "$AGENT_TYPE" "$PROJECT_DIR/.cc-msb.yml")"
-# Fill in any unset git/github fields from the host (git config + gh auth token).
-sandbox_autodetect_git_identity \
-  "$EFFECTIVE_GIT_USER_NAME" "$EFFECTIVE_GIT_USER_EMAIL" "$EFFECTIVE_GITHUB_TOKEN" \
-  "$EFFECTIVE_GIT_USER_AUTODETECT" "$EFFECTIVE_GIT_TOKEN_AUTODETECT"
-EFFECTIVE_GIT_USER_NAME="$AUTODETECTED_GIT_USER_NAME"
-EFFECTIVE_GIT_USER_EMAIL="$AUTODETECTED_GIT_USER_EMAIL"
-EFFECTIVE_GITHUB_TOKEN="$AUTODETECTED_GITHUB_TOKEN"
+
+# Resolve all config in one Node.js call (replaces ~20 individual config_agent_* calls).
+CFG="$(node "$PLUGIN_ROOT/lib/config.mjs" "$PROJECT_DIR" "${AGENT_TYPE:-}")"
+EFFECTIVE_SCOPE="$(printf '%s' "$CFG"        | jq -r '.scope')"
+EFFECTIVE_SANDBOX_NAME="$(printf '%s' "$CFG" | jq -r '.sandboxName // empty')"
+EFFECTIVE_PASS_ENV="$(printf '%s' "$CFG"     | jq -r '.passEnv')"
+EFFECTIVE_AUTO_RECREATE="$(printf '%s' "$CFG"| jq -r '.autoRecreate | tostring')"
+# Base payload for create-sandbox.mjs: config JSON + projectDir.
+# sandboxName is injected per-handler (it requires SESSION_ID + scope + agent).
+CFG_BASE="$(printf '%s' "$CFG" | jq -c --arg pd "$PROJECT_DIR" '. + {projectDir: $pd}')"
 
 # Handle a drift signal from sandbox_ensure_running. Either:
 #   (a) auto_recreate=true → run the SDK-backed recreate script in place;
@@ -56,37 +35,31 @@ handle_drift_if_any() {
   local name="$SANDBOX_CONFIG_DRIFT"
 
   if [[ "$EFFECTIVE_AUTO_RECREATE" == "true" ]]; then
-    local recreate_payload recreate_out
-    recreate_payload="$(sandbox_build_create_payload \
-      "$name" "$EFFECTIVE_IMAGE" "$PROJECT_DIR" \
-      "$EFFECTIVE_MOUNT_WORKDIR" "$EFFECTIVE_NETWORK" "$EFFECTIVE_PORTS" \
-      "$EFFECTIVE_SECRETS" "$EFFECTIVE_ON_SECRET_VIOLATION" \
-      "$EFFECTIVE_TLS_INTERCEPT" "$EFFECTIVE_TLS_INTERCEPT_PORT" \
-      "$EFFECTIVE_TLS_BYPASS" "$EFFECTIVE_TRUST_HOST_CAS" \
-      "$EFFECTIVE_GIT_USER_NAME" "$EFFECTIVE_GIT_USER_EMAIL" \
-      "$EFFECTIVE_GITHUB_TOKEN" "$EFFECTIVE_GITHUB_HOSTS")"
-    recreate_out="$(printf '%s' "$recreate_payload" \
+    local recreate_out
+    recreate_out="$(printf '%s' "$CREATE_PAYLOAD" \
       | node "$PLUGIN_ROOT/scripts/recreate-sandbox.mjs" 2>>"$STATE_DIR/recreate.log")" || true
     local ok image_changed recreate_err
     ok="$(printf '%s' "$recreate_out" | jq -r '.ok // false' 2>/dev/null || echo "false")"
     image_changed="$(printf '%s' "$recreate_out" | jq -r '.imageChanged // false' 2>/dev/null || echo "false")"
     recreate_err="$(printf '%s' "$recreate_out" | jq -r '.error // ""' 2>/dev/null || echo "")"
     if [[ "$ok" == "true" ]]; then
-      # Recreate succeeded — rewrite the fingerprint to silence drift.
-      # Apply the same github expansion the payload builder did, so the
-      # fingerprint matches what sandbox_ensure_running computes on the
-      # next call (which reads post-expansion network/secrets out of the
-      # payload).
-      sandbox_apply_github_expansion \
-        "$EFFECTIVE_NETWORK" "$EFFECTIVE_SECRETS" \
-        "$EFFECTIVE_GITHUB_TOKEN" "$EFFECTIVE_GITHUB_HOSTS"
+      # Recreate succeeded — rewrite the fingerprint from the current payload.
+      # config.mjs already applied github expansion, so CREATE_PAYLOAD has
+      # post-expansion network/secrets — matches what sandbox_ensure_running sees.
       local new_fp fp_path
       new_fp="$(sandbox_config_fingerprint \
-        "$EFFECTIVE_IMAGE" "$EFFECTIVE_MOUNT_WORKDIR" "$GH_EXPANDED_NETWORK" "$EFFECTIVE_PORTS" \
-        "$GH_EXPANDED_SECRETS" "$EFFECTIVE_ON_SECRET_VIOLATION" \
-        "$EFFECTIVE_TLS_INTERCEPT" "$EFFECTIVE_TLS_INTERCEPT_PORT" \
-        "$EFFECTIVE_TLS_BYPASS" "$EFFECTIVE_TRUST_HOST_CAS" \
-        "$EFFECTIVE_GIT_USER_NAME" "$EFFECTIVE_GIT_USER_EMAIL")"
+        "$(printf '%s' "$CREATE_PAYLOAD" | jq -r '.image // "ubuntu"')" \
+        "$(printf '%s' "$CREATE_PAYLOAD" | jq -r 'if .mountWorkdir then "true" else "false" end')" \
+        "$(printf '%s' "$CREATE_PAYLOAD" | jq -r '.network // "enabled"')" \
+        "$(printf '%s' "$CREATE_PAYLOAD" | jq -r '.ports // ""')" \
+        "$(printf '%s' "$CREATE_PAYLOAD" | jq -r '.secrets // ""')" \
+        "$(printf '%s' "$CREATE_PAYLOAD" | jq -r '.onSecretViolation // ""')" \
+        "$(printf '%s' "$CREATE_PAYLOAD" | jq -r 'if .tlsIntercept then "true" else "false" end')" \
+        "$(printf '%s' "$CREATE_PAYLOAD" | jq -r '.tlsInterceptPort // "" | tostring | sub("^null$";"") ')" \
+        "$(printf '%s' "$CREATE_PAYLOAD" | jq -r '.tlsBypass // ""')" \
+        "$(printf '%s' "$CREATE_PAYLOAD" | jq -r 'if .trustHostCas then "true" else "false" end')" \
+        "$(printf '%s' "$CREATE_PAYLOAD" | jq -r '.gitUserName // ""')" \
+        "$(printf '%s' "$CREATE_PAYLOAD" | jq -r '.gitUserEmail // ""')")"
       fp_path="$(sandbox_fingerprint_path "$name")"
       mkdir -p "$(dirname "$fp_path")"
       printf '%s\n' "$new_fp" > "$fp_path"
@@ -127,14 +100,7 @@ case "$TOOL_NAME" in
     STATE_DIR="$(sandbox_state_dir "$SESSION_ID")"
     mkdir -p "$STATE_DIR"
 
-    CREATE_PAYLOAD="$(sandbox_build_create_payload \
-      "$SANDBOX" "$EFFECTIVE_IMAGE" "$PROJECT_DIR" \
-      "$EFFECTIVE_MOUNT_WORKDIR" "$EFFECTIVE_NETWORK" "$EFFECTIVE_PORTS" \
-      "$EFFECTIVE_SECRETS" "$EFFECTIVE_ON_SECRET_VIOLATION" \
-      "$EFFECTIVE_TLS_INTERCEPT" "$EFFECTIVE_TLS_INTERCEPT_PORT" \
-      "$EFFECTIVE_TLS_BYPASS" "$EFFECTIVE_TRUST_HOST_CAS" \
-      "$EFFECTIVE_GIT_USER_NAME" "$EFFECTIVE_GIT_USER_EMAIL" \
-      "$EFFECTIVE_GITHUB_TOKEN" "$EFFECTIVE_GITHUB_HOSTS")"
+    CREATE_PAYLOAD="$(printf '%s' "$CFG_BASE" | jq -c --arg n "$SANDBOX" '.sandboxName = $n')"
     sandbox_ensure_running "$SANDBOX" "$PROJECT_DIR" "$STATE_DIR/sandbox.log" "$CREATE_PAYLOAD" || {
       emit_deny "cc-msb: failed to start sandbox (see $STATE_DIR/sandbox.log)"
       exit 0
@@ -170,12 +136,7 @@ case "$TOOL_NAME" in
     sandbox_resolve_path "$FILE_PATH" "$PROJECT_DIR" "$STATE_DIR"
 
     if [[ "$SANDBOX_NEEDS_SYNC" == "yes" ]]; then
-      CREATE_PAYLOAD="$(sandbox_build_create_payload \
-        "$SANDBOX" "$EFFECTIVE_IMAGE" "$PROJECT_DIR" \
-        "$EFFECTIVE_MOUNT_WORKDIR" "$EFFECTIVE_NETWORK" "$EFFECTIVE_PORTS" \
-        "$EFFECTIVE_SECRETS" "$EFFECTIVE_ON_SECRET_VIOLATION" \
-        "$EFFECTIVE_TLS_INTERCEPT" "$EFFECTIVE_TLS_INTERCEPT_PORT" \
-        "$EFFECTIVE_TLS_BYPASS" "$EFFECTIVE_TRUST_HOST_CAS")"
+      CREATE_PAYLOAD="$(printf '%s' "$CFG_BASE" | jq -c --arg n "$SANDBOX" '.sandboxName = $n')"
       sandbox_ensure_running "$SANDBOX" "$PROJECT_DIR" "$STATE_DIR/sandbox.log" "$CREATE_PAYLOAD" || {
         emit_deny "cc-msb: failed to start sandbox for read of $FILE_PATH"
         exit 0
@@ -207,12 +168,7 @@ case "$TOOL_NAME" in
     if [[ "$SANDBOX_NEEDS_SYNC" == "yes" ]]; then
       # Ensure the sandbox exists so post-tool-use can sync the shadow file into it.
       SANDBOX="$(sandbox_name_for "$SESSION_ID" "$AGENT_TYPE" "$EFFECTIVE_SANDBOX_NAME" "$EFFECTIVE_SCOPE" "$PROJECT_DIR")"
-      CREATE_PAYLOAD="$(sandbox_build_create_payload \
-        "$SANDBOX" "$EFFECTIVE_IMAGE" "$PROJECT_DIR" \
-        "$EFFECTIVE_MOUNT_WORKDIR" "$EFFECTIVE_NETWORK" "$EFFECTIVE_PORTS" \
-        "$EFFECTIVE_SECRETS" "$EFFECTIVE_ON_SECRET_VIOLATION" \
-        "$EFFECTIVE_TLS_INTERCEPT" "$EFFECTIVE_TLS_INTERCEPT_PORT" \
-        "$EFFECTIVE_TLS_BYPASS" "$EFFECTIVE_TRUST_HOST_CAS")"
+      CREATE_PAYLOAD="$(printf '%s' "$CFG_BASE" | jq -c --arg n "$SANDBOX" '.sandboxName = $n')"
       sandbox_ensure_running "$SANDBOX" "$PROJECT_DIR" "$STATE_DIR/sandbox.log" "$CREATE_PAYLOAD" || true
       handle_drift_if_any
       if [[ "$EFFECTIVE_SCOPE" != "directory" ]] && [[ "$EFFECTIVE_SCOPE" != "named" || -z "$EFFECTIVE_SANDBOX_NAME" ]]; then

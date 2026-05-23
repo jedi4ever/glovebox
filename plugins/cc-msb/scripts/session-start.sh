@@ -10,11 +10,8 @@ set -uo pipefail
 PLUGIN_ROOT="${CLAUDE_PLUGIN_ROOT:-$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)}"
 # shellcheck source=../lib/sandbox.sh
 . "$PLUGIN_ROOT/lib/sandbox.sh"
-# shellcheck source=../lib/config.sh
-. "$PLUGIN_ROOT/lib/config.sh"
 
 PROJECT_DIR="${CLAUDE_PROJECT_DIR:-$PWD}"
-config_load "$PROJECT_DIR"
 
 EVENT="$(cat 2>/dev/null || true)"
 SESSION_ID="$(printf '%s' "$EVENT" | jq -r '.session_id // empty' 2>/dev/null || true)"
@@ -23,32 +20,10 @@ SESSION_ID="$(printf '%s' "$EVENT" | jq -r '.session_id // empty' 2>/dev/null ||
 command -v msb >/dev/null 2>&1 || exit 0
 command -v jq  >/dev/null 2>&1 || exit 0
 
-# Resolve main session config (no agent_type)
-EFFECTIVE_IMAGE="$(config_agent_image "" "$PROJECT_DIR/.cc-msb.yml")"
-EFFECTIVE_SANDBOX_NAME="$(config_agent_sandbox_name "" "$PROJECT_DIR/.cc-msb.yml")"
-EFFECTIVE_SCOPE="$(config_agent_scope "" "$PROJECT_DIR/.cc-msb.yml")"
-EFFECTIVE_MOUNT_WORKDIR="$(config_agent_mount_workdir "" "$PROJECT_DIR/.cc-msb.yml")"
-EFFECTIVE_NETWORK="$(config_agent_network "" "$PROJECT_DIR/.cc-msb.yml")"
-EFFECTIVE_PORTS="$(config_agent_ports "" "$PROJECT_DIR/.cc-msb.yml")"
-EFFECTIVE_SECRETS_RAW="$(config_agent_secrets "" "$PROJECT_DIR/.cc-msb.yml")"
-EFFECTIVE_SECRETS="$(sandbox_resolve_secrets "$EFFECTIVE_SECRETS_RAW")"
-EFFECTIVE_ON_SECRET_VIOLATION="$(config_agent_on_secret_violation "" "$PROJECT_DIR/.cc-msb.yml")"
-EFFECTIVE_TLS_INTERCEPT="$(config_agent_tls_intercept "" "$PROJECT_DIR/.cc-msb.yml")"
-EFFECTIVE_TLS_INTERCEPT_PORT="$(config_agent_tls_intercept_port "" "$PROJECT_DIR/.cc-msb.yml")"
-EFFECTIVE_TLS_BYPASS="$(config_agent_tls_bypass "" "$PROJECT_DIR/.cc-msb.yml")"
-EFFECTIVE_TRUST_HOST_CAS="$(config_agent_trust_host_cas "" "$PROJECT_DIR/.cc-msb.yml")"
-EFFECTIVE_GIT_USER_NAME="$(config_agent_git_user_name "" "$PROJECT_DIR/.cc-msb.yml")"
-EFFECTIVE_GIT_USER_EMAIL="$(config_agent_git_user_email "" "$PROJECT_DIR/.cc-msb.yml")"
-EFFECTIVE_GITHUB_TOKEN="$(config_agent_github_token "" "$PROJECT_DIR/.cc-msb.yml")"
-EFFECTIVE_GITHUB_HOSTS="$(config_agent_github_hosts "" "$PROJECT_DIR/.cc-msb.yml")"
-EFFECTIVE_GIT_USER_AUTODETECT="$(config_agent_git_user_autodetect "" "$PROJECT_DIR/.cc-msb.yml")"
-EFFECTIVE_GIT_TOKEN_AUTODETECT="$(config_agent_git_token_autodetect "" "$PROJECT_DIR/.cc-msb.yml")"
-sandbox_autodetect_git_identity \
-  "$EFFECTIVE_GIT_USER_NAME" "$EFFECTIVE_GIT_USER_EMAIL" "$EFFECTIVE_GITHUB_TOKEN" \
-  "$EFFECTIVE_GIT_USER_AUTODETECT" "$EFFECTIVE_GIT_TOKEN_AUTODETECT"
-EFFECTIVE_GIT_USER_NAME="$AUTODETECTED_GIT_USER_NAME"
-EFFECTIVE_GIT_USER_EMAIL="$AUTODETECTED_GIT_USER_EMAIL"
-EFFECTIVE_GITHUB_TOKEN="$AUTODETECTED_GITHUB_TOKEN"
+# Resolve main session config (no agent_type) in one Node.js call.
+CFG="$(node "$PLUGIN_ROOT/lib/config.mjs" "$PROJECT_DIR" "")"
+EFFECTIVE_SCOPE="$(printf '%s' "$CFG"        | jq -r '.scope')"
+EFFECTIVE_SANDBOX_NAME="$(printf '%s' "$CFG" | jq -r '.sandboxName // empty')"
 
 # scope=host: nothing to boot. Just tell Claude that tools run on the host.
 if [[ "$EFFECTIVE_SCOPE" == "host" ]]; then
@@ -63,14 +38,7 @@ mkdir -p "$STATE_DIR"
 
 # Pre-create / start the sandbox. Silently bail on any failure — the per-call
 # hooks will recover or surface the error at that point.
-CREATE_PAYLOAD="$(sandbox_build_create_payload \
-  "$SANDBOX" "$EFFECTIVE_IMAGE" "$PROJECT_DIR" \
-  "$EFFECTIVE_MOUNT_WORKDIR" "$EFFECTIVE_NETWORK" "$EFFECTIVE_PORTS" \
-  "$EFFECTIVE_SECRETS" "$EFFECTIVE_ON_SECRET_VIOLATION" \
-  "$EFFECTIVE_TLS_INTERCEPT" "$EFFECTIVE_TLS_INTERCEPT_PORT" \
-  "$EFFECTIVE_TLS_BYPASS" "$EFFECTIVE_TRUST_HOST_CAS" \
-  "$EFFECTIVE_GIT_USER_NAME" "$EFFECTIVE_GIT_USER_EMAIL" \
-  "$EFFECTIVE_GITHUB_TOKEN" "$EFFECTIVE_GITHUB_HOSTS")"
+CREATE_PAYLOAD="$(printf '%s' "$CFG" | jq -c --arg pd "$PROJECT_DIR" --arg n "$SANDBOX" '. + {projectDir: $pd, sandboxName: $n}')"
 sandbox_ensure_running "$SANDBOX" "$PROJECT_DIR" "$STATE_DIR/sandbox.log" \
   "$CREATE_PAYLOAD" >/dev/null 2>&1 || exit 0
 

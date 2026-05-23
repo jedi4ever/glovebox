@@ -1,3 +1,7 @@
+# DEPRECATED: replaced by lib/config.mjs (node config.mjs <project_dir> [agent_type]).
+# This file is no longer sourced by any hook or script. Kept for reference only;
+# delete after confirming no external callers remain.
+#
 # Config loading helpers. Sourced — not executed directly.
 #
 # Two config files are consulted, in priority order:

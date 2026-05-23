@@ -4,17 +4,15 @@ set -euo pipefail
 PLUGIN_ROOT="${CLAUDE_PLUGIN_ROOT:-$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)}"
 # shellcheck source=../lib/sandbox.sh
 . "$PLUGIN_ROOT/lib/sandbox.sh"
-# shellcheck source=../lib/config.sh
-. "$PLUGIN_ROOT/lib/config.sh"
 
 PROJECT_DIR="${CLAUDE_PROJECT_DIR:-$PWD}"
-config_load "$PROJECT_DIR"
 
 EVENT="$(cat)"
 TOOL_NAME="$(printf '%s' "$EVENT" | jq -r '.tool_name')"
 AGENT_TYPE="$(printf '%s' "$EVENT" | jq -r '.agent_type // empty')"
-EFFECTIVE_SANDBOX_NAME="$(config_agent_sandbox_name "$AGENT_TYPE" "$PROJECT_DIR/.cc-msb.yml")"
-EFFECTIVE_SCOPE="$(config_agent_scope "$AGENT_TYPE" "$PROJECT_DIR/.cc-msb.yml")"
+CFG="$(node "$PLUGIN_ROOT/lib/config.mjs" "$PROJECT_DIR" "${AGENT_TYPE:-}")"
+EFFECTIVE_SANDBOX_NAME="$(printf '%s' "$CFG" | jq -r '.sandboxName // empty')"
+EFFECTIVE_SCOPE="$(printf '%s' "$CFG"        | jq -r '.scope')"
 
 # scope=host: nothing to sync — tools ran directly on the host.
 if [[ "$EFFECTIVE_SCOPE" == "host" ]]; then
