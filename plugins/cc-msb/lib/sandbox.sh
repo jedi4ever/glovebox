@@ -182,14 +182,82 @@ sandbox_port_args() {
   done < <(printf '%s' "$spec" | tr ',' '\n')
 }
 
+# Emits newline-separated `msb create` tokens for the security settings
+# (--secret, --on-secret-violation, --tls-intercept, --tls-intercept-port,
+# --tls-bypass, --trust-host-cas). Args use the same comma-separated string
+# format as `network` / `ports` for list values. Secret VALUE that starts
+# with `$` is interpolated from the host env; if that env var is unset, the
+# secret is silently skipped (matching `pass_env`'s list-skip semantics).
+# Args: secrets on_violation tls_intercept tls_port tls_bypass trust_cas
+sandbox_security_args() {
+  local secrets="$1" on_violation="$2"
+  local tls_intercept="$3" tls_port="$4" tls_bypass="$5" trust_cas="$6"
+
+  if [[ -n "$secrets" ]]; then
+    local entry env_name rest value host var_name resolved
+    while IFS= read -r entry || [[ -n "$entry" ]]; do
+      entry="${entry#"${entry%%[![:space:]]*}"}"
+      entry="${entry%"${entry##*[![:space:]]}"}"
+      [[ -z "$entry" ]] && continue
+      # Expected format: ENV=VALUE@HOST
+      [[ "$entry" != *=*@* ]] && continue
+      env_name="${entry%%=*}"
+      rest="${entry#*=}"
+      value="${rest%@*}"
+      host="${rest##*@}"
+      if [[ "$value" == \$* ]]; then
+        var_name="${value:1}"
+        resolved="${!var_name:-}"
+        [[ -z "$resolved" ]] && continue
+        value="$resolved"
+      fi
+      printf '%s\n' "--secret"
+      printf '%s\n' "${env_name}=${value}@${host}"
+    done < <(printf '%s' "$secrets" | tr ',' '\n')
+  fi
+
+  if [[ -n "$on_violation" ]]; then
+    printf '%s\n' "--on-secret-violation"
+    printf '%s\n' "$on_violation"
+  fi
+
+  if [[ "$tls_intercept" == "true" ]]; then
+    printf '%s\n' "--tls-intercept"
+  fi
+
+  if [[ -n "$tls_port" ]]; then
+    printf '%s\n' "--tls-intercept-port"
+    printf '%s\n' "$tls_port"
+  fi
+
+  if [[ -n "$tls_bypass" ]]; then
+    local domain
+    while IFS= read -r domain || [[ -n "$domain" ]]; do
+      domain="${domain#"${domain%%[![:space:]]*}"}"
+      domain="${domain%"${domain##*[![:space:]]}"}"
+      [[ -z "$domain" ]] && continue
+      printf '%s\n' "--tls-bypass"
+      printf '%s\n' "$domain"
+    done < <(printf '%s' "$tls_bypass" | tr ',' '\n')
+  fi
+
+  if [[ "$trust_cas" == "true" ]]; then
+    printf '%s\n' "--trust-host-cas"
+  fi
+}
+
 # Ensures the named sandbox is running. Creates it if it doesn't exist.
-# Args: name, project_dir, log_file [image [mount_workdir [network_spec [ports_spec]]]]
+# Args: name, project_dir, log_file [image [mount_workdir [network_spec
+#       [ports_spec [security_args_str]]]]]
+# security_args_str: newline-separated msb create tokens, typically built by
+#   sandbox_security_args.
 sandbox_ensure_running() {
   local name="$1" project_dir="$2" log_file="$3"
   local image="${4:-${CC_MSB_SANDBOX_IMAGE:-ubuntu}}"
   local mount_workdir="${5:-true}"
   local network_spec="${6:-enabled}"
   local ports_spec="${7:-}"
+  local security_args_str="${8:-}"
   local status
   status=$(sandbox_status "$name")
 
@@ -218,6 +286,15 @@ sandbox_ensure_running() {
       done < <(sandbox_port_args "$ports_spec")
       if (( ${#port_args[@]} > 0 )); then
         create_args+=("${port_args[@]}")
+      fi
+      if [[ -n "$security_args_str" ]]; then
+        local sec_args=()
+        while IFS= read -r line; do
+          [[ -n "$line" ]] && sec_args+=("$line")
+        done <<< "$security_args_str"
+        if (( ${#sec_args[@]} > 0 )); then
+          create_args+=("${sec_args[@]}")
+        fi
       fi
       msb create "${create_args[@]}" 2>>"$log_file"
       ;;

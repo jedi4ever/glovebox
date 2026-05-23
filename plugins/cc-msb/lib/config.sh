@@ -593,3 +593,116 @@ config_agent_ports() {
   done
   echo ""
 }
+
+# Generic per-key resolvers used by the security settings below.
+# Main-session chain: main.X → defaults.main.X → defaults.agents.X → defaults.X
+# Agent chain:        agents.<name>.X → defaults.agents.X → defaults.X
+# Args (main):  key default_val local_file global_file
+# Args (agent): agent_type key default_val local_file global_file
+_config_resolve_main_chain() {
+  local key="$1" default_val="$2" local_file="$3" global_file="$4"
+  local file val
+  for file in "$local_file" "$global_file"; do
+    [[ -f "$file" ]] || continue
+    val="$(config_yaml_get_section "$file" "main" "$key")"
+    [[ -n "$val" ]] && echo "$val" && return
+    val="$(config_yaml_get_nested "$file" "defaults" "main" "$key")"
+    [[ -n "$val" ]] && echo "$val" && return
+    val="$(config_yaml_get_nested "$file" "defaults" "agents" "$key")"
+    [[ -n "$val" ]] && echo "$val" && return
+    val="$(config_yaml_get_direct "$file" "defaults" "$key")"
+    [[ -n "$val" ]] && echo "$val" && return
+  done
+  echo "$default_val"
+}
+
+_config_resolve_agent_chain() {
+  local agent_type="$1" key="$2" default_val="$3" local_file="$4" global_file="$5"
+  local file val
+  for file in "$local_file" "$global_file"; do
+    [[ -f "$file" ]] || continue
+    val="$(config_yaml_get_nested "$file" "agents" "$agent_type" "$key")"
+    [[ -n "$val" ]] && echo "$val" && return
+    val="$(config_yaml_get_nested "$file" "defaults" "agents" "$key")"
+    [[ -n "$val" ]] && echo "$val" && return
+    val="$(config_yaml_get_direct "$file" "defaults" "$key")"
+    [[ -n "$val" ]] && echo "$val" && return
+  done
+  echo "$default_val"
+}
+
+# Helper: build the agent-snake-uppercased env-var name.
+_config_agent_env_name() {
+  local agent_type="$1" prefix="$2"
+  local snake="${agent_type//-/_}"
+  local upper
+  upper="$(printf '%s' "$snake" | tr '[:lower:]' '[:upper:]')"
+  echo "${prefix}_${upper}"
+}
+
+# Resolves a setting using the standard chain, including env-var override.
+# Args: agent_type setting_key built_in_default env_prefix_main env_prefix_agent local_file
+# Example: _config_setting "" secrets "" CC_MSB_MAIN_SECRETS CC_MSB_AGENT_SECRETS /path/.cc-msb.yml
+_config_setting() {
+  local agent_type="$1" key="$2" default_val="$3"
+  local env_main="$4" env_agent_prefix="$5" local_file="$6"
+  local global_file
+  global_file="$(config_global_file)"
+
+  if [[ -z "$agent_type" ]]; then
+    local env_val="${!env_main:-}"
+    [[ -n "$env_val" ]] && echo "$env_val" && return
+    _config_resolve_main_chain "$key" "$default_val" "$local_file" "$global_file"
+    return
+  fi
+
+  local env_var
+  env_var="$(_config_agent_env_name "$agent_type" "$env_agent_prefix")"
+  local env_val="${!env_var:-}"
+  [[ -n "$env_val" ]] && echo "$env_val" && return
+  _config_resolve_agent_chain "$agent_type" "$key" "$default_val" "$local_file" "$global_file"
+}
+
+# ============================================================================
+# Security: secrets + TLS interception
+# ============================================================================
+# All six settings follow the standard main/agent resolution chain.
+# Env-var overrides: CC_MSB_MAIN_<KEY> and CC_MSB_AGENT_<KEY>_<AGENT>.
+
+# Comma-separated list of secret specs: "ENV=VALUE@HOST".
+# VALUE may start with $ to interpolate from the host env (see sandbox_secret_args).
+config_agent_secrets() {
+  _config_setting "$1" "secrets" "" \
+    "CC_MSB_MAIN_SECRETS" "CC_MSB_AGENT_SECRETS" "$2"
+}
+
+# Action when a secret tries to leak: block | block-and-log | block-and-terminate.
+# Empty default → no flag emitted → msb's own default applies.
+config_agent_on_secret_violation() {
+  _config_setting "$1" "on_secret_violation" "" \
+    "CC_MSB_MAIN_ON_SECRET_VIOLATION" "CC_MSB_AGENT_ON_SECRET_VIOLATION" "$2"
+}
+
+# Boolean "true" / "false": enable msb's built-in TLS interception proxy.
+config_agent_tls_intercept() {
+  _config_setting "$1" "tls_intercept" "false" \
+    "CC_MSB_MAIN_TLS_INTERCEPT" "CC_MSB_AGENT_TLS_INTERCEPT" "$2"
+}
+
+# Port to intercept TLS on (default in msb = 443). Empty → no flag emitted.
+config_agent_tls_intercept_port() {
+  _config_setting "$1" "tls_intercept_port" "" \
+    "CC_MSB_MAIN_TLS_INTERCEPT_PORT" "CC_MSB_AGENT_TLS_INTERCEPT_PORT" "$2"
+}
+
+# Comma-separated list of domains to skip interception for.
+config_agent_tls_bypass() {
+  _config_setting "$1" "tls_bypass" "" \
+    "CC_MSB_MAIN_TLS_BYPASS" "CC_MSB_AGENT_TLS_BYPASS" "$2"
+}
+
+# Boolean "true" / "false": ship the host's CA bundle into the guest.
+config_agent_trust_host_cas() {
+  _config_setting "$1" "trust_host_cas" "false" \
+    "CC_MSB_MAIN_TRUST_HOST_CAS" "CC_MSB_AGENT_TRUST_HOST_CAS" "$2"
+}

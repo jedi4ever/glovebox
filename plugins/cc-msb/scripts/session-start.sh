@@ -30,6 +30,16 @@ EFFECTIVE_SCOPE="$(config_agent_scope "" "$PROJECT_DIR/.cc-msb.yml")"
 EFFECTIVE_MOUNT_WORKDIR="$(config_agent_mount_workdir "" "$PROJECT_DIR/.cc-msb.yml")"
 EFFECTIVE_NETWORK="$(config_agent_network "" "$PROJECT_DIR/.cc-msb.yml")"
 EFFECTIVE_PORTS="$(config_agent_ports "" "$PROJECT_DIR/.cc-msb.yml")"
+EFFECTIVE_SECRETS="$(config_agent_secrets "" "$PROJECT_DIR/.cc-msb.yml")"
+EFFECTIVE_ON_SECRET_VIOLATION="$(config_agent_on_secret_violation "" "$PROJECT_DIR/.cc-msb.yml")"
+EFFECTIVE_TLS_INTERCEPT="$(config_agent_tls_intercept "" "$PROJECT_DIR/.cc-msb.yml")"
+EFFECTIVE_TLS_INTERCEPT_PORT="$(config_agent_tls_intercept_port "" "$PROJECT_DIR/.cc-msb.yml")"
+EFFECTIVE_TLS_BYPASS="$(config_agent_tls_bypass "" "$PROJECT_DIR/.cc-msb.yml")"
+EFFECTIVE_TRUST_HOST_CAS="$(config_agent_trust_host_cas "" "$PROJECT_DIR/.cc-msb.yml")"
+EFFECTIVE_SECURITY_ARGS="$(sandbox_security_args \
+  "$EFFECTIVE_SECRETS" "$EFFECTIVE_ON_SECRET_VIOLATION" \
+  "$EFFECTIVE_TLS_INTERCEPT" "$EFFECTIVE_TLS_INTERCEPT_PORT" \
+  "$EFFECTIVE_TLS_BYPASS" "$EFFECTIVE_TRUST_HOST_CAS")"
 
 # scope=host: nothing to boot. Just tell Claude that tools run on the host.
 if [[ "$EFFECTIVE_SCOPE" == "host" ]]; then
@@ -45,7 +55,7 @@ mkdir -p "$STATE_DIR"
 # Pre-create / start the sandbox. Silently bail on any failure — the per-call
 # hooks will recover or surface the error at that point.
 sandbox_ensure_running "$SANDBOX" "$PROJECT_DIR" "$STATE_DIR/sandbox.log" \
-  "$EFFECTIVE_IMAGE" "$EFFECTIVE_MOUNT_WORKDIR" "$EFFECTIVE_NETWORK" "$EFFECTIVE_PORTS" >/dev/null 2>&1 || exit 0
+  "$EFFECTIVE_IMAGE" "$EFFECTIVE_MOUNT_WORKDIR" "$EFFECTIVE_NETWORK" "$EFFECTIVE_PORTS" "$EFFECTIVE_SECURITY_ARGS" >/dev/null 2>&1 || exit 0
 
 # Track for cleanup unless persistent (named-with-name / directory).
 if [[ "$EFFECTIVE_SCOPE" != "directory" ]] && \

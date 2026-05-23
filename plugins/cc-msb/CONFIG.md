@@ -180,6 +180,65 @@ Applied at sandbox-creation time, so the mappings are fixed for the sandbox's li
 
 **Env override**: `CC_MSB_MAIN_PORTS`, `CC_MSB_AGENT_PORTS_<NAME>`
 
+### `secrets`
+
+Inject secret env vars into the sandbox via msb's egress proxy. Each entry is the `ENV=VALUE@HOST` form msb itself takes.
+
+| Value | Behavior |
+|---|---|
+| *(unset / empty)* *(default)* | No secrets injected. |
+| `"ENV=VALUE@HOST[, ...]"` | One `--secret` flag per entry. |
+
+The secret VALUE never appears inside the sandbox's env or filesystem — msb keeps it inside the egress proxy and substitutes it only into outbound traffic destined for `@HOST`. The sandbox sees a placeholder; the wire sees the real value.
+
+If VALUE starts with `$`, it's interpolated from the host env at hook time. A missing host var causes that one secret entry to be silently skipped (same semantics as a `pass_env` list entry pointing at an unset var). Literal values are passed through unchanged.
+
+```yaml
+main:
+  secrets:
+    - "GITHUB_TOKEN=$GH_TOKEN@github.com"          # from host env
+    - "NPM_TOKEN=$NPM_AUTH_TOKEN@registry.npmjs.org"
+    - "FIXED=literal_value@api.example.com"        # literal — discouraged
+```
+
+**Env override**: `CC_MSB_MAIN_SECRETS`, `CC_MSB_AGENT_SECRETS_<NAME>`
+
+### `on_secret_violation`
+
+What msb does when the sandbox tries to send a secret to a non-allowlisted host.
+
+| Value | Behavior |
+|---|---|
+| *(unset)* *(default)* | msb's own default applies. |
+| `block` | Strip the secret from the request, let it proceed. |
+| `block-and-log` | Same as `block`, plus log the violation. |
+| `block-and-terminate` | Strip the secret and kill the sandbox. |
+
+**Env override**: `CC_MSB_MAIN_ON_SECRET_VIOLATION`, `CC_MSB_AGENT_ON_SECRET_VIOLATION_<NAME>`
+
+### `tls_intercept` / `tls_intercept_port` / `tls_bypass` / `trust_host_cas`
+
+Enable msb's built-in TLS MITM proxy so the egress filter (network allowlist, secret substitution) can inspect HTTPS traffic.
+
+```yaml
+main:
+  tls_intercept: true
+  tls_intercept_port: 443     # default; only set if non-443
+  tls_bypass:
+    - "*.internal.com"        # don't intercept these
+    - intranet.corp
+  trust_host_cas: true        # ship host's CA bundle into the guest
+```
+
+| Setting | Type | Default | Behavior |
+|---|---|---|---|
+| `tls_intercept` | bool | `false` | Adds `--tls-intercept`. |
+| `tls_intercept_port` | int | *(unset)* | Adds `--tls-intercept-port <N>`. |
+| `tls_bypass` | list / string | *(unset)* | One `--tls-bypass <domain>` per entry. |
+| `trust_host_cas` | bool | `false` | Adds `--trust-host-cas` — useful behind a corporate MITM proxy whose CA the host already trusts but the guest's stock CA bundle doesn't. |
+
+**Env overrides**: `CC_MSB_MAIN_TLS_INTERCEPT`, `CC_MSB_MAIN_TLS_INTERCEPT_PORT`, `CC_MSB_MAIN_TLS_BYPASS`, `CC_MSB_MAIN_TRUST_HOST_CAS` (and the `CC_MSB_AGENT_…_<NAME>` equivalents).
+
 ## Behavior
 
 ### WebFetch interception

@@ -1,0 +1,4 @@
+main:
+  sandbox_image: buildpack-deps:noble
+  tls_intercept: true
+  trust_host_cas: true

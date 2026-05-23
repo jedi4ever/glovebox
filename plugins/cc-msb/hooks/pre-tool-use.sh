@@ -22,6 +22,16 @@ EFFECTIVE_MOUNT_WORKDIR="$(config_agent_mount_workdir "$AGENT_TYPE" "$PROJECT_DI
 EFFECTIVE_PASS_ENV="$(config_agent_pass_env "$AGENT_TYPE" "$PROJECT_DIR/.cc-msb.yml")"
 EFFECTIVE_NETWORK="$(config_agent_network "$AGENT_TYPE" "$PROJECT_DIR/.cc-msb.yml")"
 EFFECTIVE_PORTS="$(config_agent_ports "$AGENT_TYPE" "$PROJECT_DIR/.cc-msb.yml")"
+EFFECTIVE_SECRETS="$(config_agent_secrets "$AGENT_TYPE" "$PROJECT_DIR/.cc-msb.yml")"
+EFFECTIVE_ON_SECRET_VIOLATION="$(config_agent_on_secret_violation "$AGENT_TYPE" "$PROJECT_DIR/.cc-msb.yml")"
+EFFECTIVE_TLS_INTERCEPT="$(config_agent_tls_intercept "$AGENT_TYPE" "$PROJECT_DIR/.cc-msb.yml")"
+EFFECTIVE_TLS_INTERCEPT_PORT="$(config_agent_tls_intercept_port "$AGENT_TYPE" "$PROJECT_DIR/.cc-msb.yml")"
+EFFECTIVE_TLS_BYPASS="$(config_agent_tls_bypass "$AGENT_TYPE" "$PROJECT_DIR/.cc-msb.yml")"
+EFFECTIVE_TRUST_HOST_CAS="$(config_agent_trust_host_cas "$AGENT_TYPE" "$PROJECT_DIR/.cc-msb.yml")"
+EFFECTIVE_SECURITY_ARGS="$(sandbox_security_args \
+  "$EFFECTIVE_SECRETS" "$EFFECTIVE_ON_SECRET_VIOLATION" \
+  "$EFFECTIVE_TLS_INTERCEPT" "$EFFECTIVE_TLS_INTERCEPT_PORT" \
+  "$EFFECTIVE_TLS_BYPASS" "$EFFECTIVE_TRUST_HOST_CAS")"
 
 # scope=host: pass through every tool call unmodified — no sandbox, no shadow,
 # no rewrites. The agent runs directly on the host.
@@ -43,7 +53,7 @@ case "$TOOL_NAME" in
     STATE_DIR="$(sandbox_state_dir "$SESSION_ID")"
     mkdir -p "$STATE_DIR"
 
-    sandbox_ensure_running "$SANDBOX" "$PROJECT_DIR" "$STATE_DIR/sandbox.log" "$EFFECTIVE_IMAGE" "$EFFECTIVE_MOUNT_WORKDIR" "$EFFECTIVE_NETWORK" "$EFFECTIVE_PORTS" || {
+    sandbox_ensure_running "$SANDBOX" "$PROJECT_DIR" "$STATE_DIR/sandbox.log" "$EFFECTIVE_IMAGE" "$EFFECTIVE_MOUNT_WORKDIR" "$EFFECTIVE_NETWORK" "$EFFECTIVE_PORTS" "$EFFECTIVE_SECURITY_ARGS" || {
       emit_deny "cc-msb: failed to start sandbox (see $STATE_DIR/sandbox.log)"
       exit 0
     }
@@ -77,7 +87,7 @@ case "$TOOL_NAME" in
     sandbox_resolve_path "$FILE_PATH" "$PROJECT_DIR" "$STATE_DIR"
 
     if [[ "$SANDBOX_NEEDS_SYNC" == "yes" ]]; then
-      sandbox_ensure_running "$SANDBOX" "$PROJECT_DIR" "$STATE_DIR/sandbox.log" "$EFFECTIVE_IMAGE" "$EFFECTIVE_MOUNT_WORKDIR" "$EFFECTIVE_NETWORK" "$EFFECTIVE_PORTS" || {
+      sandbox_ensure_running "$SANDBOX" "$PROJECT_DIR" "$STATE_DIR/sandbox.log" "$EFFECTIVE_IMAGE" "$EFFECTIVE_MOUNT_WORKDIR" "$EFFECTIVE_NETWORK" "$EFFECTIVE_PORTS" "$EFFECTIVE_SECURITY_ARGS" || {
         emit_deny "cc-msb: failed to start sandbox for read of $FILE_PATH"
         exit 0
       }
@@ -107,7 +117,7 @@ case "$TOOL_NAME" in
     if [[ "$SANDBOX_NEEDS_SYNC" == "yes" ]]; then
       # Ensure the sandbox exists so post-tool-use can sync the shadow file into it.
       SANDBOX="$(sandbox_name_for "$SESSION_ID" "$AGENT_TYPE" "$EFFECTIVE_SANDBOX_NAME" "$EFFECTIVE_SCOPE" "$PROJECT_DIR")"
-      sandbox_ensure_running "$SANDBOX" "$PROJECT_DIR" "$STATE_DIR/sandbox.log" "$EFFECTIVE_IMAGE" "$EFFECTIVE_MOUNT_WORKDIR" "$EFFECTIVE_NETWORK" "$EFFECTIVE_PORTS" || true
+      sandbox_ensure_running "$SANDBOX" "$PROJECT_DIR" "$STATE_DIR/sandbox.log" "$EFFECTIVE_IMAGE" "$EFFECTIVE_MOUNT_WORKDIR" "$EFFECTIVE_NETWORK" "$EFFECTIVE_PORTS" "$EFFECTIVE_SECURITY_ARGS" || true
       if [[ "$EFFECTIVE_SCOPE" != "directory" ]] && [[ "$EFFECTIVE_SCOPE" != "named" || -z "$EFFECTIVE_SANDBOX_NAME" ]]; then
         sandbox_track "$SESSION_ID" "$SANDBOX"
       fi

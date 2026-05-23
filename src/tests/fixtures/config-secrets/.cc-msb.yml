@@ -1,0 +1,9 @@
+main:
+  sandbox_image: buildpack-deps:noble   # curl preinstalled
+  secrets:
+    - "CC_MSB_TEST_TOKEN=$CC_MSB_TEST_TOKEN_HOST@httpbin.org"
+  tls_intercept: true
+  trust_host_cas: true
+  network:
+    - httpbin.org
+  pass_env: none
