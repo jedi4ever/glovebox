@@ -94,4 +94,4 @@ LABEL tools.node="installed"
 LABEL tools.go="installed"
 LABEL tools.uv="installed"
 
-CMD []
+CMD ["bash"]
