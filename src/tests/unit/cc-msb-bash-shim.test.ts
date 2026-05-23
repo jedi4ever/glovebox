@@ -6,7 +6,7 @@ import { writeFileSync, readdirSync, rmSync } from "node:fs";
 
 const PLUGIN_ROOT = fileURLToPath(new URL("../../../plugins/cc-msb", import.meta.url));
 const FAKE_MSB_DIR = fileURLToPath(new URL("../fixtures/fake-msb", import.meta.url));
-const SHIM = join(PLUGIN_ROOT, "skills/shell/cc-msb-bash.sh");
+const SHIM = join(PLUGIN_ROOT, "skills/shell/cc-msb-bash.mjs");
 
 const RUNNING_SANDBOX = "cc-msb-shim-test-001";
 
@@ -15,7 +15,7 @@ function runShim(args: string[], opts: { withMsb?: boolean } = {}) {
   const PATH = withMsb
     ? `${FAKE_MSB_DIR}:${process.env["PATH"]}`
     : (process.env["PATH"] ?? "");
-  return spawnSync("bash", [SHIM, ...args], {
+  return spawnSync("node", [SHIM, ...args], {
     encoding: "utf8",
     env: { ...process.env, PATH },
   });
@@ -30,7 +30,7 @@ function cleanupFakeState() {
 beforeEach(cleanupFakeState);
 afterEach(cleanupFakeState);
 
-describe("cc-msb-bash.sh — shell shim", () => {
+describe("cc-msb-bash.mjs — shell shim", () => {
   it("with NO running cc-msb sandbox: falls back to /bin/bash for -c <cmd>", () => {
     const r = runShim(["-c", "echo shim-fallback-ok"]);
     expect(r.status).toBe(0);
@@ -59,7 +59,7 @@ describe("cc-msb-bash.sh — shell shim", () => {
   it("zero-arg invocation defers to host bash (interactive form)", () => {
     // We can't run interactive bash in a test, but we can verify the shim doesn't try to exec msb.
     // Pass `true` (resolved via PATH) via CC_MSB_HOST_BASH so the zero-arg branch exits cleanly.
-    const r = spawnSync("bash", [SHIM], {
+    const r = spawnSync("node", [SHIM], {
       encoding: "utf8",
       env: { ...process.env, PATH: `${FAKE_MSB_DIR}:${process.env["PATH"]}`, CC_MSB_HOST_BASH: "true" },
     });

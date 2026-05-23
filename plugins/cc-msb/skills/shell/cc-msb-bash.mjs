@@ -70,8 +70,10 @@ if (!listResult.error) {
 
 if (!sandbox) fallback(['-c', cmd]);
 
+// Redirect stdin from /dev/null: msb exec inherits the shim's stdin (a pty
+// when CC invokes it). Without closing it, msb holds stdin open after the
+// command finishes → exec never returns and CC's TUI hangs forever.
 const r = spawnSync('msb', ['exec', sandbox, '--', 'bash', '-c', cmd], {
-  stdio: 'inherit',
-  input: '',
+  stdio: ['ignore', 'inherit', 'inherit'],
 });
 process.exit(r.status ?? 1);
