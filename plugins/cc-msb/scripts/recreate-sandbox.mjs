@@ -40,21 +40,47 @@ const snapName = `${name}--cc-msb-pending`;
 const handle = await Sandbox.get(name).catch(() => null);
 if (!handle) fatal(`sandbox not found: ${name}`);
 
-// 1. Flush pending writes, then stop cleanly. `stopAndWait` blocks until
-//    the sandbox has actually exited — `snapshot create` rejects running
-//    sandboxes. The `sync` is critical: apk/apt run sync internally but
-//    raw `echo > /etc/foo` does not, so without it the overlay can miss
-//    in-flight writes at snapshot time.
+// 1. Flush pending writes (best-effort) and stop the sandbox. `snapshot
+//    create` rejects sandboxes that aren't in the Stopped state, so this
+//    must reliably get us there. We split the operations and explicitly
+//    poll msb status — the SDK's stopAndWait sometimes returns/throws
+//    before the underlying status flips, and we used to swallow that.
+let live;
 try {
-  const live = await handle.connect();
-  try {
-    await live.exec("sh", ["-c", "sync"]);
-  } catch {
-    // Best-effort. If the guest is too minimal for `sh`, ride on the overlay as-is.
-  }
-  await live.stopAndWait();
+  live = await handle.connect();
 } catch {
-  // Already stopped, or never came up — proceed to snapshot.
+  // Sandbox not running, or another connect issue. Status poll below
+  // will handle it.
+}
+if (live) {
+  try { await live.exec("sh", ["-c", "sync"]); } catch { /* missing sh */ }
+  try { await live.stopAndWait(); } catch {
+    // Fallback: ask the handle directly.
+    try { await handle.stop(); } catch { /* may already be stopping */ }
+  }
+}
+
+// Wait up to ~15s for status=Stopped. We use the `msb status` CLI here
+// (rather than re-getting via SDK) because msb's status field is the
+// ground truth that `snapshot create` reads.
+{
+  const { execSync } = await import("node:child_process");
+  const deadline = Date.now() + 15_000;
+  let lastStatus = "";
+  while (Date.now() < deadline) {
+    try {
+      const raw = execSync(`msb status "${name}" --format json 2>/dev/null`, { encoding: "utf8" });
+      lastStatus = (JSON.parse(raw).status || "").trim();
+    } catch {
+      lastStatus = "(not-found)";
+    }
+    if (lastStatus === "Stopped" || lastStatus === "Exited") break;
+    if (lastStatus === "(not-found)") break;
+    await new Promise((r) => setTimeout(r, 250));
+  }
+  if (lastStatus !== "Stopped" && lastStatus !== "Exited" && lastStatus !== "(not-found)") {
+    fatal(`could not stop sandbox before snapshot: last status=${lastStatus}`);
+  }
 }
 
 // 2. Snapshot the writable overlay.
