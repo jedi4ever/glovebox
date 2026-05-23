@@ -3,7 +3,8 @@ import { spawnSync } from "node:child_process";
 import { createHash } from "node:crypto";
 import { fileURLToPath } from "node:url";
 import { join } from "node:path";
-import { rmSync, readFileSync, existsSync, readdirSync } from "node:fs";
+import { rmSync, readFileSync, existsSync, readdirSync, mkdtempSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
 import { fixturePath } from "../../helpers/fixtures.js";
 
 function dirSandboxName(dir: string): string {
@@ -67,7 +68,14 @@ function findEphemeralCreateArgs(): string | null {
   return files.length > 0 ? `/tmp/${files[0]}` : null;
 }
 
-const NAMED_PREFIXES = ["cc-msb-test-named", "cc-msb-env-named", "cc-msb-env-agent-named"];
+const NAMED_PREFIXES = [
+  "cc-msb-test-named",
+  "cc-msb-env-named",
+  "cc-msb-env-agent-named",
+  "cc-msb-global-named",
+  "cc-msb-local-named",
+  "cc-msb-global-agent",
+];
 
 function cleanupFakeMsbFiles() {
   readdirSync("/tmp")
@@ -150,6 +158,38 @@ describe("config — sandbox_image", () => {
   it("env var CC_MSB_SANDBOX_IMAGE overrides default when no config file", () => {
     runHook(fixturePath("simple-read"), { CC_MSB_SANDBOX_IMAGE: "alpine" });
     expect(readCreateArgs()[0]).toBe("alpine");
+  });
+
+  it("accepts a registry-qualified image reference (localhost:5000/devbox)", () => {
+    // The YAML value contains a colon (host:port); make sure our parser keeps
+    // the full reference intact when handing it to `msb create`.
+    const localDir = mkdtempSync(join(tmpdir(), "cc-msb-registry-"));
+    writeFileSync(
+      join(localDir, ".cc-msb.yml"),
+      "main:\n  sandbox_image: localhost:5000/devbox\n  network: disabled\n"
+    );
+    try {
+      runHook(localDir);
+      const args = readCreateArgs();
+      expect(args[0]).toBe("localhost:5000/devbox");
+      expect(args).toContain("--no-net");
+    } finally {
+      rmSync(localDir, { recursive: true, force: true });
+    }
+  });
+
+  it("accepts a registry image with an explicit tag (registry.example.com:5000/devbox:v1.2)", () => {
+    const localDir = mkdtempSync(join(tmpdir(), "cc-msb-registry-tag-"));
+    writeFileSync(
+      join(localDir, ".cc-msb.yml"),
+      "main:\n  sandbox_image: registry.example.com:5000/devbox:v1.2\n"
+    );
+    try {
+      runHook(localDir);
+      expect(readCreateArgs()[0]).toBe("registry.example.com:5000/devbox:v1.2");
+    } finally {
+      rmSync(localDir, { recursive: true, force: true });
+    }
   });
 });
 
@@ -672,5 +712,168 @@ describe("config — scope: host", () => {
     expect(result.status).toBe(0);
     expect((result.stdout ?? "").trim()).toBe("");
     void r;
+  });
+});
+
+describe("config — global config file", () => {
+  function makeGlobalConfig(yaml: string): string {
+    const dir = mkdtempSync(join(tmpdir(), "cc-msb-global-"));
+    writeFileSync(join(dir, "config.yml"), yaml);
+    return dir;
+  }
+
+  it("reads settings from the global config when no local file exists", () => {
+    const globalDir = makeGlobalConfig("main:\n  sandbox_image: debian\n");
+    try {
+      runHook(fixturePath("simple-read"), { CC_MSB_CONFIG_DIR: globalDir });
+      expect(readCreateArgs()[0]).toBe("debian");
+    } finally {
+      rmSync(globalDir, { recursive: true, force: true });
+    }
+  });
+
+  it("local config file overrides the global file", () => {
+    const globalDir = makeGlobalConfig("main:\n  sandbox_image: alpine\n");
+    try {
+      // config-image-debian has main.sandbox_image: debian — should win over global alpine
+      runHook(fixturePath("config-image-debian"), { CC_MSB_CONFIG_DIR: globalDir });
+      expect(readCreateArgs()[0]).toBe("debian");
+    } finally {
+      rmSync(globalDir, { recursive: true, force: true });
+    }
+  });
+
+  it("env var beats both local and global config", () => {
+    const globalDir = makeGlobalConfig("main:\n  sandbox_image: alpine\n");
+    try {
+      runHook(
+        fixturePath("config-image-debian"),
+        { CC_MSB_CONFIG_DIR: globalDir, CC_MSB_SANDBOX_IMAGE: "node:20" }
+      );
+      expect(readCreateArgs()[0]).toBe("node:20");
+    } finally {
+      rmSync(globalDir, { recursive: true, force: true });
+    }
+  });
+
+  it("global defaults.agents.X applies when local file is silent", () => {
+    const globalDir = makeGlobalConfig(
+      "defaults:\n  agents:\n    mount_workdir: false\n"
+    );
+    try {
+      // simple-read has no .cc-msb.yml — global should drive mount_workdir
+      runHook(fixturePath("simple-read"), { CC_MSB_CONFIG_DIR: globalDir });
+      expect(readCreateArgs()).not.toContain("--volume");
+    } finally {
+      rmSync(globalDir, { recursive: true, force: true });
+    }
+  });
+
+  it("local defaults.agents.X wins over global main.X (local file is a full layer)", () => {
+    // global sets main.sandbox_image: alpine
+    // local sets defaults.agents.sandbox_image: debian (no main override)
+    // local file is fully consulted first → defaults.agents wins → debian
+    const globalDir = makeGlobalConfig("main:\n  sandbox_image: alpine\n");
+    const localDir = mkdtempSync(join(tmpdir(), "cc-msb-local-"));
+    writeFileSync(
+      join(localDir, ".cc-msb.yml"),
+      "defaults:\n  agents:\n    sandbox_image: debian\n"
+    );
+    try {
+      runHook(localDir, { CC_MSB_CONFIG_DIR: globalDir });
+      expect(readCreateArgs()[0]).toBe("debian");
+    } finally {
+      rmSync(globalDir, { recursive: true, force: true });
+      rmSync(localDir, { recursive: true, force: true });
+    }
+  });
+
+  it("global main.sandbox_name + main.scope=named is honored when local is silent", () => {
+    const globalDir = makeGlobalConfig(
+      "main:\n  scope: named\n  sandbox_name: cc-msb-global-named\n"
+    );
+    try {
+      runHook(fixturePath("simple-read"), { CC_MSB_CONFIG_DIR: globalDir });
+      expect(readCreateArgs("cc-msb-global-named")).toContain("ubuntu");
+      expect(readCreateArgs(SANDBOX_NAME)).toHaveLength(0);
+    } finally {
+      rmSync(globalDir, { recursive: true, force: true });
+    }
+  });
+
+  it("local main.sandbox_name overrides global main.sandbox_name", () => {
+    const globalDir = makeGlobalConfig(
+      "main:\n  scope: named\n  sandbox_name: cc-msb-global-named\n"
+    );
+    const localDir = mkdtempSync(join(tmpdir(), "cc-msb-local-"));
+    writeFileSync(
+      join(localDir, ".cc-msb.yml"),
+      "main:\n  scope: named\n  sandbox_name: cc-msb-local-named\n"
+    );
+    try {
+      runHook(localDir, { CC_MSB_CONFIG_DIR: globalDir });
+      expect(readCreateArgs("cc-msb-local-named")).toContain("ubuntu");
+      expect(readCreateArgs("cc-msb-global-named")).toHaveLength(0);
+    } finally {
+      rmSync(globalDir, { recursive: true, force: true });
+      rmSync(localDir, { recursive: true, force: true });
+    }
+  });
+
+  it("global agents.<name>.X applies when no local override", () => {
+    const globalDir = makeGlobalConfig(
+      "agents:\n  test-agent:\n    scope: per-agent\n    sandbox_image: alpine\n"
+    );
+    try {
+      runHook(fixturePath("simple-read"), { CC_MSB_CONFIG_DIR: globalDir }, "test-agent");
+      // per-agent scope → agent gets its own sandbox, image from global
+      expect(readCreateArgs(PER_AGENT_SANDBOX)[0]).toBe("alpine");
+      expect(readCreateArgs(SANDBOX_NAME)).toHaveLength(0);
+    } finally {
+      rmSync(globalDir, { recursive: true, force: true });
+    }
+  });
+
+  it("global agents.<name>.sandbox_name is honored for named scope", () => {
+    const globalDir = makeGlobalConfig(
+      "agents:\n  test-agent:\n    scope: named\n    sandbox_name: cc-msb-global-agent\n"
+    );
+    try {
+      runHook(fixturePath("simple-read"), { CC_MSB_CONFIG_DIR: globalDir }, "test-agent");
+      expect(readCreateArgs("cc-msb-global-agent")).toContain("ubuntu");
+    } finally {
+      rmSync(globalDir, { recursive: true, force: true });
+    }
+  });
+
+  it("missing global config dir is a no-op (defaults still apply)", () => {
+    // Point CC_MSB_CONFIG_DIR at a nonexistent path; nothing should break.
+    runHook(fixturePath("simple-read"), {
+      CC_MSB_CONFIG_DIR: join(tmpdir(), "cc-msb-does-not-exist-xyz"),
+    });
+    expect(readCreateArgs()[0]).toBe("ubuntu");
+  });
+
+  it("global main.network=disabled applies when local is silent", () => {
+    const globalDir = makeGlobalConfig("main:\n  network: disabled\n");
+    try {
+      runHook(fixturePath("simple-read"), { CC_MSB_CONFIG_DIR: globalDir });
+      expect(readCreateArgs()).toContain("--no-net");
+    } finally {
+      rmSync(globalDir, { recursive: true, force: true });
+    }
+  });
+
+  it("local main.network overrides global main.network", () => {
+    const globalDir = makeGlobalConfig("main:\n  network: disabled\n");
+    try {
+      // config-network-allowlist sets an allowlist; should win over global disabled
+      runHook(fixturePath("config-network-allowlist"), { CC_MSB_CONFIG_DIR: globalDir });
+      const args = readCreateArgs();
+      expect(args).not.toContain("--no-net");
+      expect(args).toContain("allow@example.com");
+    } finally {
+      rmSync(globalDir, { recursive: true, force: true });
+    }
   });
 });

@@ -1,6 +1,13 @@
 # `.cc-msb.yml` configuration reference
 
-This file is read from the **project root** (`$CLAUDE_PROJECT_DIR/.cc-msb.yml`) on every tool call. It is optional — if absent, every setting falls back to its default.
+Two config files are consulted on every tool call, in priority order:
+
+1. **Local** — `$CLAUDE_PROJECT_DIR/.cc-msb.yml` (project root)
+2. **Global** — `${CC_MSB_CONFIG_DIR:-$HOME/.config/cc-msb}/config.yml`
+
+Both files are optional and share the exact same schema. The local file is consulted first; settings it doesn't define fall through to the global file, then to the built-in default. Env vars beat both files.
+
+Set `CC_MSB_CONFIG_DIR` to point the global file somewhere else (useful for testing, or for keeping your global config under a dotfiles repo).
 
 ## Top-level structure
 
@@ -42,17 +49,19 @@ Every setting follows the same precedence chain, from highest to lowest:
 
 **Main session** (no agent context)
 1. Env var (`CC_MSB_MAIN_*` or the legacy `CC_MSB_SANDBOX_IMAGE`/`CC_MSB_SANDBOX_NAME`)
-2. `main.<setting>` in the config file
-3. `defaults.agents.<setting>` in the config file *(for `scope`, `sandbox_image`, `mount_workdir`, `pass_env`, `network`, `ports`)*
+2. `main.<setting>` in the **local** file, then `defaults.agents.<setting>` in the local file
+3. `main.<setting>` in the **global** file, then `defaults.agents.<setting>` in the global file
 4. Built-in default
 
 **Agent** (`agent_type` present in the event)
 1. Env var `CC_MSB_AGENT_<SETTING>_<AGENT_NAME>` (agent name uppercased with `-` → `_`)
-2. `agents.<name>.<setting>` in the config file
-3. `defaults.agents.<setting>` in the config file
+2. `agents.<name>.<setting>` in the **local** file, then `defaults.agents.<setting>` in the local file
+3. `agents.<name>.<setting>` in the **global** file, then `defaults.agents.<setting>` in the global file
 4. Built-in default
 
-`sandbox_name` is the one exception to the chain above: it is per-context and never inherited from `defaults.agents`. Agents fall back to the main session's `sandbox_name` (or `CC_MSB_SANDBOX_NAME`) when their own isn't set. `sandbox_image` for agents has an extra step too — the legacy `CC_MSB_SANDBOX_IMAGE` env var is consulted between the agent's own config and `defaults.agents`.
+The local file is treated as a complete layer: its `main.X → defaults.agents.X` cascade runs fully before the global file is consulted. So if your local file sets *anything* relevant to a given setting (even via `defaults.agents.X`), the global file's `main.X` for that setting is ignored.
+
+`sandbox_name` is the one exception to the chain above: it is per-context and never inherited from `defaults.agents`. Agents fall back to the main session's `sandbox_name` (or `CC_MSB_SANDBOX_NAME`) when their own isn't set. `sandbox_image` for agents has an extra step too — the legacy `CC_MSB_SANDBOX_IMAGE` env var is consulted between the agent's own config (in both files) and the `defaults.agents` block (in both files).
 
 ## Settings
 
@@ -233,4 +242,17 @@ main:
   scope: named
   sandbox_name: my-app-dev
   ports: "3000:3000,9229:9229"   # web + node inspector
+```
+
+### Global defaults across every project
+Put this in `~/.config/cc-msb/config.yml` (or `$CC_MSB_CONFIG_DIR/config.yml`). Any project without its own `.cc-msb.yml` inherits these settings; projects with a local file can selectively override.
+
+```yaml
+defaults:
+  agents:
+    sandbox_image: ubuntu
+    pass_env: none
+main:
+  sandbox_image: debian
+  network: "github.com,registry.npmjs.org,api.openai.com"
 ```

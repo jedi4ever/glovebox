@@ -1,7 +1,16 @@
 # Config loading helpers. Sourced — not executed directly.
-# Reads .cc-msb.yml from the project dir; env vars take precedence.
 #
-# Supported format:
+# Two config files are consulted, in priority order:
+#   1. Local:  <project_dir>/.cc-msb.yml
+#   2. Global: ${CC_MSB_CONFIG_DIR:-$HOME/.config/cc-msb}/config.yml
+#
+# Env vars beat both files. Within each file, lookups cascade from the
+# most specific section to the most general (main.X → defaults.agents.X
+# for the main session; agents.<name>.X → defaults.agents.X for agents).
+# The first non-empty value wins; the local file is fully consulted
+# before the global file.
+#
+# Supported format (same for local + global):
 #   defaults:
 #     agents:                  # defaults for all agents
 #       sandbox_image: ubuntu
@@ -25,6 +34,12 @@
 #       sandbox_image: alpine
 #       sandbox_name: bar
 #       pass_env: all
+
+# Returns the path to the global config file. Existence not guaranteed.
+# Override directory with CC_MSB_CONFIG_DIR (handy for tests).
+config_global_file() {
+  echo "${CC_MSB_CONFIG_DIR:-$HOME/.config/cc-msb}/config.yml"
+}
 
 # Returns a value from a named top-level section block.
 # Usage: config_yaml_get_section file section key
@@ -62,21 +77,24 @@ config_yaml_get_nested() {
   || true
 }
 
-# Loads config from <project_dir>/.cc-msb.yml.
-# Sets CC_MSB_SANDBOX_NAME.
+# Loads config from local + global files.
+# Sets CC_MSB_SANDBOX_NAME (env var still wins).
 # Scope and mount_workdir are resolved per-context by config_agent_scope / config_agent_mount_workdir.
-# Environment variables always take precedence over file values.
 config_load() {
   local project_dir="$1"
-  local config_file="$project_dir/.cc-msb.yml"
+  local local_file="$project_dir/.cc-msb.yml"
+  local global_file
+  global_file="$(config_global_file)"
 
-  local file_sandbox_name=""
-
-  if [[ -f "$config_file" ]]; then
-    local val
-    val="$(config_yaml_get_section "$config_file" "main" "sandbox_name")"
-    [[ -n "$val" ]] && file_sandbox_name="$val"
-  fi
+  local file_sandbox_name="" file val
+  for file in "$local_file" "$global_file"; do
+    [[ -f "$file" ]] || continue
+    val="$(config_yaml_get_section "$file" "main" "sandbox_name")"
+    if [[ -n "$val" ]]; then
+      file_sandbox_name="$val"
+      break
+    fi
+  done
 
   CC_MSB_SANDBOX_NAME="${CC_MSB_SANDBOX_NAME:-$file_sandbox_name}"
   export CC_MSB_SANDBOX_NAME
@@ -86,29 +104,32 @@ config_load() {
 #
 # Main session (no agent_type):
 #   1. CC_MSB_MAIN_SCOPE env var
-#   2. main.scope in config file
-#   3. defaults.agents.scope in config file
+#   2. main.scope / defaults.agents.scope in local file
+#   3. main.scope / defaults.agents.scope in global file
 #   4. session
 #
 # Agents:
 #   1. CC_MSB_AGENT_SCOPE_<UPPER_SNAKE> env var
-#   2. agents.<name>.scope in config file
-#   3. defaults.agents.scope in config file
+#   2. agents.<name>.scope / defaults.agents.scope in local file
+#   3. agents.<name>.scope / defaults.agents.scope in global file
 #   4. session
 #
-# Args: agent_type, config_file
+# Args: agent_type, local_config_file
 config_agent_scope() {
-  local agent_type="$1" config_file="$2"
+  local agent_type="$1" local_file="$2"
+  local global_file
+  global_file="$(config_global_file)"
 
   if [[ -z "$agent_type" ]]; then
     [[ -n "${CC_MSB_MAIN_SCOPE:-}" ]] && echo "$CC_MSB_MAIN_SCOPE" && return
-    if [[ -f "$config_file" ]]; then
-      local val
-      val="$(config_yaml_get_section "$config_file" "main" "scope")"
+    local file val
+    for file in "$local_file" "$global_file"; do
+      [[ -f "$file" ]] || continue
+      val="$(config_yaml_get_section "$file" "main" "scope")"
       [[ -n "$val" ]] && echo "$val" && return
-      val="$(config_yaml_get_nested "$config_file" "defaults" "agents" "scope")"
+      val="$(config_yaml_get_nested "$file" "defaults" "agents" "scope")"
       [[ -n "$val" ]] && echo "$val" && return
-    fi
+    done
     echo "session"
     return
   fi
@@ -124,56 +145,49 @@ config_agent_scope() {
     return
   fi
 
-  if [[ -f "$config_file" ]]; then
-    local val
-    val="$(config_yaml_get_nested "$config_file" "agents" "$agent_type" "scope")"
+  local file val
+  for file in "$local_file" "$global_file"; do
+    [[ -f "$file" ]] || continue
+    val="$(config_yaml_get_nested "$file" "agents" "$agent_type" "scope")"
     [[ -n "$val" ]] && echo "$val" && return
-    val="$(config_yaml_get_nested "$config_file" "defaults" "agents" "scope")"
+    val="$(config_yaml_get_nested "$file" "defaults" "agents" "scope")"
     [[ -n "$val" ]] && echo "$val" && return
-  fi
+  done
   echo "session"
 }
 
 # Returns the effective mount_workdir setting for a given agent type.
-#
-# Main session (no agent_type):
-#   1. CC_MSB_MAIN_MOUNT_WORKDIR env var
-#   2. main.mount_workdir in config file
-#   3. defaults.agents.mount_workdir in config file
-#   4. true
-#
-# Agents:
-#   1. CC_MSB_AGENT_MOUNT_WORKDIR env var
-#   2. agents.<name>.mount_workdir in config file
-#   3. defaults.agents.mount_workdir in config file
-#   4. true
-#
-# Args: agent_type, config_file
+# Resolution chain mirrors config_agent_scope (env → local → global → default=true).
+# Args: agent_type, local_config_file
 config_agent_mount_workdir() {
-  local agent_type="$1" config_file="$2"
+  local agent_type="$1" local_file="$2"
+  local global_file
+  global_file="$(config_global_file)"
 
   if [[ -z "$agent_type" ]]; then
     [[ -n "${CC_MSB_MAIN_MOUNT_WORKDIR:-}" ]] && echo "$CC_MSB_MAIN_MOUNT_WORKDIR" && return
-    if [[ -f "$config_file" ]]; then
-      local val
-      val="$(config_yaml_get_section "$config_file" "main" "mount_workdir")"
+    local file val
+    for file in "$local_file" "$global_file"; do
+      [[ -f "$file" ]] || continue
+      val="$(config_yaml_get_section "$file" "main" "mount_workdir")"
       [[ -n "$val" ]] && echo "$val" && return
-      val="$(config_yaml_get_nested "$config_file" "defaults" "agents" "mount_workdir")"
+      val="$(config_yaml_get_nested "$file" "defaults" "agents" "mount_workdir")"
       [[ -n "$val" ]] && echo "$val" && return
-    fi
+    done
     echo "true"
     return
   fi
 
   [[ -n "${CC_MSB_AGENT_MOUNT_WORKDIR:-}" ]] && echo "$CC_MSB_AGENT_MOUNT_WORKDIR" && return
 
-  if [[ -f "$config_file" ]]; then
-    local val
-    val="$(config_yaml_get_nested "$config_file" "agents" "$agent_type" "mount_workdir")"
+  local file val
+  for file in "$local_file" "$global_file"; do
+    [[ -f "$file" ]] || continue
+    val="$(config_yaml_get_nested "$file" "agents" "$agent_type" "mount_workdir")"
     [[ -n "$val" ]] && echo "$val" && return
-    val="$(config_yaml_get_nested "$config_file" "defaults" "agents" "mount_workdir")"
+    val="$(config_yaml_get_nested "$file" "defaults" "agents" "mount_workdir")"
     [[ -n "$val" ]] && echo "$val" && return
-  fi
+  done
   echo "true"
 }
 
@@ -181,38 +195,40 @@ config_agent_mount_workdir() {
 #
 # Main session (no agent_type):
 #   1. CC_MSB_SANDBOX_IMAGE env var
-#   2. main.sandbox_image in config file
-#   3. defaults.agents.sandbox_image in config file
+#   2. main.sandbox_image / defaults.agents.sandbox_image in local file
+#   3. main.sandbox_image / defaults.agents.sandbox_image in global file
 #   4. ubuntu
 #
 # Agents:
 #   1. CC_MSB_AGENT_IMAGE_<UPPER_SNAKE> env var
-#   2. agents.<name>.sandbox_image in config file
+#   2. agents.<name>.sandbox_image in local then global file
 #   3. CC_MSB_SANDBOX_IMAGE env var
-#   4. defaults.agents.sandbox_image in config file
+#   4. defaults.agents.sandbox_image in local then global file
 #   5. ubuntu
 #
-# Args: agent_type, config_file
+# Args: agent_type, local_config_file
 config_agent_image() {
-  local agent_type="$1" config_file="$2"
+  local agent_type="$1" local_file="$2"
+  local global_file
+  global_file="$(config_global_file)"
 
   if [[ -z "$agent_type" ]]; then
     [[ -n "${CC_MSB_SANDBOX_IMAGE:-}" ]] && echo "$CC_MSB_SANDBOX_IMAGE" && return
-    if [[ -f "$config_file" ]]; then
-      local val
-      val="$(config_yaml_get_section "$config_file" "main" "sandbox_image")"
+    local file val
+    for file in "$local_file" "$global_file"; do
+      [[ -f "$file" ]] || continue
+      val="$(config_yaml_get_section "$file" "main" "sandbox_image")"
       [[ -n "$val" ]] && echo "$val" && return
-      val="$(config_yaml_get_nested "$config_file" "defaults" "agents" "sandbox_image")"
+      val="$(config_yaml_get_nested "$file" "defaults" "agents" "sandbox_image")"
       [[ -n "$val" ]] && echo "$val" && return
-    fi
+    done
     echo "ubuntu"
     return
   fi
 
   local snake="${agent_type//-/_}"
-  local upper lower
+  local upper
   upper="$(printf '%s' "$snake" | tr '[:lower:]' '[:upper:]')"
-  lower="$(printf '%s' "$snake" | tr '[:upper:]' '[:lower:]')"
 
   local env_var="CC_MSB_AGENT_IMAGE_${upper}"
   local env_val="${!env_var:-}"
@@ -221,38 +237,41 @@ config_agent_image() {
     return
   fi
 
-  if [[ -f "$config_file" ]]; then
-    local val
-    val="$(config_yaml_get_nested "$config_file" "agents" "$agent_type" "sandbox_image")"
+  local file val
+  for file in "$local_file" "$global_file"; do
+    [[ -f "$file" ]] || continue
+    val="$(config_yaml_get_nested "$file" "agents" "$agent_type" "sandbox_image")"
     if [[ -n "$val" ]]; then
       echo "$val"
       return
     fi
-  fi
+  done
 
   [[ -n "${CC_MSB_SANDBOX_IMAGE:-}" ]] && echo "$CC_MSB_SANDBOX_IMAGE" && return
-  if [[ -f "$config_file" ]]; then
-    local val
-    val="$(config_yaml_get_nested "$config_file" "defaults" "agents" "sandbox_image")"
+
+  for file in "$local_file" "$global_file"; do
+    [[ -f "$file" ]] || continue
+    val="$(config_yaml_get_nested "$file" "defaults" "agents" "sandbox_image")"
     [[ -n "$val" ]] && echo "$val" && return
-  fi
+  done
   echo "ubuntu"
 }
 
 # Returns the effective named sandbox for a given agent type (scope: named only).
 #
 # Main session (no agent_type):
-#   1. CC_MSB_SANDBOX_NAME env var (set from main.sandbox_name by config_load)
+#   1. CC_MSB_SANDBOX_NAME env var (set from main.sandbox_name by config_load,
+#      which already considers local + global files)
 #
 # Agents:
 #   1. CC_MSB_AGENT_SANDBOX_NAME_<UPPER_SNAKE> env var
-#   2. agents.<name>.sandbox_name in config file
+#   2. agents.<name>.sandbox_name in local then global file
 #   3. CC_MSB_SANDBOX_NAME (from main.sandbox_name or env var)
 #
 # Returns empty string when no name is configured (caller falls back to session scope).
-# Args: agent_type, config_file
+# Args: agent_type, local_config_file
 config_agent_sandbox_name() {
-  local agent_type="$1" config_file="$2"
+  local agent_type="$1" local_file="$2"
 
   if [[ -z "$agent_type" ]]; then
     echo "${CC_MSB_SANDBOX_NAME:-}"
@@ -270,14 +289,17 @@ config_agent_sandbox_name() {
     return
   fi
 
-  if [[ -f "$config_file" ]]; then
-    local val
-    val="$(config_yaml_get_nested "$config_file" "agents" "$agent_type" "sandbox_name")"
+  local global_file
+  global_file="$(config_global_file)"
+  local file val
+  for file in "$local_file" "$global_file"; do
+    [[ -f "$file" ]] || continue
+    val="$(config_yaml_get_nested "$file" "agents" "$agent_type" "sandbox_name")"
     if [[ -n "$val" ]]; then
       echo "$val"
       return
     fi
-  fi
+  done
 
   echo "${CC_MSB_SANDBOX_NAME:-}"
 }
@@ -289,31 +311,23 @@ config_agent_sandbox_name() {
 #   "all"  — pass every host env var
 #   "VAR1,VAR2,..." — pass only the listed vars (if defined on the host)
 #
-# Main session (no agent_type):
-#   1. CC_MSB_MAIN_PASS_ENV env var
-#   2. main.pass_env in config file
-#   3. defaults.agents.pass_env in config file
-#   4. none
-#
-# Agents:
-#   1. CC_MSB_AGENT_PASS_ENV_<UPPER_SNAKE> env var
-#   2. agents.<name>.pass_env in config file
-#   3. defaults.agents.pass_env in config file
-#   4. none
-#
-# Args: agent_type, config_file
+# Resolution chain mirrors config_agent_scope (env → local → global → default=none).
+# Args: agent_type, local_config_file
 config_agent_pass_env() {
-  local agent_type="$1" config_file="$2"
+  local agent_type="$1" local_file="$2"
+  local global_file
+  global_file="$(config_global_file)"
 
   if [[ -z "$agent_type" ]]; then
     [[ -n "${CC_MSB_MAIN_PASS_ENV:-}" ]] && echo "$CC_MSB_MAIN_PASS_ENV" && return
-    if [[ -f "$config_file" ]]; then
-      local val
-      val="$(config_yaml_get_section "$config_file" "main" "pass_env")"
+    local file val
+    for file in "$local_file" "$global_file"; do
+      [[ -f "$file" ]] || continue
+      val="$(config_yaml_get_section "$file" "main" "pass_env")"
       [[ -n "$val" ]] && echo "$val" && return
-      val="$(config_yaml_get_nested "$config_file" "defaults" "agents" "pass_env")"
+      val="$(config_yaml_get_nested "$file" "defaults" "agents" "pass_env")"
       [[ -n "$val" ]] && echo "$val" && return
-    fi
+    done
     echo "none"
     return
   fi
@@ -329,13 +343,14 @@ config_agent_pass_env() {
     return
   fi
 
-  if [[ -f "$config_file" ]]; then
-    local val
-    val="$(config_yaml_get_nested "$config_file" "agents" "$agent_type" "pass_env")"
+  local file val
+  for file in "$local_file" "$global_file"; do
+    [[ -f "$file" ]] || continue
+    val="$(config_yaml_get_nested "$file" "agents" "$agent_type" "pass_env")"
     [[ -n "$val" ]] && echo "$val" && return
-    val="$(config_yaml_get_nested "$config_file" "defaults" "agents" "pass_env")"
+    val="$(config_yaml_get_nested "$file" "defaults" "agents" "pass_env")"
     [[ -n "$val" ]] && echo "$val" && return
-  fi
+  done
   echo "none"
 }
 
@@ -347,20 +362,22 @@ config_agent_pass_env() {
 #   "domain1,domain2,..." — allow only these domains, deny everything else
 #
 # Resolution chain mirrors config_agent_pass_env.
-#
-# Args: agent_type, config_file
+# Args: agent_type, local_config_file
 config_agent_network() {
-  local agent_type="$1" config_file="$2"
+  local agent_type="$1" local_file="$2"
+  local global_file
+  global_file="$(config_global_file)"
 
   if [[ -z "$agent_type" ]]; then
     [[ -n "${CC_MSB_MAIN_NETWORK:-}" ]] && echo "$CC_MSB_MAIN_NETWORK" && return
-    if [[ -f "$config_file" ]]; then
-      local val
-      val="$(config_yaml_get_section "$config_file" "main" "network")"
+    local file val
+    for file in "$local_file" "$global_file"; do
+      [[ -f "$file" ]] || continue
+      val="$(config_yaml_get_section "$file" "main" "network")"
       [[ -n "$val" ]] && echo "$val" && return
-      val="$(config_yaml_get_nested "$config_file" "defaults" "agents" "network")"
+      val="$(config_yaml_get_nested "$file" "defaults" "agents" "network")"
       [[ -n "$val" ]] && echo "$val" && return
-    fi
+    done
     echo "enabled"
     return
   fi
@@ -376,13 +393,14 @@ config_agent_network() {
     return
   fi
 
-  if [[ -f "$config_file" ]]; then
-    local val
-    val="$(config_yaml_get_nested "$config_file" "agents" "$agent_type" "network")"
+  local file val
+  for file in "$local_file" "$global_file"; do
+    [[ -f "$file" ]] || continue
+    val="$(config_yaml_get_nested "$file" "agents" "$agent_type" "network")"
     [[ -n "$val" ]] && echo "$val" && return
-    val="$(config_yaml_get_nested "$config_file" "defaults" "agents" "network")"
+    val="$(config_yaml_get_nested "$file" "defaults" "agents" "network")"
     [[ -n "$val" ]] && echo "$val" && return
-  fi
+  done
   echo "enabled"
 }
 
@@ -393,20 +411,22 @@ config_agent_network() {
 #   "HOST:GUEST[,HOST:GUEST/proto,...]" — comma-separated msb --port mappings
 #
 # Resolution chain mirrors config_agent_pass_env / config_agent_network.
-#
-# Args: agent_type, config_file
+# Args: agent_type, local_config_file
 config_agent_ports() {
-  local agent_type="$1" config_file="$2"
+  local agent_type="$1" local_file="$2"
+  local global_file
+  global_file="$(config_global_file)"
 
   if [[ -z "$agent_type" ]]; then
     [[ -n "${CC_MSB_MAIN_PORTS:-}" ]] && echo "$CC_MSB_MAIN_PORTS" && return
-    if [[ -f "$config_file" ]]; then
-      local val
-      val="$(config_yaml_get_section "$config_file" "main" "ports")"
+    local file val
+    for file in "$local_file" "$global_file"; do
+      [[ -f "$file" ]] || continue
+      val="$(config_yaml_get_section "$file" "main" "ports")"
       [[ -n "$val" ]] && echo "$val" && return
-      val="$(config_yaml_get_nested "$config_file" "defaults" "agents" "ports")"
+      val="$(config_yaml_get_nested "$file" "defaults" "agents" "ports")"
       [[ -n "$val" ]] && echo "$val" && return
-    fi
+    done
     echo ""
     return
   fi
@@ -422,12 +442,13 @@ config_agent_ports() {
     return
   fi
 
-  if [[ -f "$config_file" ]]; then
-    local val
-    val="$(config_yaml_get_nested "$config_file" "agents" "$agent_type" "ports")"
+  local file val
+  for file in "$local_file" "$global_file"; do
+    [[ -f "$file" ]] || continue
+    val="$(config_yaml_get_nested "$file" "agents" "$agent_type" "ports")"
     [[ -n "$val" ]] && echo "$val" && return
-    val="$(config_yaml_get_nested "$config_file" "defaults" "agents" "ports")"
+    val="$(config_yaml_get_nested "$file" "defaults" "agents" "ports")"
     [[ -n "$val" ]] && echo "$val" && return
-  fi
+  done
   echo ""
 }
