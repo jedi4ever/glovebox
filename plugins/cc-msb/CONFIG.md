@@ -241,6 +241,28 @@ main:
 
 ## Behavior
 
+### `auto_recreate` — preserve state on drift
+
+By default, a config change to a long-lived sandbox triggers a **deny** with manual `msb stop && msb remove` instructions. Set `auto_recreate: true` (per-`main`, per-agent, or under `defaults`) and the plugin will instead:
+
+1. Connect to the sandbox via the microsandbox SDK, `sync` pending writes, and `stopAndWait`.
+2. Snapshot the writable overlay (`msb snapshot create`).
+3. Remove the old sandbox.
+4. Recreate it from the snapshot with the new flags applied (`Sandbox.builder(name).fromSnapshot(snap).…create()`).
+5. Drop the temporary snapshot.
+
+Result: filesystem state outside `/workspace` (apt installs, `/etc` edits, `/root` config, etc.) is preserved across the new flags. `/workspace` is already bind-mounted and unaffected either way.
+
+**Exception**: if the desired `sandbox_image` differs from the snapshot's pinned base image, the snapshot can't be honored (msb's snapshot ties to a specific base). The hook detects this and falls back to the regular drift deny — the user accepts state loss for an image swap by running the manual `stop && remove`.
+
+```yaml
+main:
+  scope: directory
+  auto_recreate: true       # opt-in; default is false
+```
+
+**Env override**: `CC_MSB_MAIN_AUTO_RECREATE`, `CC_MSB_AGENT_AUTO_RECREATE_<NAME>`
+
 ### Config-drift detection (persistent sandboxes)
 
 msb applies most settings (`sandbox_image`, `network`, `ports`, `secrets`, `on_secret_violation`, `tls_intercept`, `tls_intercept_port`, `tls_bypass`, `trust_host_cas`, `mount_workdir`) **only at `msb create` time**. They're baked into the sandbox's lifetime. If you edit `.cc-msb.yml` (or `~/.config/cc-msb/config.yml`) while a long-lived sandbox is up (e.g. `scope: named` / `scope: directory`), the running sandbox keeps using the old flags — silently.

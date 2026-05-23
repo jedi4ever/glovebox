@@ -32,6 +32,72 @@ EFFECTIVE_SECURITY_ARGS="$(sandbox_security_args \
   "$EFFECTIVE_SECRETS" "$EFFECTIVE_ON_SECRET_VIOLATION" \
   "$EFFECTIVE_TLS_INTERCEPT" "$EFFECTIVE_TLS_INTERCEPT_PORT" \
   "$EFFECTIVE_TLS_BYPASS" "$EFFECTIVE_TRUST_HOST_CAS")"
+EFFECTIVE_AUTO_RECREATE="$(config_agent_auto_recreate "$AGENT_TYPE" "$PROJECT_DIR/.cc-msb.yml")"
+
+# Handle a drift signal from sandbox_ensure_running. Either:
+#   (a) auto_recreate=true → run the SDK-backed recreate script in place;
+#       on success, rewrite the fingerprint and return so the caller can
+#       continue. Image changes can't go through this path (snapshot pins
+#       the base image), so fall through to deny in that case.
+#   (b) otherwise → emit deny with the standard recreate instructions.
+# Called from each tool-handler branch right after sandbox_ensure_running.
+handle_drift_if_any() {
+  [[ -z "${SANDBOX_CONFIG_DRIFT:-}" ]] && return 0
+  local name="$SANDBOX_CONFIG_DRIFT"
+
+  if [[ "$EFFECTIVE_AUTO_RECREATE" == "true" ]]; then
+    local recreate_payload recreate_out
+    local _bool_mount _bool_tls _bool_trust
+    [[ "$EFFECTIVE_MOUNT_WORKDIR" == "true" ]] && _bool_mount=true || _bool_mount=false
+    [[ "$EFFECTIVE_TLS_INTERCEPT" == "true" ]] && _bool_tls=true || _bool_tls=false
+    [[ "$EFFECTIVE_TRUST_HOST_CAS" == "true" ]] && _bool_trust=true || _bool_trust=false
+    recreate_payload="$(jq -nc \
+      --arg name "$name" \
+      --arg image "$EFFECTIVE_IMAGE" \
+      --arg projectDir "$PROJECT_DIR" \
+      --argjson mount "$_bool_mount" \
+      --arg network "$EFFECTIVE_NETWORK" \
+      --arg ports "$EFFECTIVE_PORTS" \
+      --arg secrets "$EFFECTIVE_SECRETS" \
+      --arg onViol "$EFFECTIVE_ON_SECRET_VIOLATION" \
+      --argjson tlsOn "$_bool_tls" \
+      --arg tlsPort "$EFFECTIVE_TLS_INTERCEPT_PORT" \
+      --arg tlsBypass "$EFFECTIVE_TLS_BYPASS" \
+      --argjson trust "$_bool_trust" \
+      '{sandboxName:$name, image:$image, projectDir:$projectDir, mountWorkdir:$mount,
+        network:$network, ports:$ports, secrets:$secrets, onSecretViolation:$onViol,
+        tlsIntercept:$tlsOn,
+        tlsInterceptPort: (if ($tlsPort|length) > 0 then ($tlsPort|tonumber) else null end),
+        tlsBypass:$tlsBypass, trustHostCas:$trust}')"
+    recreate_out="$(printf '%s' "$recreate_payload" \
+      | node "$PLUGIN_ROOT/scripts/recreate-sandbox.mjs" 2>>"$STATE_DIR/recreate.log")" || true
+    local ok image_changed recreate_err
+    ok="$(printf '%s' "$recreate_out" | jq -r '.ok // false' 2>/dev/null || echo "false")"
+    image_changed="$(printf '%s' "$recreate_out" | jq -r '.imageChanged // false' 2>/dev/null || echo "false")"
+    recreate_err="$(printf '%s' "$recreate_out" | jq -r '.error // ""' 2>/dev/null || echo "")"
+    if [[ "$ok" == "true" ]]; then
+      # Recreate succeeded — write the new fingerprint to silence drift.
+      local new_fp fp_path
+      new_fp="$(sandbox_config_fingerprint "$EFFECTIVE_IMAGE" "$EFFECTIVE_MOUNT_WORKDIR" "$EFFECTIVE_NETWORK" "$EFFECTIVE_PORTS" "$EFFECTIVE_SECURITY_ARGS")"
+      fp_path="$(sandbox_fingerprint_path "$name")"
+      mkdir -p "$(dirname "$fp_path")"
+      printf '%s\n' "$new_fp" > "$fp_path"
+      SANDBOX_CONFIG_DRIFT=""
+      return 0
+    fi
+    # Recreate failed. If because of image change, fall through to deny;
+    # otherwise still deny but mention the script log.
+    if [[ "$image_changed" == "true" ]]; then
+      emit_deny "cc-msb: settings changed AND image changed for sandbox '$name'. Image swaps require a full recreate (state outside /workspace will be lost). Run: \`msb stop '$name' && msb remove '$name'\` — your next tool call will recreate it from scratch."
+    else
+      emit_deny "cc-msb: auto_recreate failed for sandbox '$name': $recreate_err. Manual recreate: \`msb stop '$name' && msb remove '$name'\`."
+    fi
+    exit 0
+  fi
+
+  emit_deny "cc-msb: settings in .cc-msb.yml changed since sandbox '$name' was created. msb applies most flags (image, network, ports, secrets, tls_*) only at create time, so the running sandbox still uses the old config. To apply: \`msb stop '$name' && msb remove '$name'\` — your next tool call will recreate it. Files in /workspace are bind-mounted and unaffected; other in-sandbox state (apt installs, /etc edits) will be lost. (Set \`auto_recreate: true\` to do this automatically while preserving state.)"
+  exit 0
+}
 
 # scope=host: pass through every tool call unmodified — no sandbox, no shadow,
 # no rewrites. The agent runs directly on the host.
@@ -57,10 +123,7 @@ case "$TOOL_NAME" in
       emit_deny "cc-msb: failed to start sandbox (see $STATE_DIR/sandbox.log)"
       exit 0
     }
-    if [[ -n "${SANDBOX_CONFIG_DRIFT:-}" ]]; then
-      emit_deny "cc-msb: settings in .cc-msb.yml changed since sandbox '$SANDBOX_CONFIG_DRIFT' was created. msb applies most flags (image, network, ports, secrets, tls_*) only at create time, so the running sandbox still uses the old config. To apply: \`msb stop '$SANDBOX_CONFIG_DRIFT' && msb remove '$SANDBOX_CONFIG_DRIFT'\` — your next tool call will recreate it. Files in /workspace are bind-mounted and unaffected; other in-sandbox state (apt installs, /etc edits) will be lost."
-      exit 0
-    fi
+    handle_drift_if_any
     # named and directory sandboxes persist across sessions — don't add to cleanup list
     if [[ "$EFFECTIVE_SCOPE" != "directory" ]] && [[ "$EFFECTIVE_SCOPE" != "named" || -z "$EFFECTIVE_SANDBOX_NAME" ]]; then
       sandbox_track "$SESSION_ID" "$SANDBOX"
@@ -95,10 +158,7 @@ case "$TOOL_NAME" in
         emit_deny "cc-msb: failed to start sandbox for read of $FILE_PATH"
         exit 0
       }
-      if [[ -n "${SANDBOX_CONFIG_DRIFT:-}" ]]; then
-        emit_deny "cc-msb: settings in .cc-msb.yml changed since sandbox '$SANDBOX_CONFIG_DRIFT' was created. To apply: \`msb stop '$SANDBOX_CONFIG_DRIFT' && msb remove '$SANDBOX_CONFIG_DRIFT'\` — your next tool call will recreate it. Files in /workspace are bind-mounted and unaffected; other in-sandbox state will be lost."
-        exit 0
-      fi
+      handle_drift_if_any
       if [[ "$EFFECTIVE_SCOPE" != "directory" ]] && [[ "$EFFECTIVE_SCOPE" != "named" || -z "$EFFECTIVE_SANDBOX_NAME" ]]; then
         sandbox_track "$SESSION_ID" "$SANDBOX"
       fi
@@ -126,10 +186,7 @@ case "$TOOL_NAME" in
       # Ensure the sandbox exists so post-tool-use can sync the shadow file into it.
       SANDBOX="$(sandbox_name_for "$SESSION_ID" "$AGENT_TYPE" "$EFFECTIVE_SANDBOX_NAME" "$EFFECTIVE_SCOPE" "$PROJECT_DIR")"
       sandbox_ensure_running "$SANDBOX" "$PROJECT_DIR" "$STATE_DIR/sandbox.log" "$EFFECTIVE_IMAGE" "$EFFECTIVE_MOUNT_WORKDIR" "$EFFECTIVE_NETWORK" "$EFFECTIVE_PORTS" "$EFFECTIVE_SECURITY_ARGS" || true
-      if [[ -n "${SANDBOX_CONFIG_DRIFT:-}" ]]; then
-        emit_deny "cc-msb: settings in .cc-msb.yml changed since sandbox '$SANDBOX_CONFIG_DRIFT' was created. To apply: \`msb stop '$SANDBOX_CONFIG_DRIFT' && msb remove '$SANDBOX_CONFIG_DRIFT'\` — your next tool call will recreate it. Files in /workspace are bind-mounted and unaffected; other in-sandbox state will be lost."
-        exit 0
-      fi
+      handle_drift_if_any
       if [[ "$EFFECTIVE_SCOPE" != "directory" ]] && [[ "$EFFECTIVE_SCOPE" != "named" || -z "$EFFECTIVE_SANDBOX_NAME" ]]; then
         sandbox_track "$SESSION_ID" "$SANDBOX"
       fi

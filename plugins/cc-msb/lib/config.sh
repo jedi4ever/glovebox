@@ -706,3 +706,13 @@ config_agent_trust_host_cas() {
   _config_setting "$1" "trust_host_cas" "false" \
     "CC_MSB_MAIN_TRUST_HOST_CAS" "CC_MSB_AGENT_TRUST_HOST_CAS" "$2"
 }
+
+# Boolean "true" / "false": when config drift is detected on a persistent
+# sandbox, run the SDK-backed recreate script (snapshot → recreate from
+# snapshot with new flags) instead of denying. Filesystem state is preserved.
+# Image changes can't be applied this way (snapshot pins the base image),
+# so on image-change drift we fall back to the regular deny.
+config_agent_auto_recreate() {
+  _config_setting "$1" "auto_recreate" "false" \
+    "CC_MSB_MAIN_AUTO_RECREATE" "CC_MSB_AGENT_AUTO_RECREATE" "$2"
+}
