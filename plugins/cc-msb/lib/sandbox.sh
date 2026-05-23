@@ -167,14 +167,21 @@ sandbox_github_default_hosts() {
 #     empty, replace it with the github allowlist. If `disabled`, leave
 #     alone (user explicitly opted out of egress; document the gotcha).
 #
-# Sets two globals as output (no stdout — bash multi-return convention):
-#   GH_EXPANDED_NETWORK, GH_EXPANDED_SECRETS
+# Sets three globals as output (no stdout — bash multi-return convention):
+#   GH_EXPANDED_NETWORK, GH_EXPANDED_SECRETS, GH_EXPANDED_FORCE_TLS
+#
+# GH_EXPANDED_FORCE_TLS is "true" when expansion actually injected a token:
+# secret substitution on HTTPS hosts (which github.com et al all are) only
+# works when msb's TLS interceptor can MITM-decrypt outbound traffic.
+# Without it, the placeholder `$MSB_GH_TOKEN` passes through to GitHub
+# verbatim and the server returns "Bad credentials".
 #
 # Args: network secrets github_token github_hosts
 sandbox_apply_github_expansion() {
   local network="$1" secrets="$2" github_token="$3" github_hosts="$4"
   GH_EXPANDED_NETWORK="$network"
   GH_EXPANDED_SECRETS="$secrets"
+  GH_EXPANDED_FORCE_TLS="false"
 
   # No token configured → nothing to do.
   [[ -z "$github_token" ]] && return 0
@@ -187,6 +194,7 @@ sandbox_apply_github_expansion() {
     # sandbox_resolve_secrets dropping unresolved entries).
     [[ -z "$resolved" ]] && return 0
   fi
+  GH_EXPANDED_FORCE_TLS="true"
 
   local hosts="${github_hosts:-$(sandbox_github_default_hosts)}"
 
@@ -257,10 +265,15 @@ sandbox_build_create_payload() {
   local github_token="${15:-}" github_hosts="${16:-}"
 
   # Expand `github_token` / `github_hosts` into the existing secrets +
-  # network primitives. Sets GH_EXPANDED_NETWORK / GH_EXPANDED_SECRETS.
+  # network primitives. Sets GH_EXPANDED_NETWORK / GH_EXPANDED_SECRETS,
+  # and GH_EXPANDED_FORCE_TLS=true when a token was actually injected
+  # (HTTPS substitution requires TLS interception).
   sandbox_apply_github_expansion "$network" "$secrets" "$github_token" "$github_hosts"
   network="$GH_EXPANDED_NETWORK"
   secrets="$GH_EXPANDED_SECRETS"
+  if [[ "$GH_EXPANDED_FORCE_TLS" == "true" ]]; then
+    tls_intercept="true"
+  fi
 
   local _b_mount _b_tls _b_trust
   [[ "$mount_workdir" == "true" ]] && _b_mount=true || _b_mount=false

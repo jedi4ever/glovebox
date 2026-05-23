@@ -1266,6 +1266,26 @@ describe("config — git + github sections", () => {
       // No secrets injected, no auto-network — default network stays "enabled"
       expect(cfg?.secrets).toBe("");
       expect(cfg?.network).toBe("enabled");
+      // No TLS auto-enable either: no token landed, no MITM needed.
+      expect(cfg?.tlsIntercept).toBe(false);
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  it("github_token expansion forces tlsIntercept=true (secrets need MITM on HTTPS)", () => {
+    // Without TLS interception, msb's proxy can't substitute the
+    // `$MSB_GH_TOKEN` placeholder inside encrypted HTTPS payloads,
+    // and the literal placeholder reaches GitHub → "Bad credentials".
+    // Github expansion must auto-enable interception so the convenience
+    // section actually works end-to-end.
+    const dir = makeLocalConfig(
+      "main:\n  github_token: literal_tok\n"
+    );
+    try {
+      runHook(dir);
+      const cfg = readCreateConfig();
+      expect(cfg?.tlsIntercept).toBe(true);
     } finally {
       rmSync(dir, { recursive: true, force: true });
     }

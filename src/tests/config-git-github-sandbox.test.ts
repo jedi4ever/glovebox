@@ -2,27 +2,47 @@ import { describe, it, expect } from "vitest";
 import { spawnSync } from "node:child_process";
 import { setupScenario } from "../helpers/scenario.js";
 
-// Probe the developer's host once at module load: is `gh` logged in
-// AND is there a `git config --global user.name/email`? Used to skip
-// the autodetect-driven test on machines that lack these prerequisites
-// (CI, fresh laptops). We don't care about the token VALUE here — only
-// that the host *has* one we can later autodetect.
-function hostReadyForAutodetect(): { ready: boolean; reason: string } {
+// Probe the developer's host once at module load. The autodetect tests
+// require three things on the host:
+//   1. `gh auth token` returns a non-empty token
+//   2. `git config --global` has user.name + user.email set
+//   3. the `localhost:5123/devbox` image is pulled into msb (it
+//      provides `gh` inside the guest — `buildpack-deps:noble` doesn't)
+// On a fresh laptop or CI without these, the tests skip with a reason.
+function hostReadyForAutodetect(): { ready: boolean; reason: string; token: string } {
   const gh = spawnSync("gh", ["auth", "token"], { encoding: "utf8" });
-  if (gh.status !== 0 || !(gh.stdout || "").trim()) {
-    return { ready: false, reason: "no `gh auth token` on host" };
+  const token = (gh.stdout || "").trim();
+  if (gh.status !== 0 || !token) {
+    return { ready: false, reason: "no `gh auth token` on host", token: "" };
   }
   const name = spawnSync("git", ["config", "--global", "--get", "user.name"], { encoding: "utf8" });
   if (name.status !== 0 || !(name.stdout || "").trim()) {
-    return { ready: false, reason: "no `git config --global user.name`" };
+    return { ready: false, reason: "no `git config --global user.name`", token };
   }
   const email = spawnSync("git", ["config", "--global", "--get", "user.email"], { encoding: "utf8" });
   if (email.status !== 0 || !(email.stdout || "").trim()) {
-    return { ready: false, reason: "no `git config --global user.email`" };
+    return { ready: false, reason: "no `git config --global user.email`", token };
   }
-  return { ready: true, reason: "" };
+  const imgs = spawnSync("msb", ["images"], { encoding: "utf8" });
+  if (imgs.status !== 0 || !/localhost:5123\/devbox/.test(imgs.stdout || "")) {
+    return { ready: false, reason: "`localhost:5123/devbox` image not in `msb images` (run `cd contrib && make all` first)", token };
+  }
+  return { ready: true, reason: "", token };
 }
 const host = hostReadyForAutodetect();
+
+// Defensive guard: any captured test output that ever contains the
+// real host token is a leak. The host token only lives in the test
+// runner's memory here — never passed as env to the child claude
+// process — so the only way it could appear in Claude's stdout is if
+// msb's proxy substituted it AND something inside the guest echoed
+// the substituted value back. Both are bugs.
+const REAL_HOST_TOKEN = host.token;
+function assertNoTokenLeak(stdout: string) {
+  if (REAL_HOST_TOKEN && stdout.includes(REAL_HOST_TOKEN)) {
+    throw new Error("TOKEN LEAK: real host gh token appeared in test output");
+  }
+}
 
 // End-to-end test for the `git_*` / `github_*` config sections.
 //
@@ -52,57 +72,102 @@ describe.concurrent("git + github integration", () => {
 
   // Autodetect path — host's `gh auth token` should reach the sandbox via
   // msb's secret proxy, and host's `git config --global` should be applied
-  // inside the guest. Skipped automatically on machines without those.
-  (host.ready ? it.concurrent : it.concurrent.skip)(
-    `autodetect (host has gh+git config): GH_TOKEN proxies to api.github.com, git identity applies inside${host.ready ? "" : ` — SKIPPED: ${host.reason}`}`,
+  // inside the guest. All three tests below skip on machines without
+  // those prerequisites.
+  const itAuto = host.ready ? it.concurrent : it.concurrent.skip;
+  const autoEnv = {
+    // setup.ts globally disables autodetect for unit-test stability;
+    // re-enable here to actually exercise the path.
+    CC_MSB_MAIN_GIT_USER_AUTODETECT: "true",
+    CC_MSB_MAIN_GIT_TOKEN_AUTODETECT: "true",
+  };
+  const skipNote = host.ready ? "" : ` — SKIPPED: ${host.reason}`;
+
+  itAuto(
+    `autodetect: GH_TOKEN reaches api.github.com via the proxy (raw curl)${skipNote}`,
     async () => {
-      const { session, teardown } = await setupScenario("cc-msb-gh-host-auth-", {
+      const { session, teardown } = await setupScenario("cc-msb-gh-curl-", {
         fixture: "config-git-autodetect-probe",
-        // setup.ts globally disables autodetect for unit-test stability.
-        // Re-enable here so this integration probe actually exercises it.
-        env: {
-          CC_MSB_MAIN_GIT_USER_AUTODETECT: "true",
-          CC_MSB_MAIN_GIT_TOKEN_AUTODETECT: "true",
-        },
+        env: autoEnv,
       });
       try {
-        // 1. Verify the plumbing end-to-end: the secret-proxy substituted
-        //    GH_TOKEN with *some* real value before the request hit
-        //    api.github.com. We DON'T assert that the auth succeeds —
-        //    the token's validity is a host-side `gh` concern, not the
-        //    plugin's. What we DO assert:
-        //      (a) curl reached api.github.com and got a JSON response
-        //          (proves network allowlist worked).
-        //      (b) the response does NOT contain the literal placeholder
-        //          string `$MSB_GH_TOKEN` (proves msb substituted —
-        //          GitHub would echo it back in some error responses if
-        //          we'd sent it verbatim).
-        //      (c) the response isn't the auth-header-missing error
-        //          ("Requires authentication") — that would mean nothing
-        //          got injected into the Authorization header.
-        const r1 = await session.run(
-          "Run this exact bash command and report only the JSON body, no commentary, " +
-          "don't print the bearer token value: " +
+        // End-to-end probe: msb's secret proxy must (1) preserve the
+        // `$MSB_GH_TOKEN` placeholder in the env var, (2) MITM-decrypt
+        // the HTTPS request, and (3) substitute the placeholder with the
+        // real token. We assert a 200 response with a `"login":` field —
+        // a literal placeholder leaking through would 401 with "Bad
+        // credentials" (which `"(?:login|message)":` would *also* match,
+        // so we have to be specific). The prompt forbids echoing
+        // $GH_TOKEN; assertNoTokenLeak below is the backstop.
+        const r = await session.run(
+          "Run this exact bash command and report ONLY the response body — " +
+          "NOT the command itself, NOT any header values, NOT the value of $GH_TOKEN: " +
           "`curl -sS -H \"Authorization: Bearer $GH_TOKEN\" https://api.github.com/user 2>&1 | head -40`"
         );
-        expect(r1.exitCode).toBe(0);
-        expect(r1.stdout).toMatch(/"(?:login|message)":\s*"/);  // got a JSON response
-        expect(r1.stdout).not.toMatch(/\$MSB_GH_TOKEN/);         // not the placeholder
-        expect(r1.stdout).not.toMatch(/Requires authentication/i); // header was injected
+        assertNoTokenLeak(r.stdout);
+        expect(r.exitCode).toBe(0);
+        expect(r.stdout).toMatch(/"login":\s*"/);                 // 200 OK with /user JSON
+        expect(r.stdout).not.toMatch(/Bad credentials/i);          // not 401
+        expect(r.stdout).not.toMatch(/\$MSB_GH_TOKEN/);            // not the placeholder
+        expect(r.stdout).not.toMatch(/Requires authentication/i);  // header was injected
+      } finally {
+        await teardown();
+      }
+    },
+    60_000
+  );
 
-        // 2. Host git identity flows through.
-        const r2 = await session.run(
+  itAuto(
+    `autodetect: \`gh auth status\` succeeds inside the sandbox${skipNote}`,
+    async () => {
+      const { session, teardown } = await setupScenario("cc-msb-gh-auth-status-", {
+        fixture: "config-git-autodetect-probe",
+        env: autoEnv,
+      });
+      try {
+        // Realistic-usage probe — requires gh to read GH_TOKEN, send a
+        // request through the proxy, AND github to accept the substituted
+        // token. Strictly stronger than the raw-curl test above. `gh auth
+        // status` masks the token (`gho_*****…`) in its own output so
+        // a leak here would have to come from gh printing the env var
+        // verbatim, which it doesn't.
+        const r = await session.run(
+          "Run this exact bash command and report ONLY its combined output verbatim. " +
+          "Do NOT print the value of $GH_TOKEN or expand it in any way: " +
+          "`gh auth status 2>&1`"
+        );
+        assertNoTokenLeak(r.stdout);
+        expect(r.exitCode).toBe(0);
+        expect(r.stdout).toMatch(/Logged in to github\.com/i);
+        expect(r.stdout).not.toMatch(/\$MSB_GH_TOKEN/);
+        expect(r.stdout).not.toMatch(/not logged into|You are not logged/i);
+      } finally {
+        await teardown();
+      }
+    },
+    60_000
+  );
+
+  itAuto(
+    `autodetect: host's git config --global user.name/email flow into the sandbox${skipNote}`,
+    async () => {
+      const { session, teardown } = await setupScenario("cc-msb-git-identity-auto-", {
+        fixture: "config-git-autodetect-probe",
+        env: autoEnv,
+      });
+      try {
+        const r = await session.run(
           "Run this exact bash command and report only its output verbatim: " +
           "`bash -c 'git config --global --get user.name && git config --global --get user.email'`"
         );
-        expect(r2.exitCode).toBe(0);
-        // Don't pin to the user's actual identity — just verify both
-        // lines are non-empty (autodetect populated them).
-        const lines = r2.stdout.split("\n").map((l) => l.trim()).filter(Boolean);
-        // The output usually contains a leading "Output:" frame from
-        // Claude; the *contents* are at least 2 non-empty lines that
-        // aren't just markdown fences or commentary.
-        const dataLines = lines.filter((l) => !/^[`>*-]/.test(l) && !/^Output/.test(l));
+        expect(r.exitCode).toBe(0);
+        // Don't pin to the user's identity — just assert two non-empty
+        // data lines, which proves autodetect populated both.
+        const dataLines = r.stdout
+          .split("\n")
+          .map((l) => l.trim())
+          .filter(Boolean)
+          .filter((l) => !/^[`>*-]/.test(l) && !/^Output/i.test(l));
         expect(dataLines.length).toBeGreaterThanOrEqual(2);
       } finally {
         await teardown();
