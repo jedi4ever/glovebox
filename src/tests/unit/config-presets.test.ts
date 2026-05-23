@@ -174,21 +174,16 @@ describe("config — presets", () => {
     }
   });
 
-  it("later preset wins for overlapping keys", () => {
-    // Both presets set `network`; declare npm AFTER a hypothetical preset
-    // that would set network differently. Here we use a user-preset dir
-    // to create a "fake-dev" that ALSO sets network, then verify npm's
-    // value wins because it's listed second.
+  it("later preset wins for scalar keys (e.g. sandbox_image)", () => {
+    // Two presets set the same SCALAR key. Last-listed wins.
     const { dir: presetsDir, env } = makeUserPresetsDir();
-    writeFileSync(
-      join(presetsDir, "fake-dev.yml"),
-      "defaults:\n  network: \"example.com\"\n"
-    );
-    const projectDir = makeProject("presets: [fake-dev, npm]\n");
+    writeFileSync(join(presetsDir, "first.yml"),  "defaults:\n  sandbox_image: first-img\n");
+    writeFileSync(join(presetsDir, "second.yml"), "defaults:\n  sandbox_image: second-img\n");
+    const projectDir = makeProject("presets: [first, second]\n");
     try {
       runHook(projectDir, env);
       const cfg = readCreateConfig();
-      expect(cfg?.network).toBe("registry.npmjs.org,registry.yarnpkg.com");
+      expect(cfg?.image).toBe("second-img");
     } finally {
       rmSync(projectDir, { recursive: true, force: true });
       rmSync(presetsDir, { recursive: true, force: true });

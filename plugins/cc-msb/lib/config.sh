@@ -539,57 +539,13 @@ config_agent_sandbox_name() {
 #   "all"  — pass every host env var
 #   "VAR1,VAR2,..." — pass only the listed vars (if defined on the host)
 #
-# Resolution chain mirrors config_agent_scope (env → local → global → default=none).
-# Args: agent_type, local_config_file
+# Unions across layers with most-permissive-wins semantics: any layer
+# saying "all" forces "all"; variable names get unioned across presets,
+# defaults, etc.; "none" contributes nothing. Env var still
+# short-circuits as an explicit override.
 config_agent_pass_env() {
-  local agent_type="$1" local_file="$2"
-  local global_file
-  global_file="$(config_global_file)"
-
-  if [[ -z "$agent_type" ]]; then
-    [[ -n "${CC_MSB_MAIN_PASS_ENV:-}" ]] && echo "$CC_MSB_MAIN_PASS_ENV" && return
-    local file val
-    for file in "$local_file" "$global_file"; do
-      [[ -f "$file" ]] || continue
-      val="$(config_yaml_get_section "$file" "main" "pass_env")"
-      [[ -n "$val" ]] && echo "$val" && return
-      val="$(config_yaml_get_nested "$file" "defaults" "main" "pass_env")"
-      [[ -n "$val" ]] && echo "$val" && return
-      val="$(config_yaml_get_nested "$file" "defaults" "agents" "pass_env")"
-      [[ -n "$val" ]] && echo "$val" && return
-      val="$(config_yaml_get_direct "$file" "defaults" "pass_env")"
-      [[ -n "$val" ]] && echo "$val" && return
-    done
-    val="$(_config_preset_lookup "$local_file" "" "pass_env")"
-    [[ -n "$val" ]] && echo "$val" && return
-    echo "none"
-    return
-  fi
-
-  local snake="${agent_type//-/_}"
-  local upper
-  upper="$(printf '%s' "$snake" | tr '[:lower:]' '[:upper:]')"
-
-  local env_var="CC_MSB_AGENT_PASS_ENV_${upper}"
-  local env_val="${!env_var:-}"
-  if [[ -n "$env_val" ]]; then
-    echo "$env_val"
-    return
-  fi
-
-  local file val
-  for file in "$local_file" "$global_file"; do
-    [[ -f "$file" ]] || continue
-    val="$(config_yaml_get_nested "$file" "agents" "$agent_type" "pass_env")"
-    [[ -n "$val" ]] && echo "$val" && return
-    val="$(config_yaml_get_nested "$file" "defaults" "agents" "pass_env")"
-    [[ -n "$val" ]] && echo "$val" && return
-    val="$(config_yaml_get_direct "$file" "defaults" "pass_env")"
-    [[ -n "$val" ]] && echo "$val" && return
-  done
-  val="$(_config_preset_lookup "$local_file" "$agent_type" "pass_env")"
-  [[ -n "$val" ]] && echo "$val" && return
-  echo "none"
+  _config_setting_list "$1" "pass_env" "none" \
+    "CC_MSB_MAIN_PASS_ENV" "CC_MSB_AGENT_PASS_ENV" "$2" "pass_env"
 }
 
 # Returns the effective network spec for a given agent type.
@@ -599,57 +555,13 @@ config_agent_pass_env() {
 #   "disabled" — no network at all (`--no-net`)
 #   "domain1,domain2,..." — allow only these domains, deny everything else
 #
-# Resolution chain mirrors config_agent_pass_env.
-# Args: agent_type, local_config_file
+# Unions across all layers with most-restrictive-wins semantics:
+# any layer saying "disabled" forces "disabled"; allowlist hosts get
+# unioned across presets, defaults, etc.; "enabled" contributes nothing.
+# Env var still short-circuits as an explicit override.
 config_agent_network() {
-  local agent_type="$1" local_file="$2"
-  local global_file
-  global_file="$(config_global_file)"
-
-  if [[ -z "$agent_type" ]]; then
-    [[ -n "${CC_MSB_MAIN_NETWORK:-}" ]] && echo "$CC_MSB_MAIN_NETWORK" && return
-    local file val
-    for file in "$local_file" "$global_file"; do
-      [[ -f "$file" ]] || continue
-      val="$(config_yaml_get_section "$file" "main" "network")"
-      [[ -n "$val" ]] && echo "$val" && return
-      val="$(config_yaml_get_nested "$file" "defaults" "main" "network")"
-      [[ -n "$val" ]] && echo "$val" && return
-      val="$(config_yaml_get_nested "$file" "defaults" "agents" "network")"
-      [[ -n "$val" ]] && echo "$val" && return
-      val="$(config_yaml_get_direct "$file" "defaults" "network")"
-      [[ -n "$val" ]] && echo "$val" && return
-    done
-    val="$(_config_preset_lookup "$local_file" "" "network")"
-    [[ -n "$val" ]] && echo "$val" && return
-    echo "enabled"
-    return
-  fi
-
-  local snake="${agent_type//-/_}"
-  local upper
-  upper="$(printf '%s' "$snake" | tr '[:lower:]' '[:upper:]')"
-
-  local env_var="CC_MSB_AGENT_NETWORK_${upper}"
-  local env_val="${!env_var:-}"
-  if [[ -n "$env_val" ]]; then
-    echo "$env_val"
-    return
-  fi
-
-  local file val
-  for file in "$local_file" "$global_file"; do
-    [[ -f "$file" ]] || continue
-    val="$(config_yaml_get_nested "$file" "agents" "$agent_type" "network")"
-    [[ -n "$val" ]] && echo "$val" && return
-    val="$(config_yaml_get_nested "$file" "defaults" "agents" "network")"
-    [[ -n "$val" ]] && echo "$val" && return
-    val="$(config_yaml_get_direct "$file" "defaults" "network")"
-    [[ -n "$val" ]] && echo "$val" && return
-  done
-  val="$(_config_preset_lookup "$local_file" "$agent_type" "network")"
-  [[ -n "$val" ]] && echo "$val" && return
-  echo "enabled"
+  _config_setting_list "$1" "network" "enabled" \
+    "CC_MSB_MAIN_NETWORK" "CC_MSB_AGENT_NETWORK" "$2" "network"
 }
 
 # Returns the effective port-mapping spec for a given agent type.
@@ -658,57 +570,165 @@ config_agent_network() {
 #   ""       — no port mappings (default)
 #   "HOST:GUEST[,HOST:GUEST/proto,...]" — comma-separated msb --port mappings
 #
-# Resolution chain mirrors config_agent_pass_env / config_agent_network.
-# Args: agent_type, local_config_file
+# Unions across layers (no mode strings). Env var still short-circuits.
 config_agent_ports() {
-  local agent_type="$1" local_file="$2"
-  local global_file
-  global_file="$(config_global_file)"
+  _config_setting_list "$1" "ports" "" \
+    "CC_MSB_MAIN_PORTS" "CC_MSB_AGENT_PORTS" "$2" "csv"
+}
+
+# ============================================================================
+# List-shaped settings: union semantics across all layers (iteration 2)
+# ============================================================================
+# For settings like `secrets`, `network`, `pass_env`, `ports`, `tls_bypass`,
+# `github_hosts` we want every layer that contributes a value to count —
+# not just the first-non-empty. So `presets: [npm, aws]` adds both
+# registries to the allowlist instead of one masking the other.
+#
+# Env vars still SHORT-CIRCUIT (preserves existing override semantics);
+# all other layers union.
+
+# Dumps each preset's non-empty value for the given key, one per line.
+# Used by `_config_setting_list` to union preset contributions with the
+# user-file's resolved value. Order of emission doesn't matter — the
+# downstream mergers are set-union.
+# Args: agent_type key local_file
+_config_collect_presets() {
+  local agent_type="$1" key="$2" local_file="$3"
+  local list name path val
+  list="$(config_presets_list "$local_file")"
+  [[ -z "$list" ]] && return 0
+  while IFS= read -r name || [[ -n "$name" ]]; do
+    name="${name#"${name%%[![:space:]]*}"}"
+    name="${name%"${name##*[![:space:]]}"}"
+    [[ -z "$name" ]] && continue
+    path="$(config_preset_path "$name")"
+    [[ -z "$path" ]] && continue
+    if [[ -z "$agent_type" ]]; then
+      val="$(config_yaml_get_nested "$path" "defaults" "main" "$key")"
+      [[ -n "$val" ]] && printf '%s\n' "$val"
+    fi
+    val="$(config_yaml_get_nested "$path" "defaults" "agents" "$key")"
+    [[ -n "$val" ]] && printf '%s\n' "$val"
+    val="$(config_yaml_get_direct "$path" "defaults" "$key")"
+    [[ -n "$val" ]] && printf '%s\n' "$val"
+  done < <(printf '%s' "$list" | tr ',' '\n')
+}
+
+# Pure CSV union: each input line is a comma-separated value list; output
+# is a single comma-separated list with duplicates removed (first-seen
+# order preserved).
+_config_union_csv() {
+  awk -F, '
+    {
+      for (i = 1; i <= NF; i++) {
+        v = $i
+        gsub(/^[[:space:]]+|[[:space:]]+$/, "", v)
+        if (v != "" && !(v in seen)) {
+          seen[v] = 1
+          out = (out == "" ? v : out "," v)
+        }
+      }
+    }
+    END { if (out != "") print out }
+  '
+}
+
+# Network merger. Mode strings short-circuit:
+#   any layer == "disabled" → "disabled" (most-restrictive wins)
+#   else if all layers == "enabled" or empty → "enabled"
+#   else union of allowlist hosts (treating "enabled"/blank as no contribution)
+_config_union_network() {
+  local all merged
+  all="$(cat)"
+  if printf '%s\n' "$all" | grep -qx "disabled"; then
+    echo "disabled"; return
+  fi
+  # Drop "enabled" / blank lines, then union the rest.
+  merged="$(printf '%s\n' "$all" | grep -vx "" | grep -vx "enabled" | _config_union_csv || true)"
+  if [[ -n "$merged" ]]; then echo "$merged"; else echo "enabled"; fi
+}
+
+# pass_env merger. Mode strings short-circuit:
+#   any layer == "all"  → "all" (most-permissive wins)
+#   else if all layers == "none" or empty → "none"
+#   else union of variable names (treating "none"/blank as no contribution)
+_config_union_pass_env() {
+  local all merged
+  all="$(cat)"
+  if printf '%s\n' "$all" | grep -qx "all"; then
+    echo "all"; return
+  fi
+  merged="$(printf '%s\n' "$all" | grep -vx "" | grep -vx "none" | _config_union_csv || true)"
+  if [[ -n "$merged" ]]; then echo "$merged"; else echo "none"; fi
+}
+
+# Resolves a list-shaped setting.
+#
+# Semantics:
+#   - Env var still short-circuits (explicit override; backward compat).
+#   - Within the user's own files, the standard first-non-empty-wins
+#     chain applies (main beats defaults, agent override beats
+#     defaults.agents, local beats global). One winning value emerges.
+#   - That winning value is then UNIONED with every preset's value for
+#     the same key. The merger handles mode strings (e.g. network's
+#     "disabled" forces disabled; pass_env's "all" forces all).
+#
+# This means presets contribute additively without overriding the user's
+# explicit choices within their own file.
+# Args: agent_type key default_val env_main env_agent_prefix local_file mode
+# mode = "csv" | "network" | "pass_env"
+_config_setting_list() {
+  local agent_type="$1" key="$2" default_val="$3"
+  local env_main="$4" env_agent_prefix="$5" local_file="$6" mode="$7"
 
   if [[ -z "$agent_type" ]]; then
-    [[ -n "${CC_MSB_MAIN_PORTS:-}" ]] && echo "$CC_MSB_MAIN_PORTS" && return
-    local file val
-    for file in "$local_file" "$global_file"; do
-      [[ -f "$file" ]] || continue
-      val="$(config_yaml_get_section "$file" "main" "ports")"
-      [[ -n "$val" ]] && echo "$val" && return
-      val="$(config_yaml_get_nested "$file" "defaults" "main" "ports")"
-      [[ -n "$val" ]] && echo "$val" && return
-      val="$(config_yaml_get_nested "$file" "defaults" "agents" "ports")"
-      [[ -n "$val" ]] && echo "$val" && return
-      val="$(config_yaml_get_direct "$file" "defaults" "ports")"
-      [[ -n "$val" ]] && echo "$val" && return
-    done
-    val="$(_config_preset_lookup "$local_file" "" "ports")"
-    [[ -n "$val" ]] && echo "$val" && return
-    echo ""
-    return
+    [[ -n "${!env_main:-}" ]] && echo "${!env_main}" && return
+  else
+    local env_var
+    env_var="$(_config_agent_env_name "$agent_type" "$env_agent_prefix")"
+    [[ -n "${!env_var:-}" ]] && echo "${!env_var}" && return
   fi
 
-  local snake="${agent_type//-/_}"
-  local upper
-  upper="$(printf '%s' "$snake" | tr '[:lower:]' '[:upper:]')"
-
-  local env_var="CC_MSB_AGENT_PORTS_${upper}"
-  local env_val="${!env_var:-}"
-  if [[ -n "$env_val" ]]; then
-    echo "$env_val"
-    return
-  fi
-
-  local file val
+  # First-non-empty across the user's local + global files.
+  local user_val="" file val
+  local global_file
+  global_file="$(config_global_file)"
   for file in "$local_file" "$global_file"; do
     [[ -f "$file" ]] || continue
-    val="$(config_yaml_get_nested "$file" "agents" "$agent_type" "ports")"
-    [[ -n "$val" ]] && echo "$val" && return
-    val="$(config_yaml_get_nested "$file" "defaults" "agents" "ports")"
-    [[ -n "$val" ]] && echo "$val" && return
-    val="$(config_yaml_get_direct "$file" "defaults" "ports")"
-    [[ -n "$val" ]] && echo "$val" && return
+    if [[ -z "$agent_type" ]]; then
+      val="$(config_yaml_get_section "$file" "main" "$key")"
+      if [[ -n "$val" ]]; then user_val="$val"; break; fi
+      val="$(config_yaml_get_nested "$file" "defaults" "main" "$key")"
+      if [[ -n "$val" ]]; then user_val="$val"; break; fi
+    else
+      val="$(config_yaml_get_nested "$file" "agents" "$agent_type" "$key")"
+      if [[ -n "$val" ]]; then user_val="$val"; break; fi
+    fi
+    val="$(config_yaml_get_nested "$file" "defaults" "agents" "$key")"
+    if [[ -n "$val" ]]; then user_val="$val"; break; fi
+    val="$(config_yaml_get_direct "$file" "defaults" "$key")"
+    if [[ -n "$val" ]]; then user_val="$val"; break; fi
   done
-  val="$(_config_preset_lookup "$local_file" "$agent_type" "ports")"
-  [[ -n "$val" ]] && echo "$val" && return
-  echo ""
+
+  # Union user value with every preset value.
+  local preset_lines
+  preset_lines="$(_config_collect_presets "$agent_type" "$key" "$local_file")"
+  local combined
+  if [[ -n "$user_val" && -n "$preset_lines" ]]; then
+    combined="$(printf '%s\n%s\n' "$user_val" "$preset_lines")"
+  elif [[ -n "$user_val" ]]; then
+    combined="$user_val"
+  else
+    combined="$preset_lines"
+  fi
+
+  local merged
+  case "$mode" in
+    network)  merged="$(printf '%s\n' "$combined" | _config_union_network)" ;;
+    pass_env) merged="$(printf '%s\n' "$combined" | _config_union_pass_env)" ;;
+    *)        merged="$(printf '%s\n' "$combined" | _config_union_csv)" ;;
+  esac
+  if [[ -z "$merged" ]]; then echo "$default_val"; else echo "$merged"; fi
 }
 
 # Walks resolved preset files in declaration order and echoes the LAST
@@ -834,9 +854,10 @@ _config_setting() {
 
 # Comma-separated list of secret specs: "ENV=VALUE@HOST".
 # VALUE may start with $ to interpolate from the host env (see sandbox_secret_args).
+# Unions across presets/defaults/main (env var still overrides).
 config_agent_secrets() {
-  _config_setting "$1" "secrets" "" \
-    "CC_MSB_MAIN_SECRETS" "CC_MSB_AGENT_SECRETS" "$2"
+  _config_setting_list "$1" "secrets" "" \
+    "CC_MSB_MAIN_SECRETS" "CC_MSB_AGENT_SECRETS" "$2" "csv"
 }
 
 # Action when a secret tries to leak: block | block-and-log | block-and-terminate.
@@ -859,9 +880,10 @@ config_agent_tls_intercept_port() {
 }
 
 # Comma-separated list of domains to skip interception for.
+# Unions across layers (env var still overrides).
 config_agent_tls_bypass() {
-  _config_setting "$1" "tls_bypass" "" \
-    "CC_MSB_MAIN_TLS_BYPASS" "CC_MSB_AGENT_TLS_BYPASS" "$2"
+  _config_setting_list "$1" "tls_bypass" "" \
+    "CC_MSB_MAIN_TLS_BYPASS" "CC_MSB_AGENT_TLS_BYPASS" "$2" "csv"
 }
 
 # Boolean "true" / "false": ship the host's CA bundle into the guest.
@@ -911,9 +933,10 @@ config_agent_github_token() {
 
 # Comma-separated host allowlist scoped for the token. Empty → fall back to
 # `sandbox_github_default_hosts`. Accepts a YAML list (parsed → joined).
+# Unions across layers (env var still overrides).
 config_agent_github_hosts() {
-  _config_setting "$1" "github_hosts" "" \
-    "CC_MSB_MAIN_GITHUB_HOSTS" "CC_MSB_AGENT_GITHUB_HOSTS" "$2"
+  _config_setting_list "$1" "github_hosts" "" \
+    "CC_MSB_MAIN_GITHUB_HOSTS" "CC_MSB_AGENT_GITHUB_HOSTS" "$2" "csv"
 }
 
 # Boolean "true"/"false": when true (default), unset git_user_name /
