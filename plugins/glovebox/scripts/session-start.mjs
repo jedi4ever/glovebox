@@ -67,7 +67,7 @@ if (process.env.GLOVEBOX_FAKE_CREATE) {
     const h = await Sandbox.get(sandbox);
     const live = await h.connect();
     const r = await live.shell(probe);
-    if (!r.success()) process.exit(0);
+    if (!r.success) process.exit(0);
     lines = r.stdout().split('\n');
   } catch { process.exit(0); }
 }
