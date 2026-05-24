@@ -1,4 +1,5 @@
 main:
   scope: named
-  sandbox_name: glovebox-ports-int-named
+  sandbox_name: glovebox-test-ports-int-named
+  mount_workdir: false
   ports: "19876:8000"

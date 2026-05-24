@@ -77,7 +77,7 @@ USER root
 WORKDIR /workspace
 
 # Change ownership of workspace (use numeric IDs to avoid group name issues)
-RUN chown -R ${USER_ID}:${GROUP_ID} /workspace
+RUN chown -R ${USER_ID}:${USERNAME} /workspace
 
 # Add Go, UV, npm global to PATH environment and bash profile
 ENV PATH="/home/${USERNAME}/.local/bin:/home/${USERNAME}/.npm-global/bin:/home/${USERNAME}/go/bin:/usr/local/go/bin:${PATH}"

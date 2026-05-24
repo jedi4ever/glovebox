@@ -65,7 +65,13 @@ if (process.env.GLOVEBOX_FAKE_CREATE) {
   try {
     const { Sandbox } = await loadSdk();
     const h = await Sandbox.get(sandbox);
-    const live = await h.connect();
+    // connect() requires the sandbox to be fully running. Retry briefly in
+    // case of a transient delay after sandboxEnsureRunning returns.
+    let live;
+    for (let i = 0; i < 5; i++) {
+      try { live = await h.connect(); break; } catch { await new Promise(r => setTimeout(r, 500)); }
+    }
+    if (!live) process.exit(0);
     const r = await live.shell(probe);
     if (!r.success) process.exit(0);
     lines = r.stdout().split('\n');

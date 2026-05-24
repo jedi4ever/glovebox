@@ -1,7 +1,7 @@
 We're working on a plugin for Claude Code that use msb (Micro Sandbox) to isolate  Claude code read.write,bash calls int a sandbox.
 
 This will work using Claude hooks.
-The hooks itself will be implemented in bash for fast execution. Some complex hooks will have that bash call typescript for deeper MSB SDK integration.
+We favor using the MSB SDK and NOT use bash scripts.
 
 We can expect nodejs , msb and jq to be installed to make the plugin work.
 We test this as part of the plugin, not as part of the project.
@@ -66,3 +66,5 @@ Before you commit always run the tests, unless specifically told so
 
 Code/Script/Test Files should be max 300 lines long . refactor to make files focused
 Make filenames meaniful and consistent
+
+Some test might work for nodejs but might fail if bun is installed.

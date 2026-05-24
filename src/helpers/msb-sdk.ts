@@ -40,7 +40,22 @@ export async function removeSandbox(name: string): Promise<void> {
     const handle = handles.find((h) => h.name === name);
     if (!handle) return;
     if (handle.status === "running" || handle.status === "draining") {
-      await handle.stop();
+      try {
+        // connect() + stopAndWait() ensures the sandbox is fully stopped before remove().
+        // handle.stop() is fire-and-forget; calling remove() immediately after fails.
+        const live = await handle.connect();
+        await live.stopAndWait();
+      } catch {
+        // Sandbox stopped mid-flight or connect failed — try direct stop + poll.
+        try { await handle.stop(); } catch {}
+        for (let i = 0; i < 10; i++) {
+          await new Promise((r) => setTimeout(r, 300));
+          try {
+            const h2 = await Sandbox.get(name);
+            if (h2.status !== "running" && h2.status !== "draining") break;
+          } catch { break; }
+        }
+      }
     }
     await handle.remove();
   } catch {

@@ -3,7 +3,6 @@ bun --compile
 
   The better Bun option: bun build --compile bundles the hook into a single native executable. Startup is ~1ms, no runtime dependency
   needed at all — the binary is self-contained. That's closer to the SEA approach but much more mature today.
-
 ====
 readme / design decisions / install
 ====
@@ -79,3 +78,6 @@ enable/disable it
 - disk memory , cpu
 ===
 extra volumes mount ?
+
+====
+sandbox connect limit ?

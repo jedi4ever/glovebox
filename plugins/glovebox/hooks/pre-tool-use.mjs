@@ -80,7 +80,8 @@ async function handleDrift(driftName, stateDir, createPayload) {
   }
 
   const recreateScript = join(pluginRoot, 'scripts/recreate-sandbox.mjs');
-  const r = spawnSync(process.execPath, [recreateScript], {
+  // Use node explicitly: bun runs SDK cleanup on exit even with process.exit(0).
+  const r = spawnSync('node', [recreateScript], {
     input: JSON.stringify(createPayload),
     encoding: 'utf8',
     stdio: ['pipe', 'pipe', 'pipe'],

@@ -130,20 +130,29 @@ export async function sandboxEnsureRunning(name, projectDir, logFile, payload) {
     if (storedFp && storedFp !== currentFp) return { drift: name };
     if (process.env.GLOVEBOX_FAKE_CREATE) {
       writeFileSync(`/tmp/fake-msb-${name}.state`, 'Running\n');
-    } else if (Sandbox) {
+      return { drift: '', restarted: true };
+    }
+    if (Sandbox) {
       try {
         const h = await Sandbox.get(name);
         await h.startDetached();
-      } catch { /* best-effort */ }
+        return { drift: '', restarted: true };
+      } catch {
+        // startDetached failed (e.g. mount path no longer exists) — remove
+        // the stale sandbox and fall through to recreate it from scratch.
+        try { await Sandbox.remove(name); } catch { /* best-effort */ }
+      }
     }
-    return { drift: '', restarted: true };
+    // Fall through to "not found" create path below.
   }
 
   // Not found — create via sub-script (SDK create path, handles all config flags).
+  // Use node explicitly (not process.execPath): bun runs SDK cleanup on exit
+  // even with process.exit(0), which would stop the sandbox before we can use it.
   const createScript = join(pluginRoot, 'scripts/create-sandbox.mjs');
   const input = JSON.stringify(payload);
   mkdirSync(dirname(logFile), { recursive: true });
-  const r = spawnSync(process.execPath, [createScript], {
+  const r = spawnSync('node', [createScript], {
     input,
     encoding: 'utf8',
     stdio: ['pipe', 'pipe', 'pipe'],
