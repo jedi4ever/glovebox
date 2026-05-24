@@ -16,10 +16,10 @@ describe.concurrent("edit sandboxing", () => {
     try {
       const result = await session.run(
         "Do these 3 steps in order, using separate tool calls:\n" +
-        "1. Run a bash command: `echo original > ./cc-msb-edit-probe-proj.txt`\n" +
-        "2. Use the Edit tool on ./cc-msb-edit-probe-proj.txt to replace 'original' with 'edited'.\n" +
-        "3. Run a bash command: `cat ./cc-msb-edit-probe-proj.txt` and report the exact output.\n" +
-        "Clean up at the end with: `rm -f ./cc-msb-edit-probe-proj.txt`."
+        "1. Run a bash command: `echo original > ./glovebox-edit-probe-proj.txt`\n" +
+        "2. Use the Edit tool on ./glovebox-edit-probe-proj.txt to replace 'original' with 'edited'.\n" +
+        "3. Run a bash command: `cat ./glovebox-edit-probe-proj.txt` and report the exact output.\n" +
+        "Clean up at the end with: `rm -f ./glovebox-edit-probe-proj.txt`."
       );
 
       expect(result.exitCode).toBe(0);
@@ -34,10 +34,10 @@ describe.concurrent("edit sandboxing", () => {
     try {
       const result = await session.run(
         "Do these 3 steps in order, using separate tool calls:\n" +
-        "1. Run a bash command: `echo original-vm-content > /tmp/cc-msb-edit-vm-only.txt`\n" +
-        "2. Use the Edit tool on /tmp/cc-msb-edit-vm-only.txt to replace 'original-vm-content' with 'edited-vm-content'. " +
+        "1. Run a bash command: `echo original-vm-content > /tmp/glovebox-edit-vm-only.txt`\n" +
+        "2. Use the Edit tool on /tmp/glovebox-edit-vm-only.txt to replace 'original-vm-content' with 'edited-vm-content'. " +
         "If it fails, quote the exact error message verbatim and continue.\n" +
-        "3. Run a bash command: `cat /tmp/cc-msb-edit-vm-only.txt` and report the exact output."
+        "3. Run a bash command: `cat /tmp/glovebox-edit-vm-only.txt` and report the exact output."
       );
 
       expect(result.exitCode).toBe(0);
@@ -59,9 +59,9 @@ describe.concurrent("edit sandboxing", () => {
     try {
       const result = await session.run(
         "Run these 3 steps in order:\n" +
-        "1. Create /tmp/cc-msb-hint-probe.txt containing exactly 'initial-value'.\n" +
+        "1. Create /tmp/glovebox-hint-probe.txt containing exactly 'initial-value'.\n" +
         "2. Change the file's contents to 'final-value'.\n" +
-        "3. Run a bash command to cat /tmp/cc-msb-hint-probe.txt and report the exact output."
+        "3. Run a bash command to cat /tmp/glovebox-hint-probe.txt and report the exact output."
       );
 
       expect(result.exitCode).toBe(0);

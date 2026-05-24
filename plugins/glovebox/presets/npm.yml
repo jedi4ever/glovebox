@@ -1,0 +1,13 @@
+# Preset: npm — pin the network allowlist to the hosts npm/yarn/pnpm need
+# at install time, including registries and the Node.js binary CDN used
+# by node-pre-gyp and similar postinstall downloaders.
+#
+# Note: packages that download pre-built binaries from GitHub releases
+# (electron, esbuild, etc.) also need the `github` preset composed in:
+#   presets: [npm, github]
+#
+# Activate via `.glovebox.yml`:
+#   presets: [npm]
+
+defaults:
+  network: "registry.npmjs.org,registry.yarnpkg.com,nodejs.org,dl.bintray.com"

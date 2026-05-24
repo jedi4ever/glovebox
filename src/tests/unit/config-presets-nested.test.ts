@@ -8,12 +8,12 @@ import {
 } from "node:fs";
 import { tmpdir } from "node:os";
 
-const PLUGIN_ROOT = fileURLToPath(new URL("../../../plugins/cc-msb", import.meta.url));
+const PLUGIN_ROOT = fileURLToPath(new URL("../../../plugins/glovebox", import.meta.url));
 const FAKE_MSB_DIR = fileURLToPath(new URL("../fixtures/fake-msb", import.meta.url));
 const PRE_HOOK = join(PLUGIN_ROOT, "hooks/pre-tool-use.mjs");
 
 const SESSION_ID = "unit-pres-nst-001";
-const SANDBOX_NAME = `cc-msb-${SESSION_ID.slice(0, 16)}`;
+const SANDBOX_NAME = `glovebox-${SESSION_ID.slice(0, 16)}`;
 
 function bashEvent() {
   return { tool_name: "Bash", session_id: SESSION_ID, tool_input: { command: "echo hi" } };
@@ -36,8 +36,8 @@ function runHook(projectDir: string, extraEnv: Record<string, string> = {}) {
       PATH: `${FAKE_MSB_DIR}:${process.env["PATH"]}`,
       CLAUDE_PLUGIN_ROOT: PLUGIN_ROOT,
       CLAUDE_PROJECT_DIR: projectDir,
-      CC_MSB_FAKE_CREATE: "1",
-      CC_MSB_MAIN_SCOPE: "session",
+      GLOVEBOX_FAKE_CREATE: "1",
+      GLOVEBOX_MAIN_SCOPE: "session",
       ...extraEnv,
     },
   });
@@ -54,22 +54,22 @@ beforeEach(() => cleanupFakeMsbFiles());
 afterEach(() => cleanupFakeMsbFiles());
 
 function makeProject(yaml: string): string {
-  const dir = mkdtempSync(join(tmpdir(), "cc-msb-pnst-"));
-  writeFileSync(join(dir, ".cc-msb.yml"), yaml);
+  const dir = mkdtempSync(join(tmpdir(), "glovebox-pnst-"));
+  writeFileSync(join(dir, ".glovebox.yml"), yaml);
   return dir;
 }
 
 function makeUserPresetsDir(): { dir: string; env: Record<string, string> } {
-  const dir = mkdtempSync(join(tmpdir(), "cc-msb-pnst-up-"));
+  const dir = mkdtempSync(join(tmpdir(), "glovebox-pnst-up-"));
   mkdirSync(dir, { recursive: true });
-  return { dir, env: { CC_MSB_PRESETS_DIR: dir } };
+  return { dir, env: { GLOVEBOX_PRESETS_DIR: dir } };
 }
 
 describe("config — presets: network hosts", () => {
   it("github preset sets the standard GitHub network hosts", () => {
     const dir = makeProject("presets: [github]\n");
     try {
-      runHook(dir, { CC_MSB_MAIN_GIT_TOKEN_AUTODETECT: "" });
+      runHook(dir, { GLOVEBOX_MAIN_GIT_TOKEN_AUTODETECT: "" });
       const cfg = readCreateConfig();
       expect(cfg?.network).toContain("github.com");
       expect(cfg?.network).toContain("api.github.com");
@@ -83,7 +83,7 @@ describe("config — presets: network hosts", () => {
   it("npm + github presets union their network hosts", () => {
     const dir = makeProject("presets: [npm, github]\n");
     try {
-      runHook(dir, { CC_MSB_MAIN_GIT_TOKEN_AUTODETECT: "" });
+      runHook(dir, { GLOVEBOX_MAIN_GIT_TOKEN_AUTODETECT: "" });
       const cfg = readCreateConfig();
       expect(cfg?.network).toContain("registry.npmjs.org");
       expect(cfg?.network).toContain("nodejs.org");
@@ -97,7 +97,7 @@ describe("config — presets: network hosts", () => {
   it("dev preset transitively includes npm and github hosts", () => {
     const dir = makeProject("presets: [dev]\n");
     try {
-      runHook(dir, { CC_MSB_MAIN_GIT_TOKEN_AUTODETECT: "" });
+      runHook(dir, { GLOVEBOX_MAIN_GIT_TOKEN_AUTODETECT: "" });
       const cfg = readCreateConfig();
       expect(cfg?.image).toBe("localhost:5123/devbox");
       expect(cfg?.network).toContain("registry.npmjs.org");

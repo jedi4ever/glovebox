@@ -3,12 +3,12 @@ import { setupScenario } from "../helpers/scenario.js";
 
 describe.concurrent("config — pass_env integration", () => {
   it("default (no config): host env vars do not leak into the sandbox", async () => {
-    const { session, teardown } = await setupScenario("cc-msb-passenv-default-", {
-      env: { CC_MSB_LEAK_PROBE: "should-not-be-visible" },
+    const { session, teardown } = await setupScenario("glovebox-passenv-default-", {
+      env: { GLOVEBOX_LEAK_PROBE: "should-not-be-visible" },
     });
     try {
       const result = await session.run(
-        "Run a bash command that prints exactly: `value=[${CC_MSB_LEAK_PROBE:-unset}]`. " +
+        "Run a bash command that prints exactly: `value=[${GLOVEBOX_LEAK_PROBE:-unset}]`. " +
         "Report the exact output."
       );
       expect(result.exitCode).toBe(0);
@@ -20,7 +20,7 @@ describe.concurrent("config — pass_env integration", () => {
   });
 
   it("main.pass_env list: only listed env vars are visible in the sandbox", async () => {
-    const { session, teardown } = await setupScenario("cc-msb-passenv-list-", {
+    const { session, teardown } = await setupScenario("glovebox-passenv-list-", {
       fixture: "config-pass-env-list",
       env: {
         TEST_PASS_ENV_VAR: "passed-through",
@@ -45,7 +45,7 @@ describe.concurrent("config — pass_env integration", () => {
   });
 
   it("main.pass_env: all — every host env var is visible in the sandbox", async () => {
-    const { session, teardown } = await setupScenario("cc-msb-passenv-all-", {
+    const { session, teardown } = await setupScenario("glovebox-passenv-all-", {
       fixture: "config-pass-env-all",
       env: { ARBITRARY_HOST_VAR: "arbitrary-value" },
     });

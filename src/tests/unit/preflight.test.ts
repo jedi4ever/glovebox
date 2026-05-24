@@ -3,7 +3,7 @@ import { spawnSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
 import { join } from "node:path";
 
-const PLUGIN_ROOT = fileURLToPath(new URL("../../../plugins/cc-msb", import.meta.url));
+const PLUGIN_ROOT = fileURLToPath(new URL("../../../plugins/glovebox", import.meta.url));
 const FAKE_BUN_DIR    = fileURLToPath(new URL("../fixtures/fake-bun", import.meta.url));
 const FAKE_NO_BUN_DIR = fileURLToPath(new URL("../fixtures/fake-no-bun", import.meta.url));
 const PREFLIGHT = join(PLUGIN_ROOT, "scripts/preflight.mjs");

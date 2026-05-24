@@ -1,15 +1,15 @@
 {
-  "name": "cc-msb",
+  "name": "glovebox",
   "version": "0.1.0",
-  "description": "Integration tests for the cc-msb Claude Code plugin",
+  "description": "Integration tests for the glovebox Claude Code plugin",
   "type": "module",
   "scripts": {
     "test": "vitest run",
     "test:watch": "vitest",
     "test:coverage": "vitest run --coverage",
     "typecheck": "tsc --noEmit",
-    "validate": "claude plugin validate plugins/cc-msb",
-    "prepare": "chmod +x plugins/cc-msb/hooks/*.sh plugins/cc-msb/scripts/*.sh"
+    "validate": "claude plugin validate plugins/glovebox",
+    "prepare": "chmod +x plugins/glovebox/scripts/*.sh"
   },
   "devDependencies": {
     "@types/node": "^22.0.0",

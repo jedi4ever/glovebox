@@ -19,7 +19,7 @@ import { setupScenario } from "../helpers/scenario.js";
 
 describe.concurrent("tls interception integration", () => {
   it("curl https:// still succeeds through the MITM proxy", async () => {
-    const { session, teardown } = await setupScenario("cc-msb-tls-curl-", {
+    const { session, teardown } = await setupScenario("glovebox-tls-curl-", {
       fixture: "config-tls",
     });
     try {
@@ -34,7 +34,7 @@ describe.concurrent("tls interception integration", () => {
   });
 
   it("server cert issuer becomes 'microsandbox CA' — proving the MITM is in-path", async () => {
-    const { session, teardown } = await setupScenario("cc-msb-tls-issuer-", {
+    const { session, teardown } = await setupScenario("glovebox-tls-issuer-", {
       fixture: "config-tls",
     });
     try {

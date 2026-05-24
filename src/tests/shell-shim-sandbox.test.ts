@@ -7,10 +7,10 @@ import { fileURLToPath } from "node:url";
 import { spawnSync, execSync } from "node:child_process";
 import { spawnTUI, type TUI } from "../helpers/tui.js";
 
-const PLUGIN_ROOT = fileURLToPath(new URL("../../plugins/cc-msb", import.meta.url));
-const SHIM = join(PLUGIN_ROOT, "skills/shell/cc-msb-bash.mjs");
+const PLUGIN_ROOT = fileURLToPath(new URL("../../plugins/glovebox", import.meta.url));
+const SHIM = join(PLUGIN_ROOT, "skills/shell/glovebox-bash.mjs");
 
-const PROBE_SANDBOX = "cc-msb-shim-tui-probe";
+const PROBE_SANDBOX = "glovebox-shim-tui-probe";
 const CLAUDE_BIN = execSync("which claude", { encoding: "utf8" }).trim();
 
 beforeAll(() => {
@@ -31,7 +31,7 @@ interface Scenario {
   teardown: () => Promise<void>;
 }
 
-// Boots an interactive `claude` TUI session backed by a real cc-msb sandbox.
+// Boots an interactive `claude` TUI session backed by a real glovebox sandbox.
 // Pre-populates everything CC asks on first run (theme, onboarding, API-key
 // approval, workspace trust) so the session lands directly on the main input
 // prompt. settings.local.json's env block is whatever the caller passes —
@@ -40,7 +40,7 @@ async function setupScenario(settingsEnv: Record<string, string>): Promise<Scena
   const apiKey = process.env["ANTHROPIC_API_KEY"];
   if (!apiKey) throw new Error("ANTHROPIC_API_KEY must be set");
 
-  // Fresh probe sandbox each test (so the shim's "newest cc-msb-* sandbox"
+  // Fresh probe sandbox each test (so the shim's "newest glovebox-* sandbox"
   // selector has a current target).
   spawnSync("msb", ["stop", PROBE_SANDBOX, "--quiet"], { encoding: "utf8" });
   spawnSync("msb", ["remove", PROBE_SANDBOX, "--quiet"], { encoding: "utf8" });
@@ -49,8 +49,8 @@ async function setupScenario(settingsEnv: Record<string, string>): Promise<Scena
   });
   if (create.status !== 0) throw new Error("msb create failed: " + create.stderr);
 
-  const projectDir = await realpath(await mkdtemp(join(tmpdir(), "cc-msb-shim-tui-")));
-  const configDir = await realpath(await mkdtemp(join(tmpdir(), "cc-msb-shim-cfg-")));
+  const projectDir = await realpath(await mkdtemp(join(tmpdir(), "glovebox-shim-tui-")));
+  const configDir = await realpath(await mkdtemp(join(tmpdir(), "glovebox-shim-cfg-")));
   const traceLog = join(projectDir, "shim-trace.log");
 
   await mkdir(join(projectDir, ".claude"), { recursive: true });
@@ -108,13 +108,13 @@ async function setupScenario(settingsEnv: Record<string, string>): Promise<Scena
   return { tui, projectDir, configDir, traceLog, teardown };
 }
 
-describe("cc-msb-bash.mjs — interactive TUI", () => {
+describe("glovebox-bash.mjs — interactive TUI", () => {
   it("with CLAUDE_CODE_SHELL=shim: `!uname -srm` reports Linux (sandbox)", async () => {
     const s = await setupScenario({ CLAUDE_CODE_SHELL: SHIM });
     // Refresh settings.local.json now that we know the trace path.
     await writeFile(
       join(s.projectDir, ".claude", "settings.local.json"),
-      JSON.stringify({ env: { CLAUDE_CODE_SHELL: SHIM, CC_MSB_SHELL_TRACE_LOG: s.traceLog } })
+      JSON.stringify({ env: { CLAUDE_CODE_SHELL: SHIM, GLOVEBOX_SHELL_TRACE_LOG: s.traceLog } })
     );
 
     try {

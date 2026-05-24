@@ -7,7 +7,7 @@ import { setupScenario } from "../helpers/scenario.js";
 
 describe.concurrent("config — scope=host integration", () => {
   it("main scope=host: bash sees host filesystem (e.g. /Users exists)", async () => {
-    const { session, teardown } = await setupScenario("cc-msb-scope-host-main-", {
+    const { session, teardown } = await setupScenario("glovebox-scope-host-main-", {
       fixture: "config-scope-host-main",
     });
     try {
@@ -24,7 +24,7 @@ describe.concurrent("config — scope=host integration", () => {
   });
 
   it("main scope=host: bash uname reports the host OS, not Linux", async () => {
-    const { session, teardown } = await setupScenario("cc-msb-scope-host-uname-", {
+    const { session, teardown } = await setupScenario("glovebox-scope-host-uname-", {
       fixture: "config-scope-host-main",
     });
     try {
@@ -41,7 +41,7 @@ describe.concurrent("config — scope=host integration", () => {
   });
 
   it("agent scope=host: the test-agent runs on host while main stays sandboxed", async () => {
-    const { session, teardown } = await setupScenario("cc-msb-scope-host-agent-", {
+    const { session, teardown } = await setupScenario("glovebox-scope-host-agent-", {
       fixture: "config-scope-host-agent",
     });
     try {

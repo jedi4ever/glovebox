@@ -15,12 +15,12 @@ describe("config — git autodetect (host fallbacks)", () => {
   // Each test uses a temp GIT_CONFIG_GLOBAL and a fake `gh` binary.
   // setup.ts globally disables both autodetect flags; this block re-enables them per-test.
   const AUTODETECT_ON = {
-    CC_MSB_MAIN_GIT_USER_AUTODETECT: "true",
-    CC_MSB_MAIN_GIT_TOKEN_AUTODETECT: "true",
+    GLOVEBOX_MAIN_GIT_USER_AUTODETECT: "true",
+    GLOVEBOX_MAIN_GIT_TOKEN_AUTODETECT: "true",
   };
 
   function makeHostGitconfig(name?: string, email?: string): string {
-    const f = mkdtempSync(join(tmpdir(), "cc-msb-host-gc-"));
+    const f = mkdtempSync(join(tmpdir(), "glovebox-host-gc-"));
     const lines = ["[user]"];
     if (name) lines.push(`  name = ${name}`);
     if (email) lines.push(`  email = ${email}`);
@@ -29,7 +29,7 @@ describe("config — git autodetect (host fallbacks)", () => {
   }
 
   function makeFakeGh(token: string | null): string {
-    const dir = mkdtempSync(join(tmpdir(), "cc-msb-fake-gh-"));
+    const dir = mkdtempSync(join(tmpdir(), "glovebox-fake-gh-"));
     const script = token == null
       ? "#!/usr/bin/env bash\nexit 1\n"
       : `#!/usr/bin/env bash\n[[ "$1" == "auth" && "$2" == "token" ]] && echo "${token}"\n`;
@@ -39,7 +39,7 @@ describe("config — git autodetect (host fallbacks)", () => {
   }
 
   function emptyConfigDir(): string {
-    return mkdtempSync(join(tmpdir(), "cc-msb-empty-cfg-"));
+    return mkdtempSync(join(tmpdir(), "glovebox-empty-cfg-"));
   }
 
   it("default: git_user_autodetect=true picks up host's user.name + user.email", () => {
@@ -58,8 +58,8 @@ describe("config — git autodetect (host fallbacks)", () => {
 
   it("explicit git_user_name config wins over autodetected host value", () => {
     const gitConf = makeHostGitconfig("Should Not Win", "should-not-win@x");
-    const dir = mkdtempSync(join(tmpdir(), "cc-msb-git-auto-"));
-    writeFileSync(join(dir, ".cc-msb.yml"), "main:\n  git_user_name: \"Config Wins\"\n");
+    const dir = mkdtempSync(join(tmpdir(), "glovebox-git-auto-"));
+    writeFileSync(join(dir, ".glovebox.yml"), "main:\n  git_user_name: \"Config Wins\"\n");
     try {
       runHook(dir, { ...AUTODETECT_ON, GIT_CONFIG_GLOBAL: gitConf });
       const cfg = readCreateConfig();
@@ -73,11 +73,11 @@ describe("config — git autodetect (host fallbacks)", () => {
 
   it("git_user_autodetect: false leaves the fields empty even if host has them", () => {
     const gitConf = makeHostGitconfig("Should Not Appear", "no@x");
-    const dir = mkdtempSync(join(tmpdir(), "cc-msb-git-auto-off-"));
-    writeFileSync(join(dir, ".cc-msb.yml"), "main:\n  git_user_autodetect: false\n");
+    const dir = mkdtempSync(join(tmpdir(), "glovebox-git-auto-off-"));
+    writeFileSync(join(dir, ".glovebox.yml"), "main:\n  git_user_autodetect: false\n");
     try {
       runHook(dir, {
-        CC_MSB_MAIN_GIT_USER_AUTODETECT: "",
+        GLOVEBOX_MAIN_GIT_USER_AUTODETECT: "",
         GIT_CONFIG_GLOBAL: gitConf,
       });
       const cfg = readCreateConfig();
@@ -107,8 +107,8 @@ describe("config — git autodetect (host fallbacks)", () => {
 
   it("explicit github_token config wins over `gh auth token`", () => {
     const ghDir = makeFakeGh("ghp_should_not_win");
-    const dir = mkdtempSync(join(tmpdir(), "cc-msb-token-auto-"));
-    writeFileSync(join(dir, ".cc-msb.yml"), "main:\n  github_token: ghp_config_wins\n");
+    const dir = mkdtempSync(join(tmpdir(), "glovebox-token-auto-"));
+    writeFileSync(join(dir, ".glovebox.yml"), "main:\n  github_token: ghp_config_wins\n");
     try {
       runHook(dir, {
         ...AUTODETECT_ON,
@@ -125,11 +125,11 @@ describe("config — git autodetect (host fallbacks)", () => {
 
   it("git_token_autodetect: false skips the `gh auth token` fallback", () => {
     const ghDir = makeFakeGh("ghp_should_not_appear");
-    const dir = mkdtempSync(join(tmpdir(), "cc-msb-token-auto-off-"));
-    writeFileSync(join(dir, ".cc-msb.yml"), "main:\n  git_token_autodetect: false\n");
+    const dir = mkdtempSync(join(tmpdir(), "glovebox-token-auto-off-"));
+    writeFileSync(join(dir, ".glovebox.yml"), "main:\n  git_token_autodetect: false\n");
     try {
       runHook(dir, {
-        CC_MSB_MAIN_GIT_TOKEN_AUTODETECT: "",
+        GLOVEBOX_MAIN_GIT_TOKEN_AUTODETECT: "",
         PATH: `${ghDir}:${FAKE_MSB_DIR}:${process.env["PATH"]}`,
       });
       const cfg = readCreateConfig();

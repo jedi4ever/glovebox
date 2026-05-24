@@ -1,0 +1,12 @@
+main:
+  sandbox_image: buildpack-deps:noble
+  secrets:
+    # Allowlist a host the test never actually calls — so any attempt
+    # to send this secret over the wire is a violation by definition.
+    - "GLOVEBOX_TEST_TOKEN=$GLOVEBOX_TEST_TOKEN_HOST@allowed.example"
+  on_secret_violation: block-and-log
+  tls_intercept: true
+  trust_host_cas: true
+  network:
+    - httpbin.org
+  pass_env: none

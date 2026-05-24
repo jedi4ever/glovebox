@@ -5,16 +5,16 @@ import { join } from "node:path";
 import { rmSync, readFileSync, existsSync, readdirSync, mkdtempSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 
-const PLUGIN_ROOT = fileURLToPath(new URL("../../../plugins/cc-msb", import.meta.url));
+const PLUGIN_ROOT = fileURLToPath(new URL("../../../plugins/glovebox", import.meta.url));
 const FAKE_MSB_DIR = fileURLToPath(new URL("../fixtures/fake-msb", import.meta.url));
 const PRE_HOOK = join(PLUGIN_ROOT, "hooks/pre-tool-use.mjs");
 
 const SESSION_ID = "unit-ecosystem-001";
-const SANDBOX_NAME = `cc-msb-${SESSION_ID.slice(0, 16)}`;
+const SANDBOX_NAME = `glovebox-${SESSION_ID.slice(0, 16)}`;
 
 function makeProject(yaml: string): string {
-  const dir = mkdtempSync(join(tmpdir(), "cc-msb-eco-"));
-  writeFileSync(join(dir, ".cc-msb.yml"), yaml);
+  const dir = mkdtempSync(join(tmpdir(), "glovebox-eco-"));
+  writeFileSync(join(dir, ".glovebox.yml"), yaml);
   return dir;
 }
 
@@ -27,8 +27,8 @@ function runHook(projectDir: string) {
       PATH: `${FAKE_MSB_DIR}:${process.env["PATH"]}`,
       CLAUDE_PLUGIN_ROOT: PLUGIN_ROOT,
       CLAUDE_PROJECT_DIR: projectDir,
-      CC_MSB_FAKE_CREATE: "1",
-      CC_MSB_MAIN_SCOPE: "session",
+      GLOVEBOX_FAKE_CREATE: "1",
+      GLOVEBOX_MAIN_SCOPE: "session",
     },
   });
 }

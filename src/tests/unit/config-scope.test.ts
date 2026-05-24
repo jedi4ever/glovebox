@@ -6,11 +6,11 @@ import { createConfigTestContext, dirSandboxName } from "../../helpers/config-ho
 const { runHook, readCreateArgs, SANDBOX_NAME, PER_AGENT_SANDBOX, findEphemeralCreateArgs, cleanupFakeMsbFiles } =
   createConfigTestContext("unit-scp-spe-001");
 
-const SCOPE_NAMED_PREFIXES = ["cc-msb-test-named", "cc-msb-env-named", "cc-msb-env-agent-named"];
+const SCOPE_NAMED_PREFIXES = ["glovebox-test-named", "glovebox-env-named", "glovebox-env-agent-named"];
 function cleanupScopeNamedFiles() {
   readdirSync("/tmp")
     .filter((f) => (f.endsWith(".state") || f.endsWith(".create-args")) &&
-      (f.startsWith("fake-msb-cc-msb-dir-") ||
+      (f.startsWith("fake-msb-glovebox-dir-") ||
        SCOPE_NAMED_PREFIXES.some((p) => f.startsWith(`fake-msb-${p}`))))
     .forEach((f) => { try { rmSync(`/tmp/${f}`); } catch {} });
 }
@@ -60,14 +60,14 @@ describe("config — scope", () => {
     expect(first).not.toBe(second);
   });
 
-  it("CC_MSB_AGENT_SCOPE_<NAME> env var overrides config file for that agent", () => {
-    runHook(fixturePath("simple-read"), { CC_MSB_AGENT_SCOPE_TEST_AGENT: "per-agent" }, "test-agent");
+  it("GLOVEBOX_AGENT_SCOPE_<NAME> env var overrides config file for that agent", () => {
+    runHook(fixturePath("simple-read"), { GLOVEBOX_AGENT_SCOPE_TEST_AGENT: "per-agent" }, "test-agent");
     expect(readCreateArgs(PER_AGENT_SANDBOX)).toContain("ubuntu");
     expect(readCreateArgs(SANDBOX_NAME)).toHaveLength(0);
   });
 
-  it("CC_MSB_MAIN_SCOPE env var sets scope for the main session", () => {
-    runHook(fixturePath("simple-read"), { CC_MSB_MAIN_SCOPE: "per-agent" });
+  it("GLOVEBOX_MAIN_SCOPE env var sets scope for the main session", () => {
+    runHook(fixturePath("simple-read"), { GLOVEBOX_MAIN_SCOPE: "per-agent" });
     expect(readCreateArgs(SANDBOX_NAME)).toContain("ubuntu");
   });
 });
@@ -83,8 +83,8 @@ describe("config — main section", () => {
     expect(readCreateArgs(SANDBOX_NAME)[0]).toBe("ubuntu");
   });
 
-  it("CC_MSB_SANDBOX_IMAGE env var overrides main.sandbox_image", () => {
-    runHook(fixturePath("config-main-image"), { CC_MSB_SANDBOX_IMAGE: "alpine" });
+  it("GLOVEBOX_SANDBOX_IMAGE env var overrides main.sandbox_image", () => {
+    runHook(fixturePath("config-main-image"), { GLOVEBOX_SANDBOX_IMAGE: "alpine" });
     expect(readCreateArgs()[0]).toBe("alpine");
   });
 });
@@ -101,8 +101,8 @@ describe("config — per-agent scope override", () => {
     expect(readCreateArgs(SANDBOX_NAME)).toContain("ubuntu");
   });
 
-  it("CC_MSB_AGENT_SCOPE_<NAME> env var overrides agent config file scope", () => {
-    runHook(fixturePath("config-scope-session"), { CC_MSB_AGENT_SCOPE_TEST_AGENT: "per-agent" }, "test-agent");
+  it("GLOVEBOX_AGENT_SCOPE_<NAME> env var overrides agent config file scope", () => {
+    runHook(fixturePath("config-scope-session"), { GLOVEBOX_AGENT_SCOPE_TEST_AGENT: "per-agent" }, "test-agent");
     expect(readCreateArgs(PER_AGENT_SANDBOX)).toContain("ubuntu");
     expect(readCreateArgs(SANDBOX_NAME)).toHaveLength(0);
   });
@@ -114,8 +114,8 @@ describe("config — per-agent scope override", () => {
 });
 
 describe("config — scope: named", () => {
-  const NAMED_SANDBOX = "cc-msb-test-named";
-  const NAMED_AGENT_SANDBOX = "cc-msb-test-named-agent";
+  const NAMED_SANDBOX = "glovebox-test-named";
+  const NAMED_AGENT_SANDBOX = "glovebox-test-named-agent";
 
   it("uses the configured sandbox_name as the sandbox", () => {
     runHook(fixturePath("config-named-sandbox"));
@@ -134,29 +134,29 @@ describe("config — scope: named", () => {
   it("agent uses its own named sandbox from agent_sandbox_name_<agent>", () => {
     runHook(fixturePath("config-named-agent-sandbox"), {}, "test-agent");
     expect(readCreateArgs(NAMED_AGENT_SANDBOX)).toContain("ubuntu");
-    expect(readCreateArgs("cc-msb-test-named-main")).toHaveLength(0);
+    expect(readCreateArgs("glovebox-test-named-main")).toHaveLength(0);
   });
 
   it("main session uses sandbox_name when no agent_type", () => {
     runHook(fixturePath("config-named-agent-sandbox"));
-    expect(readCreateArgs("cc-msb-test-named-main")).toContain("ubuntu");
+    expect(readCreateArgs("glovebox-test-named-main")).toContain("ubuntu");
     expect(readCreateArgs(NAMED_AGENT_SANDBOX)).toHaveLength(0);
   });
 
-  it("env var CC_MSB_SANDBOX_NAME overrides config file", () => {
-    runHook(fixturePath("simple-read"), { CC_MSB_MAIN_SCOPE: "named", CC_MSB_SANDBOX_NAME: "cc-msb-env-named" });
-    expect(readCreateArgs("cc-msb-env-named")).toContain("ubuntu");
+  it("env var GLOVEBOX_SANDBOX_NAME overrides config file", () => {
+    runHook(fixturePath("simple-read"), { GLOVEBOX_MAIN_SCOPE: "named", GLOVEBOX_SANDBOX_NAME: "glovebox-env-named" });
+    expect(readCreateArgs("glovebox-env-named")).toContain("ubuntu");
     expect(readCreateArgs(SANDBOX_NAME)).toHaveLength(0);
   });
 
-  it("env var CC_MSB_AGENT_SANDBOX_NAME_<NAME> overrides config for that agent", () => {
-    runHook(fixturePath("config-named-agent-sandbox"), { CC_MSB_AGENT_SANDBOX_NAME_TEST_AGENT: "cc-msb-env-agent-named" }, "test-agent");
-    expect(readCreateArgs("cc-msb-env-agent-named")).toContain("ubuntu");
+  it("env var GLOVEBOX_AGENT_SANDBOX_NAME_<NAME> overrides config for that agent", () => {
+    runHook(fixturePath("config-named-agent-sandbox"), { GLOVEBOX_AGENT_SANDBOX_NAME_TEST_AGENT: "glovebox-env-agent-named" }, "test-agent");
+    expect(readCreateArgs("glovebox-env-agent-named")).toContain("ubuntu");
     expect(readCreateArgs(NAMED_AGENT_SANDBOX)).toHaveLength(0);
   });
 
   it("named scope with no sandbox_name falls back to the session sandbox", () => {
-    runHook(fixturePath("simple-read"), { CC_MSB_MAIN_SCOPE: "named" });
+    runHook(fixturePath("simple-read"), { GLOVEBOX_MAIN_SCOPE: "named" });
     expect(readCreateArgs(SANDBOX_NAME)).toContain("ubuntu");
   });
 });
@@ -184,9 +184,9 @@ describe("config — scope: directory", () => {
     expect(dirSandboxName(dirA)).not.toBe(dirSandboxName(dirB));
   });
 
-  it("CC_MSB_MAIN_SCOPE=directory uses a directory-derived sandbox", () => {
+  it("GLOVEBOX_MAIN_SCOPE=directory uses a directory-derived sandbox", () => {
     const dir = fixturePath("simple-read");
-    runHook(dir, { CC_MSB_MAIN_SCOPE: "directory" });
+    runHook(dir, { GLOVEBOX_MAIN_SCOPE: "directory" });
     expect(readCreateArgs(dirSandboxName(dir))).toContain("ubuntu");
     expect(readCreateArgs(SANDBOX_NAME)).toHaveLength(0);
   });

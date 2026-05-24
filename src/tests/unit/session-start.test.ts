@@ -5,12 +5,12 @@ import { join } from "node:path";
 import { readdirSync, rmSync } from "node:fs";
 import { fixturePath } from "../../helpers/fixtures.js";
 
-const PLUGIN_ROOT = fileURLToPath(new URL("../../../plugins/cc-msb", import.meta.url));
+const PLUGIN_ROOT = fileURLToPath(new URL("../../../plugins/glovebox", import.meta.url));
 const FAKE_MSB_DIR = fileURLToPath(new URL("../fixtures/fake-msb", import.meta.url));
 const HOOK = join(PLUGIN_ROOT, "scripts/session-start.mjs");
 
 const SESSION_ID = "unit-session-start-001";
-const SANDBOX_NAME = `cc-msb-${SESSION_ID.slice(0, 16)}`;
+const SANDBOX_NAME = `glovebox-${SESSION_ID.slice(0, 16)}`;
 
 function runHook(projectDir: string, extraEnv: Record<string, string> = {}) {
   const result = spawnSync("node", [HOOK], {
@@ -21,7 +21,7 @@ function runHook(projectDir: string, extraEnv: Record<string, string> = {}) {
       PATH: `${FAKE_MSB_DIR}:${process.env["PATH"]}`,
       CLAUDE_PLUGIN_ROOT: PLUGIN_ROOT,
       CLAUDE_PROJECT_DIR: projectDir,
-      CC_MSB_FAKE_CREATE: "1",
+      GLOVEBOX_FAKE_CREATE: "1",
       ...extraEnv,
     },
   });
@@ -35,7 +35,7 @@ function runHook(projectDir: string, extraEnv: Record<string, string> = {}) {
 
 function cleanupFakeMsb() {
   readdirSync("/tmp")
-    .filter((f) => f.startsWith("fake-msb-cc-msb-unit-session-start") || f === `fake-msb-${SANDBOX_NAME}.state` || f === `fake-msb-${SANDBOX_NAME}.create-args`)
+    .filter((f) => f.startsWith("fake-msb-glovebox-unit-session-start") || f === `fake-msb-${SANDBOX_NAME}.state` || f === `fake-msb-${SANDBOX_NAME}.create-args`)
     .forEach((f) => { try { rmSync(`/tmp/${f}`); } catch {} });
 }
 
@@ -50,7 +50,7 @@ describe("session-start.sh — SessionStart hook", () => {
     expect(r.json().hookSpecificOutput.hookEventName).toBe("SessionStart");
     expect(ctx).toMatch(/sandbox environment/i);
     expect(ctx).toMatch(/OVERRIDES host/i);
-    expect(ctx).toMatch(/Sandbox name: cc-msb-unit-session-st/);
+    expect(ctx).toMatch(/Sandbox name: glovebox-unit-session-st/);
     expect(ctx).toMatch(/Scope: session/);
     // New fields that override the host's identity-leaking values.
     expect(ctx).toMatch(/User:/);
@@ -66,7 +66,7 @@ describe("session-start.sh — SessionStart hook", () => {
     const ctx = r.json().hookSpecificOutput.additionalContext as string;
     expect(ctx).toMatch(/main scope is .host/i);
     // No sandbox should have been created.
-    const created = readdirSync("/tmp").filter((f) => f.startsWith("fake-msb-cc-msb-unit-session-start"));
+    const created = readdirSync("/tmp").filter((f) => f.startsWith("fake-msb-glovebox-unit-session-start"));
     expect(created).toHaveLength(0);
   });
 

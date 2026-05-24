@@ -31,17 +31,17 @@ describe("config — scope: host", () => {
     expect(readCreateArgs(SANDBOX_NAME)).toContain("ubuntu");
   });
 
-  it("CC_MSB_MAIN_SCOPE=host forces pass-through even without a config file", () => {
-    const r = runHook(fixturePath("simple-read"), { CC_MSB_MAIN_SCOPE: "host" });
+  it("GLOVEBOX_MAIN_SCOPE=host forces pass-through even without a config file", () => {
+    const r = runHook(fixturePath("simple-read"), { GLOVEBOX_MAIN_SCOPE: "host" });
     expect(r.status).toBe(0);
     expect(r.stdout.trim()).toBe("");
     expect(readCreateArgs(SANDBOX_NAME)).toHaveLength(0);
   });
 
-  it("CC_MSB_AGENT_SCOPE_<NAME>=host forces pass-through for that agent", () => {
+  it("GLOVEBOX_AGENT_SCOPE_<NAME>=host forces pass-through for that agent", () => {
     const r = runHook(
       fixturePath("simple-read"),
-      { CC_MSB_AGENT_SCOPE_TEST_AGENT: "host" },
+      { GLOVEBOX_AGENT_SCOPE_TEST_AGENT: "host" },
       "test-agent"
     );
     expect(r.status).toBe(0);
@@ -71,8 +71,8 @@ describe("config — scope: host", () => {
 
 describe("config — YAML block-list syntax", () => {
   function makeLocalConfig(yaml: string): string {
-    const dir = mkdtempSync(join(tmpdir(), "cc-msb-list-"));
-    writeFileSync(join(dir, ".cc-msb.yml"), yaml);
+    const dir = mkdtempSync(join(tmpdir(), "glovebox-list-"));
+    writeFileSync(join(dir, ".glovebox.yml"), yaml);
     return dir;
   }
 

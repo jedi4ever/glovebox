@@ -85,11 +85,11 @@ describe("config — pass_env", () => {
     expect(wrappedCommand(r.stdout)).toMatch(/DEFAULT_VAR=default/);
   });
 
-  it("CC_MSB_MAIN_PASS_ENV overrides main.pass_env in the config file", () => {
+  it("GLOVEBOX_MAIN_PASS_ENV overrides main.pass_env in the config file", () => {
     const r = runHook(fixturePath("config-pass-env-list"), {
       TEST_PASS_ENV_VAR: "from-config",
       OVERRIDE_VAR: "from-env",
-      CC_MSB_MAIN_PASS_ENV: "OVERRIDE_VAR",
+      GLOVEBOX_MAIN_PASS_ENV: "OVERRIDE_VAR",
     });
     expect(r.status).toBe(0);
     const cmd = wrappedCommand(r.stdout);
@@ -97,13 +97,13 @@ describe("config — pass_env", () => {
     expect(cmd).not.toMatch(/TEST_PASS_ENV_VAR/);
   });
 
-  it("CC_MSB_AGENT_PASS_ENV_<NAME> overrides agent config file pass_env", () => {
+  it("GLOVEBOX_AGENT_PASS_ENV_<NAME> overrides agent config file pass_env", () => {
     const r = runHook(
       fixturePath("config-pass-env-agent-override"),
       {
         AGENT_VAR: "from-config",
         ENV_AGENT_VAR: "from-env",
-        CC_MSB_AGENT_PASS_ENV_TEST_AGENT: "ENV_AGENT_VAR",
+        GLOVEBOX_AGENT_PASS_ENV_TEST_AGENT: "ENV_AGENT_VAR",
       },
       "test-agent"
     );
@@ -113,10 +113,10 @@ describe("config — pass_env", () => {
     expect(cmd).not.toMatch(/AGENT_VAR=from-config/);
   });
 
-  it("CC_MSB_MAIN_PASS_ENV=none disables passing even when main.pass_env lists vars", () => {
+  it("GLOVEBOX_MAIN_PASS_ENV=none disables passing even when main.pass_env lists vars", () => {
     const r = runHook(fixturePath("config-pass-env-list"), {
       TEST_PASS_ENV_VAR: "x",
-      CC_MSB_MAIN_PASS_ENV: "none",
+      GLOVEBOX_MAIN_PASS_ENV: "none",
     });
     expect(r.status).toBe(0);
     expect(wrappedCommand(r.stdout)).not.toMatch(/--env\b/);
@@ -158,24 +158,24 @@ describe("config — network", () => {
     expect(readCreateArgs()).toContain("--no-net");
   });
 
-  it("CC_MSB_MAIN_NETWORK overrides config file", () => {
-    runHook(fixturePath("config-network-allowlist"), { CC_MSB_MAIN_NETWORK: "disabled" });
+  it("GLOVEBOX_MAIN_NETWORK overrides config file", () => {
+    runHook(fixturePath("config-network-allowlist"), { GLOVEBOX_MAIN_NETWORK: "disabled" });
     const args = readCreateArgs();
     expect(args).toContain("--no-net");
     expect(args).not.toContain("allow@example.com");
   });
 
-  it("CC_MSB_AGENT_NETWORK_<NAME> overrides agent file config", () => {
+  it("GLOVEBOX_AGENT_NETWORK_<NAME> overrides agent file config", () => {
     runHook(
       fixturePath("config-network-agent-override"),
-      { CC_MSB_AGENT_NETWORK_TEST_AGENT: "disabled" },
+      { GLOVEBOX_AGENT_NETWORK_TEST_AGENT: "disabled" },
       "test-agent"
     );
     expect(readCreateArgs()).toContain("--no-net");
   });
 
-  it("CC_MSB_MAIN_NETWORK=enabled disables network restrictions", () => {
-    runHook(fixturePath("config-network-disabled"), { CC_MSB_MAIN_NETWORK: "enabled" });
+  it("GLOVEBOX_MAIN_NETWORK=enabled disables network restrictions", () => {
+    runHook(fixturePath("config-network-disabled"), { GLOVEBOX_MAIN_NETWORK: "enabled" });
     expect(readCreateArgs()).not.toContain("--no-net");
   });
 });
@@ -214,17 +214,17 @@ describe("config — ports", () => {
     expect(readCreateArgs()).toContain("11111:11111");
   });
 
-  it("CC_MSB_MAIN_PORTS overrides config file", () => {
-    runHook(fixturePath("config-ports-single"), { CC_MSB_MAIN_PORTS: "7777:7777" });
+  it("GLOVEBOX_MAIN_PORTS overrides config file", () => {
+    runHook(fixturePath("config-ports-single"), { GLOVEBOX_MAIN_PORTS: "7777:7777" });
     const args = readCreateArgs();
     expect(args).toContain("7777:7777");
     expect(args).not.toContain("9876:8000");
   });
 
-  it("CC_MSB_AGENT_PORTS_<NAME> overrides agent file config", () => {
+  it("GLOVEBOX_AGENT_PORTS_<NAME> overrides agent file config", () => {
     runHook(
       fixturePath("config-ports-agent-override"),
-      { CC_MSB_AGENT_PORTS_TEST_AGENT: "33333:33333" },
+      { GLOVEBOX_AGENT_PORTS_TEST_AGENT: "33333:33333" },
       "test-agent"
     );
     const args = readCreateArgs();

@@ -32,7 +32,7 @@ describe("preflight — required software check", () => {
   it("warns in session context when msb is not on PATH", async () => {
     session = await createCleanSession({ env: { PATH: pathWithout("msb") } });
     const result = await session.run(
-      "What does cc-msb say about its sandbox status? Just report what you see in context."
+      "What does glovebox say about its sandbox status? Just report what you see in context."
     );
     expect(result.exitCode).toBe(0);
     expect(result.stdout).toMatch(/missing|disabled|WARNING/i);

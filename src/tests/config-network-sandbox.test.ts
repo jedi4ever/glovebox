@@ -10,7 +10,7 @@ const PROBE = (host: string, label: string) =>
 
 describe.concurrent("config — network integration", () => {
   it("default (no config): network is on — TCP to example.com succeeds", async () => {
-    const { session, teardown } = await setupScenario("cc-msb-net-default-");
+    const { session, teardown } = await setupScenario("glovebox-net-default-");
     try {
       const result = await session.run(
         "Run this exact bash command and report the exact output verbatim:\n" +
@@ -24,7 +24,7 @@ describe.concurrent("config — network integration", () => {
   });
 
   it("network: disabled — outbound TCP fails", async () => {
-    const { session, teardown } = await setupScenario("cc-msb-net-disabled-", {
+    const { session, teardown } = await setupScenario("glovebox-net-disabled-", {
       fixture: "config-network-disabled",
     });
     try {
@@ -41,7 +41,7 @@ describe.concurrent("config — network integration", () => {
   });
 
   it("network: allowlist — listed domain reachable, unlisted denied", async () => {
-    const { session, teardown } = await setupScenario("cc-msb-net-allow-", {
+    const { session, teardown } = await setupScenario("glovebox-net-allow-", {
       fixture: "config-network-allowlist",
     });
     try {

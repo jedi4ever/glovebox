@@ -2,7 +2,7 @@ import { describe, it, expect } from "vitest";
 import { fileURLToPath } from "node:url";
 
 const MODULE_URL = new URL(
-  "../../../plugins/cc-msb/scripts/lib/sandbox-build.mjs",
+  "../../../plugins/glovebox/scripts/lib/sandbox-build.mjs",
   import.meta.url
 ).href;
 void fileURLToPath;

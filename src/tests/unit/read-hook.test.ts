@@ -4,14 +4,14 @@ import { fileURLToPath } from "node:url";
 import { join } from "node:path";
 import { rmSync, readFileSync, mkdirSync, writeFileSync, existsSync } from "node:fs";
 
-const PLUGIN_ROOT = fileURLToPath(new URL("../../../plugins/cc-msb", import.meta.url));
+const PLUGIN_ROOT = fileURLToPath(new URL("../../../plugins/glovebox", import.meta.url));
 const FAKE_MSB_DIR = fileURLToPath(new URL("../fixtures/fake-msb", import.meta.url));
 const HOOK = join(PLUGIN_ROOT, "hooks/pre-tool-use.mjs");
 
 const SESSION_ID = "unit-read-test-0001";
-const SANDBOX_NAME = `cc-msb-${SESSION_ID.slice(0, 16)}`;
-const PROJECT_DIR = "/tmp/cc-msb-read-test-project";
-const SHADOW_ROOT = `${process.env["HOME"]}/.cache/cc-msb/${SESSION_ID}/shadow`;
+const SANDBOX_NAME = `glovebox-${SESSION_ID.slice(0, 16)}`;
+const PROJECT_DIR = "/tmp/glovebox-read-test-project";
+const SHADOW_ROOT = `${process.env["HOME"]}/.cache/glovebox/${SESSION_ID}/shadow`;
 
 function runHook(event: object, extraEnv: Record<string, string> = {}) {
   const result = spawnSync("node", [HOOK], {
@@ -22,7 +22,7 @@ function runHook(event: object, extraEnv: Record<string, string> = {}) {
       PATH: `${FAKE_MSB_DIR}:${process.env["PATH"]}`,
       CLAUDE_PLUGIN_ROOT: PLUGIN_ROOT,
       CLAUDE_PROJECT_DIR: PROJECT_DIR,
-      CC_MSB_FAKE_CREATE: "1",
+      GLOVEBOX_FAKE_CREATE: "1",
       ...extraEnv,
     },
   });

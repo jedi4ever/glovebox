@@ -1,0 +1,3 @@
+main:
+  scope: named
+  sandbox_name: glovebox-test-named

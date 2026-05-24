@@ -6,7 +6,7 @@ import { fixturePath } from "../helpers/fixtures.js";
 
 describe.concurrent("config — mount_workdir integration", () => {
   it("project files are visible inside the sandbox by default", async () => {
-    const { projectDir, session, teardown } = await setupScenario("cc-msb-mount-on-");
+    const { projectDir, session, teardown } = await setupScenario("glovebox-mount-on-");
     try {
       await writeFile(join(projectDir, "marker.txt"), "project-marker-content");
       const result = await session.run(
@@ -20,10 +20,10 @@ describe.concurrent("config — mount_workdir integration", () => {
   });
 
   it("project files are not visible when mount_workdir: false", async () => {
-    const { projectDir, session, teardown } = await setupScenario("cc-msb-mount-off-");
+    const { projectDir, session, teardown } = await setupScenario("glovebox-mount-off-");
     try {
       await writeFile(join(projectDir, "marker.txt"), "project-marker-content");
-      await copyFile(fixturePath("config-mount-off", ".cc-msb.yml"), join(projectDir, ".cc-msb.yml"));
+      await copyFile(fixturePath("config-mount-off", ".glovebox.yml"), join(projectDir, ".glovebox.yml"));
       const result = await session.run(
         "Run a bash command: does /workspace/marker.txt exist? Answer yes or no."
       );

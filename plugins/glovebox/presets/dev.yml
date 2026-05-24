@@ -1,0 +1,20 @@
+# Preset: dev — opinionated baseline for daily development against the
+# bundled devbox image (gh, git, ripgrep, node, go, uv pre-installed).
+#
+# Activate via `.glovebox.yml`:
+#   presets: [dev]
+#
+# Automatically composes the npm and github presets so npm installs,
+# git operations and gh CLI calls all work without extra configuration.
+# These are *defaults*: anything the user sets in `main:` or `defaults:`
+# of their own `.glovebox.yml` always wins.
+
+presets:
+  - npm
+  - github
+
+defaults:
+  sandbox_image: localhost:5123/devbox
+  mount_workdir: true
+  scope: directory
+  auto_recreate: true

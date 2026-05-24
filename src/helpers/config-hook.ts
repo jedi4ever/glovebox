@@ -4,7 +4,7 @@ import { fileURLToPath } from "node:url";
 import { join } from "node:path";
 import { rmSync, readFileSync, existsSync, readdirSync } from "node:fs";
 
-export const PLUGIN_ROOT = fileURLToPath(new URL("../../plugins/cc-msb", import.meta.url));
+export const PLUGIN_ROOT = fileURLToPath(new URL("../../plugins/glovebox", import.meta.url));
 export const FAKE_MSB_DIR = fileURLToPath(new URL("../tests/fixtures/fake-msb", import.meta.url));
 export const PRE_HOOK = join(PLUGIN_ROOT, "hooks/pre-tool-use.mjs");
 
@@ -16,7 +16,7 @@ export const PRE_HOOK = join(PLUGIN_ROOT, "hooks/pre-tool-use.mjs");
 export const NAMED_PREFIXES: string[] = [];
 
 export function dirSandboxName(dir: string): string {
-  return `cc-msb-dir-${createHash("sha256").update(dir).digest("hex").slice(0, 12)}`;
+  return `glovebox-dir-${createHash("sha256").update(dir).digest("hex").slice(0, 12)}`;
 }
 
 export interface CreateConfig {
@@ -42,10 +42,10 @@ export function wrappedCommand(stdout: string): string {
 // characters differ from all other files (prevents state-file collisions when
 // vitest runs files in parallel).
 export function createConfigTestContext(sessionId: string) {
-  const SANDBOX_NAME = `cc-msb-${sessionId.slice(0, 16)}`;
-  const SESSION_PREFIX = `cc-msb-${sessionId.slice(0, 8)}`;
+  const SANDBOX_NAME = `glovebox-${sessionId.slice(0, 16)}`;
+  const SESSION_PREFIX = `glovebox-${sessionId.slice(0, 8)}`;
   // Per-agent sandbox name for "test-agent": prefix(8) + "_" + agent(8)
-  const PER_AGENT_SANDBOX = `cc-msb-${sessionId.slice(0, 8)}-test_age`;
+  const PER_AGENT_SANDBOX = `glovebox-${sessionId.slice(0, 8)}-test_age`;
 
   function bashEvent(agentType?: string) {
     return {
@@ -69,7 +69,7 @@ export function createConfigTestContext(sessionId: string) {
         PATH: `${FAKE_MSB_DIR}:${process.env["PATH"]}`,
         CLAUDE_PLUGIN_ROOT: PLUGIN_ROOT,
         CLAUDE_PROJECT_DIR: projectDir,
-        CC_MSB_FAKE_CREATE: "1",
+        GLOVEBOX_FAKE_CREATE: "1",
         ...extraEnv,
       },
     });
@@ -123,7 +123,7 @@ export function createConfigTestContext(sessionId: string) {
       .filter((f) => {
         if (!f.startsWith("fake-msb-") || (!f.endsWith(".state") && !f.endsWith(".create-args"))) return false;
         if (f.startsWith(`fake-msb-${SESSION_PREFIX}`)) return true;
-        // cc-msb-dir-* sandboxes are owned by config-scope.test.ts; that file
+        // glovebox-dir-* sandboxes are owned by config-scope.test.ts; that file
         // manages their cleanup directly so we do NOT wipe them here.
         return NAMED_PREFIXES.some((p) => f.startsWith(`fake-msb-${p}`));
       })

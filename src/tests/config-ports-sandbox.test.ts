@@ -18,7 +18,7 @@ function isPortOpen(port: number, host = "127.0.0.1", timeoutMs = 1500): Promise
   });
 }
 
-const NAMED_SANDBOX = "cc-msb-ports-int-named";
+const NAMED_SANDBOX = "glovebox-ports-int-named";
 const HOST_PORT = 19876;
 
 // Always clean up the named sandbox so the bound host port is released between
@@ -39,7 +39,7 @@ describe("config — ports integration", () => {
   });
 
   it("ports: \"19876:8000\" binds host port 19876 when the named sandbox is up", async () => {
-    const { session, teardown } = await setupScenario("cc-msb-ports-int-", {
+    const { session, teardown } = await setupScenario("glovebox-ports-int-", {
       fixture: "config-ports-integration",
     });
     try {

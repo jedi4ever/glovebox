@@ -3,7 +3,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { spawn } from "node:child_process";
 
-const PLUGIN_DIR = new URL("../../plugins/cc-msb", import.meta.url).pathname;
+const PLUGIN_DIR = new URL("../../plugins/glovebox", import.meta.url).pathname;
 const SANDBOXED_TOOLS = ["Bash", "Read", "Write", "Edit", "MultiEdit", "Agent"];
 
 export interface SessionResult {
@@ -32,7 +32,7 @@ function requireApiKey(): string {
 
 export async function createCleanSession(options: SessionOptions = {}): Promise<CleanSession> {
   const apiKey = requireApiKey();
-  const configDir = await mkdtemp(join(tmpdir(), "cc-msb-test-"));
+  const configDir = await mkdtemp(join(tmpdir(), "glovebox-test-"));
 
   return {
     configDir,

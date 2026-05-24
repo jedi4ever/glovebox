@@ -13,8 +13,8 @@ afterEach(() => cleanupFakeMsbFiles());
 
 describe("config — secrets", () => {
   function makeLocalConfig(yaml: string): string {
-    const dir = mkdtempSync(join(tmpdir(), "cc-msb-secrets-"));
-    writeFileSync(join(dir, ".cc-msb.yml"), yaml);
+    const dir = mkdtempSync(join(tmpdir(), "glovebox-secrets-"));
+    writeFileSync(join(dir, ".glovebox.yml"), yaml);
     return dir;
   }
 
@@ -118,7 +118,7 @@ describe("config — secrets", () => {
     }
   });
 
-  it("CC_MSB_MAIN_SECRETS env var overrides config file", () => {
+  it("GLOVEBOX_MAIN_SECRETS env var overrides config file", () => {
     const dir = makeLocalConfig(
       "main:\n" +
       "  secrets:\n" +
@@ -126,7 +126,7 @@ describe("config — secrets", () => {
     );
     try {
       runHook(dir, {
-        CC_MSB_MAIN_SECRETS: "FROM_ENV=literal@override.host",
+        GLOVEBOX_MAIN_SECRETS: "FROM_ENV=literal@override.host",
       });
       const args = readCreateArgs();
       expect(args).toContain("FROM_ENV=literal@override.host");
@@ -139,8 +139,8 @@ describe("config — secrets", () => {
 
 describe("config — TLS interception", () => {
   function makeLocalConfig(yaml: string): string {
-    const dir = mkdtempSync(join(tmpdir(), "cc-msb-tls-"));
-    writeFileSync(join(dir, ".cc-msb.yml"), yaml);
+    const dir = mkdtempSync(join(tmpdir(), "glovebox-tls-"));
+    writeFileSync(join(dir, ".glovebox.yml"), yaml);
     return dir;
   }
 
@@ -204,8 +204,8 @@ describe("config — TLS interception", () => {
     }
   });
 
-  it("CC_MSB_MAIN_TLS_INTERCEPT env var overrides config file (env=true wins over file=false default)", () => {
-    runHook(fixturePath("simple-read"), { CC_MSB_MAIN_TLS_INTERCEPT: "true" });
+  it("GLOVEBOX_MAIN_TLS_INTERCEPT env var overrides config file (env=true wins over file=false default)", () => {
+    runHook(fixturePath("simple-read"), { GLOVEBOX_MAIN_TLS_INTERCEPT: "true" });
     expect(readCreateArgs()).toContain("--tls-intercept");
   });
 

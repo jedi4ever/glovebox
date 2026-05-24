@@ -3,7 +3,7 @@ import { spawnSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
 import { join } from "node:path";
 
-const PLUGIN_ROOT = fileURLToPath(new URL("../../../plugins/cc-msb", import.meta.url));
+const PLUGIN_ROOT = fileURLToPath(new URL("../../../plugins/glovebox", import.meta.url));
 const FAKE_MSB_DIR = fileURLToPath(new URL("../fixtures/fake-msb", import.meta.url));
 const PRE_HOOK = join(PLUGIN_ROOT, "hooks/pre-tool-use.mjs");
 
@@ -73,7 +73,7 @@ describe("pre-tool-use.sh — WebFetch hook", () => {
         session_id: SESSION_ID,
         tool_input: { url: "https://example.com", prompt: "summarise" },
       },
-      { CC_MSB_MAIN_SCOPE: "host" }
+      { GLOVEBOX_MAIN_SCOPE: "host" }
     );
 
     expect(r.status).toBe(0);

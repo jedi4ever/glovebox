@@ -6,12 +6,12 @@ import { spawnSync } from "node:child_process";
 import { createCleanSession } from "../helpers/session.js";
 import { fixturePath } from "../helpers/fixtures.js";
 
-const NAMED_SANDBOX = "cc-msb-test-named";
-const NAMED_AGENT_SANDBOX = "cc-msb-test-named-agent";
+const NAMED_SANDBOX = "glovebox-test-named";
+const NAMED_AGENT_SANDBOX = "glovebox-test-named-agent";
 
 // Remove the named sandboxes after all tests so they don't pollute other runs.
 afterAll(() => {
-  for (const name of [NAMED_SANDBOX, "cc-msb-test-named-main", NAMED_AGENT_SANDBOX]) {
+  for (const name of [NAMED_SANDBOX, "glovebox-test-named-main", NAMED_AGENT_SANDBOX]) {
     spawnSync("msb", ["stop", name, "--quiet"], { encoding: "utf8" });
     spawnSync("msb", ["remove", name, "--quiet"], { encoding: "utf8" });
   }
@@ -19,7 +19,7 @@ afterAll(() => {
 
 describe.concurrent("config — named scope integration", () => {
   it("named sandbox persists across sessions: state written in session 1 is readable in session 2", async () => {
-    const projectDir = await mkdtemp(join(tmpdir(), "cc-msb-named-"));
+    const projectDir = await mkdtemp(join(tmpdir(), "glovebox-named-"));
     try {
       await cp(fixturePath("config-named-sandbox"), projectDir, { recursive: true });
 
@@ -27,7 +27,7 @@ describe.concurrent("config — named scope integration", () => {
       const session1 = await createCleanSession({ cwd: projectDir });
       try {
         const r1 = await session1.run(
-          "Run the bash command `echo named_persist > /tmp/cc-msb-named-marker.txt` and confirm it ran."
+          "Run the bash command `echo named_persist > /tmp/glovebox-named-marker.txt` and confirm it ran."
         );
         expect(r1.exitCode).toBe(0);
       } finally {
@@ -38,7 +38,7 @@ describe.concurrent("config — named scope integration", () => {
       const session2 = await createCleanSession({ cwd: projectDir });
       try {
         const r2 = await session2.run(
-          "Run the bash command `cat /tmp/cc-msb-named-marker.txt 2>&1` and report the exact output."
+          "Run the bash command `cat /tmp/glovebox-named-marker.txt 2>&1` and report the exact output."
         );
         expect(r2.exitCode).toBe(0);
         expect(r2.stdout).toMatch(/named_persist/i);
@@ -51,7 +51,7 @@ describe.concurrent("config — named scope integration", () => {
   });
 
   it("agent uses its own named sandbox separate from the main session", async () => {
-    const projectDir = await mkdtemp(join(tmpdir(), "cc-msb-named-agent-"));
+    const projectDir = await mkdtemp(join(tmpdir(), "glovebox-named-agent-"));
     try {
       await cp(fixturePath("config-named-agent-sandbox"), projectDir, { recursive: true });
 
@@ -60,7 +60,7 @@ describe.concurrent("config — named scope integration", () => {
       try {
         const r1 = await session1.run(
           "Use the test-agent to run the bash command " +
-          "`echo named_agent_persist > /tmp/cc-msb-named-agent-marker.txt` and confirm it ran."
+          "`echo named_agent_persist > /tmp/glovebox-named-agent-marker.txt` and confirm it ran."
         );
         expect(r1.exitCode).toBe(0);
       } finally {
@@ -72,7 +72,7 @@ describe.concurrent("config — named scope integration", () => {
       try {
         const r2 = await session2.run(
           "Use the test-agent to check the marker file. It will run " +
-          "`cat /tmp/cc-msb-named-agent-marker.txt 2>&1` and report the output."
+          "`cat /tmp/glovebox-named-agent-marker.txt 2>&1` and report the output."
         );
         expect(r2.exitCode).toBe(0);
         expect(r2.stdout).toMatch(/named_agent_persist/i);

@@ -16,7 +16,7 @@ case "$SUBCMD" in
     ;;
   # `create` is no longer invoked from production code — sandbox creation
   # now goes through scripts/create-sandbox.mjs (the SDK path). Tests
-  # toggle CC_MSB_FAKE_CREATE=1 and that script writes the same
+  # toggle GLOVEBOX_FAKE_CREATE=1 and that script writes the same
   # /tmp/fake-msb-<name>.create-args fixture file (as JSON now, not argv).
   start)
     NAME="${2:-}"

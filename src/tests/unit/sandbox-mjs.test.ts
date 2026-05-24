@@ -1,11 +1,11 @@
-// Unit tests for plugins/cc-msb/lib/sandbox.mjs pure functions.
+// Unit tests for plugins/glovebox/lib/sandbox.mjs pure functions.
 // These don't spawn subprocesses — they call the JS functions directly.
 
 import { describe, it, expect } from "vitest";
 import { fileURLToPath } from "node:url";
 
 const SANDBOX_MJS = fileURLToPath(
-  new URL("../../../plugins/cc-msb/lib/sandbox.mjs", import.meta.url)
+  new URL("../../../plugins/glovebox/lib/sandbox.mjs", import.meta.url)
 );
 
 const {
@@ -21,34 +21,34 @@ const {
 // ---------------------------------------------------------------------------
 describe("sandboxNameFor — scope variants", () => {
   it("session scope uses first 16 chars of session_id", () => {
-    expect(sandboxNameFor("abc123", "", "", "session")).toBe("cc-msb-abc123");
+    expect(sandboxNameFor("abc123", "", "", "session")).toBe("glovebox-abc123");
     expect(sandboxNameFor("averylongsessionidentifier", "", "", "session"))
-      .toBe("cc-msb-averylongsession");
+      .toBe("glovebox-averylongsession");
   });
 
   it("session scope: no agent_type → same as main sandbox", () => {
-    expect(sandboxNameFor("abc123", "", "", "session")).toBe("cc-msb-abc123");
+    expect(sandboxNameFor("abc123", "", "", "session")).toBe("glovebox-abc123");
   });
 
   it("session scope with agent_type still uses main sandbox", () => {
-    expect(sandboxNameFor("abc123", "my-agent", "", "session")).toBe("cc-msb-abc123");
+    expect(sandboxNameFor("abc123", "my-agent", "", "session")).toBe("glovebox-abc123");
   });
 
   it("per-agent scope uses 8+8 pattern", () => {
     const name = sandboxNameFor("abcdefgh", "test-agent", "", "per-agent");
-    expect(name).toBe("cc-msb-abcdefgh-test_age");
+    expect(name).toBe("glovebox-abcdefgh-test_age");
   });
 
   it("per-run scope produces random 8-hex suffix", () => {
     const a = sandboxNameFor("abcdefgh", "my-agent", "", "per-run");
     const b = sandboxNameFor("abcdefgh", "my-agent", "", "per-run");
-    expect(a).toMatch(/^cc-msb-abcdefgh-[0-9a-f]{8}$/);
-    expect(b).toMatch(/^cc-msb-abcdefgh-[0-9a-f]{8}$/);
+    expect(a).toMatch(/^glovebox-abcdefgh-[0-9a-f]{8}$/);
+    expect(b).toMatch(/^glovebox-abcdefgh-[0-9a-f]{8}$/);
     expect(a).not.toBe(b);
   });
 
   it("per-run scope with no agent falls back to session-style", () => {
-    expect(sandboxNameFor("abc123", "", "", "per-run")).toBe("cc-msb-abc123");
+    expect(sandboxNameFor("abc123", "", "", "per-run")).toBe("glovebox-abc123");
   });
 
   it("named scope with explicit name uses it (stripped)", () => {
@@ -60,14 +60,14 @@ describe("sandboxNameFor — scope variants", () => {
   });
 
   it("named scope with empty explicit name falls back to session sandbox", () => {
-    expect(sandboxNameFor("abc123", "", "", "named")).toBe("cc-msb-abc123");
+    expect(sandboxNameFor("abc123", "", "", "named")).toBe("glovebox-abc123");
   });
 
   it("directory scope produces stable hash-based name", () => {
     const a = sandboxNameFor("sid1", "", "", "directory", "/home/user/project");
     const b = sandboxNameFor("sid2", "", "", "directory", "/home/user/project");
     expect(a).toBe(b);
-    expect(a).toMatch(/^cc-msb-dir-[0-9a-f]{12}$/);
+    expect(a).toMatch(/^glovebox-dir-[0-9a-f]{12}$/);
   });
 
   it("directory scope differs for different project dirs", () => {
@@ -89,15 +89,15 @@ describe("sandboxNameForFileOp — per-run coercion", () => {
     const a = sandboxNameForFileOp("abcdefgh", "my-agent", "", "per-run");
     const b = sandboxNameForFileOp("abcdefgh", "my-agent", "", "per-run");
     expect(a).toBe(b);
-    expect(a).toBe("cc-msb-abcdefgh-my_agent");
+    expect(a).toBe("glovebox-abcdefgh-my_agent");
   });
 
   it("per-run without agent → session style", () => {
-    expect(sandboxNameForFileOp("abcdefgh12345678", "", "", "per-run")).toBe("cc-msb-abcdefgh12345678");
+    expect(sandboxNameForFileOp("abcdefgh12345678", "", "", "per-run")).toBe("glovebox-abcdefgh12345678");
   });
 
   it("non-per-run delegates to sandboxNameFor", () => {
-    expect(sandboxNameForFileOp("abc123", "", "", "session")).toBe("cc-msb-abc123");
+    expect(sandboxNameForFileOp("abc123", "", "", "session")).toBe("glovebox-abc123");
   });
 });
 
@@ -117,12 +117,12 @@ describe("sandboxEnvArgs", () => {
   });
 
   it("comma-separated list returns only set vars", () => {
-    const args = sandboxEnvArgs("HOME,PATH,CC_MSB_NONEXISTENT_9999");
+    const args = sandboxEnvArgs("HOME,PATH,GLOVEBOX_NONEXISTENT_9999");
     expect(args).toContain("--env");
     const keys = args.filter((_, i) => args[i - 1] === "--env").map(kv => kv.split("=")[0]);
     expect(keys).toContain("HOME");
     expect(keys).toContain("PATH");
-    expect(keys).not.toContain("CC_MSB_NONEXISTENT_9999");
+    expect(keys).not.toContain("GLOVEBOX_NONEXISTENT_9999");
   });
 });
 
@@ -184,7 +184,7 @@ describe("sandboxConfigFingerprint", () => {
 // ---------------------------------------------------------------------------
 describe("sandboxResolvePath — path traversal prevention", () => {
   const proj = "/tmp/my-project";
-  const stateDir = "/tmp/.cache/cc-msb/sess1";
+  const stateDir = "/tmp/.cache/glovebox/sess1";
   const shadowRoot = `${stateDir}/shadow`;
 
   it("project-dir file passes through unchanged", () => {

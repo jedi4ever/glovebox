@@ -1,4 +1,4 @@
-# Build the cc-msb devbox image, push it to a local OCI registry, and pull it
+# Build the glovebox devbox image, push it to a local OCI registry, and pull it
 # into msb's image store. Override any variable on the command line, e.g.
 #   make all IMAGE=mybox TAG=v2 REGISTRY_PORT=5000
 

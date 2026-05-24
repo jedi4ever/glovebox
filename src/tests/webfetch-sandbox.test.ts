@@ -2,7 +2,7 @@ import { describe, it, expect } from "vitest";
 import { setupScenario } from "../helpers/scenario.js";
 
 // CC's WebFetch tool normally runs on the host's network and bypasses
-// every cc-msb config. Our PreToolUse hook denies WebFetch with a hint
+// every glovebox config. Our PreToolUse hook denies WebFetch with a hint
 // to use Bash + curl, and the existing Bash hook then routes that curl
 // through `msb exec` into the sandbox. End-to-end: Claude asks for a
 // URL, our hook bounces it, Claude retries with Bash+curl, the sandbox
@@ -12,7 +12,7 @@ describe.concurrent("WebFetch interception", () => {
   it("asking Claude to fetch a URL routes through Bash+curl in the sandbox", async () => {
     // Use buildpack-deps:noble so curl is preinstalled — saves ~30s of
     // apt-get fallback time on the default ubuntu image.
-    const { session, teardown } = await setupScenario("cc-msb-webfetch-", { fixture: "config-webfetch" });
+    const { session, teardown } = await setupScenario("glovebox-webfetch-", { fixture: "config-webfetch" });
     try {
       // example.com is a stable, low-traffic page whose body contains the
       // literal phrase "Example Domain". Use the WebFetch tool name in the
@@ -36,7 +36,7 @@ describe.concurrent("WebFetch interception", () => {
     // Same plugin, same shim, but `network: disabled` on main. The deny+hint
     // still fires for WebFetch, Claude falls back to Bash+curl, but the sandbox
     // has `--no-net` so curl can't reach example.com → no "Example Domain".
-    const { session, teardown } = await setupScenario("cc-msb-webfetch-nonet-", {
+    const { session, teardown } = await setupScenario("glovebox-webfetch-nonet-", {
       fixture: "config-webfetch-network-disabled",
     });
     try {
@@ -53,11 +53,11 @@ describe.concurrent("WebFetch interception", () => {
   });
 
   it("scope: host bypasses the interception — fetch succeeds on the host's network", async () => {
-    // With scope=host, the cc-msb hooks short-circuit at the top of the
+    // With scope=host, the glovebox hooks short-circuit at the top of the
     // PreToolUse, so WebFetch is NOT denied. CC runs WebFetch normally on
     // the host's network. Even though the project-level config could set
     // network policy, scope=host means no sandbox at all.
-    const { session, teardown } = await setupScenario("cc-msb-webfetch-host-", {
+    const { session, teardown } = await setupScenario("glovebox-webfetch-host-", {
       fixture: "config-webfetch-host",
     });
     try {

@@ -13,8 +13,8 @@ afterEach(() => cleanupFakeMsbFiles());
 
 describe("config — git + github sections", () => {
   function makeLocalConfig(yaml: string): string {
-    const dir = mkdtempSync(join(tmpdir(), "cc-msb-git-gh-"));
-    writeFileSync(join(dir, ".cc-msb.yml"), yaml);
+    const dir = mkdtempSync(join(tmpdir(), "glovebox-git-gh-"));
+    writeFileSync(join(dir, ".glovebox.yml"), yaml);
     return dir;
   }
 
@@ -181,12 +181,12 @@ describe("config — git + github sections", () => {
     }
   });
 
-  it("env var CC_MSB_MAIN_GIT_USER_NAME overrides the config file", () => {
+  it("env var GLOVEBOX_MAIN_GIT_USER_NAME overrides the config file", () => {
     const dir = makeLocalConfig(
       "main:\n  git_user_name: \"From File\"\n"
     );
     try {
-      runHook(dir, { CC_MSB_MAIN_GIT_USER_NAME: "From Env" });
+      runHook(dir, { GLOVEBOX_MAIN_GIT_USER_NAME: "From Env" });
       const cfg = readCreateConfig();
       expect(cfg?.gitUserName).toBe("From Env");
     } finally {

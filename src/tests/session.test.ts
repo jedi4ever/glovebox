@@ -10,6 +10,6 @@ describe("clean session", () => {
 
   it("creates a session with an isolated config dir", async () => {
     session = await createCleanSession();
-    expect(session.configDir).toMatch(/cc-msb-test-/);
+    expect(session.configDir).toMatch(/glovebox-test-/);
   });
 });

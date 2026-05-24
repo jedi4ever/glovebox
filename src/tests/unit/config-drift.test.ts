@@ -10,7 +10,7 @@ function cleanupDriftFiles() {
   // Remove any drift-named state/create-args files left from previous runs.
   // These are NOT in NAMED_PREFIXES to avoid other parallel tests wiping them mid-test.
   readdirSync("/tmp")
-    .filter((f) => f.startsWith("fake-msb-cc-msb-drift-") && (f.endsWith(".state") || f.endsWith(".create-args")))
+    .filter((f) => f.startsWith("fake-msb-glovebox-drift-") && (f.endsWith(".state") || f.endsWith(".create-args")))
     .forEach((f) => { try { rmSync(`/tmp/${f}`); } catch {} });
 }
 
@@ -19,7 +19,7 @@ afterEach(() => { cleanupFakeMsbFiles(); cleanupDriftFiles(); });
 
 describe("config — config-drift detection", () => {
   function fpPath(sandboxName: string): string {
-    return join(homedir(), ".cache", "cc-msb", "fingerprints", `${sandboxName}.fp`);
+    return join(homedir(), ".cache", "glovebox", "fingerprints", `${sandboxName}.fp`);
   }
   function clearFp(sandboxName: string): void {
     try { rmSync(fpPath(sandboxName)); } catch {}
@@ -31,11 +31,11 @@ describe("config — config-drift detection", () => {
   }
 
   it("first-time create writes a fingerprint file", () => {
-    const sandboxName = "cc-msb-drift-first-create";
+    const sandboxName = "glovebox-drift-first-create";
     clearFp(sandboxName);
-    const projectDir = mkdtempSync(join(tmpdir(), "cc-msb-drift-"));
+    const projectDir = mkdtempSync(join(tmpdir(), "glovebox-drift-"));
     writeFileSync(
-      join(projectDir, ".cc-msb.yml"),
+      join(projectDir, ".glovebox.yml"),
       `main:\n  scope: named\n  sandbox_name: ${sandboxName}\n  sandbox_image: ubuntu\n`
     );
     try {
@@ -50,11 +50,11 @@ describe("config — config-drift detection", () => {
   });
 
   it("re-running with the same config produces no drift (allow)", () => {
-    const sandboxName = "cc-msb-drift-stable";
+    const sandboxName = "glovebox-drift-stable";
     clearFp(sandboxName);
-    const projectDir = mkdtempSync(join(tmpdir(), "cc-msb-drift-"));
+    const projectDir = mkdtempSync(join(tmpdir(), "glovebox-drift-"));
     const cfg = `main:\n  scope: named\n  sandbox_name: ${sandboxName}\n  sandbox_image: ubuntu\n`;
-    writeFileSync(join(projectDir, ".cc-msb.yml"), cfg);
+    writeFileSync(join(projectDir, ".glovebox.yml"), cfg);
     try {
       const r1 = runHook(projectDir);
       expect(decisionOf(r1.stdout).decision).toBe("allow");
@@ -67,18 +67,18 @@ describe("config — config-drift detection", () => {
   });
 
   it("local-file change (image): emits a deny pointing at the named sandbox", () => {
-    const sandboxName = "cc-msb-drift-local-change";
+    const sandboxName = "glovebox-drift-local-change";
     clearFp(sandboxName);
-    const projectDir = mkdtempSync(join(tmpdir(), "cc-msb-drift-"));
+    const projectDir = mkdtempSync(join(tmpdir(), "glovebox-drift-"));
     writeFileSync(
-      join(projectDir, ".cc-msb.yml"),
+      join(projectDir, ".glovebox.yml"),
       `main:\n  scope: named\n  sandbox_name: ${sandboxName}\n  sandbox_image: ubuntu\n`
     );
     try {
       const r1 = runHook(projectDir);
       expect(decisionOf(r1.stdout).decision).toBe("allow");
       writeFileSync(
-        join(projectDir, ".cc-msb.yml"),
+        join(projectDir, ".glovebox.yml"),
         `main:\n  scope: named\n  sandbox_name: ${sandboxName}\n  sandbox_image: alpine\n`
       );
       const r2 = runHook(projectDir);
@@ -94,18 +94,18 @@ describe("config — config-drift detection", () => {
   });
 
   it("local-file change (network): emits a deny", () => {
-    const sandboxName = "cc-msb-drift-net-change";
+    const sandboxName = "glovebox-drift-net-change";
     clearFp(sandboxName);
-    const projectDir = mkdtempSync(join(tmpdir(), "cc-msb-drift-"));
+    const projectDir = mkdtempSync(join(tmpdir(), "glovebox-drift-"));
     writeFileSync(
-      join(projectDir, ".cc-msb.yml"),
+      join(projectDir, ".glovebox.yml"),
       `main:\n  scope: named\n  sandbox_name: ${sandboxName}\n`
     );
     try {
       const r1 = runHook(projectDir);
       expect(decisionOf(r1.stdout).decision).toBe("allow");
       writeFileSync(
-        join(projectDir, ".cc-msb.yml"),
+        join(projectDir, ".glovebox.yml"),
         `main:\n  scope: named\n  sandbox_name: ${sandboxName}\n  network: disabled\n`
       );
       const r2 = runHook(projectDir);
@@ -117,22 +117,22 @@ describe("config — config-drift detection", () => {
   });
 
   it("global-file change is also detected (no local file in between)", () => {
-    const sandboxName = "cc-msb-drift-global-change";
+    const sandboxName = "glovebox-drift-global-change";
     clearFp(sandboxName);
-    const projectDir = mkdtempSync(join(tmpdir(), "cc-msb-drift-"));
-    const globalDir = mkdtempSync(join(tmpdir(), "cc-msb-drift-glob-"));
+    const projectDir = mkdtempSync(join(tmpdir(), "glovebox-drift-"));
+    const globalDir = mkdtempSync(join(tmpdir(), "glovebox-drift-glob-"));
     writeFileSync(
       join(globalDir, "config.yml"),
       `main:\n  scope: named\n  sandbox_name: ${sandboxName}\n  sandbox_image: ubuntu\n`
     );
     try {
-      const r1 = runHook(projectDir, { CC_MSB_CONFIG_DIR: globalDir });
+      const r1 = runHook(projectDir, { GLOVEBOX_CONFIG_DIR: globalDir });
       expect(decisionOf(r1.stdout).decision).toBe("allow");
       writeFileSync(
         join(globalDir, "config.yml"),
         `main:\n  scope: named\n  sandbox_name: ${sandboxName}\n  sandbox_image: alpine\n`
       );
-      const r2 = runHook(projectDir, { CC_MSB_CONFIG_DIR: globalDir });
+      const r2 = runHook(projectDir, { GLOVEBOX_CONFIG_DIR: globalDir });
       const { decision, reason } = decisionOf(r2.stdout);
       expect(decision).toBe("deny");
       expect(reason).toContain(sandboxName);
@@ -144,19 +144,19 @@ describe("config — config-drift detection", () => {
   });
 
   it("local change overriding global: still drifts when value flips", () => {
-    const sandboxName = "cc-msb-drift-mixed-change";
+    const sandboxName = "glovebox-drift-mixed-change";
     clearFp(sandboxName);
-    const projectDir = mkdtempSync(join(tmpdir(), "cc-msb-drift-"));
-    const globalDir = mkdtempSync(join(tmpdir(), "cc-msb-drift-glob-"));
+    const projectDir = mkdtempSync(join(tmpdir(), "glovebox-drift-"));
+    const globalDir = mkdtempSync(join(tmpdir(), "glovebox-drift-glob-"));
     writeFileSync(
       join(globalDir, "config.yml"),
       `main:\n  scope: named\n  sandbox_name: ${sandboxName}\n  sandbox_image: ubuntu\n`
     );
     try {
-      const r1 = runHook(projectDir, { CC_MSB_CONFIG_DIR: globalDir });
+      const r1 = runHook(projectDir, { GLOVEBOX_CONFIG_DIR: globalDir });
       expect(decisionOf(r1.stdout).decision).toBe("allow");
-      writeFileSync(join(projectDir, ".cc-msb.yml"), "main:\n  sandbox_image: alpine\n");
-      const r2 = runHook(projectDir, { CC_MSB_CONFIG_DIR: globalDir });
+      writeFileSync(join(projectDir, ".glovebox.yml"), "main:\n  sandbox_image: alpine\n");
+      const r2 = runHook(projectDir, { GLOVEBOX_CONFIG_DIR: globalDir });
       expect(decisionOf(r2.stdout).decision).toBe("deny");
     } finally {
       rmSync(projectDir, { recursive: true, force: true });
@@ -166,11 +166,11 @@ describe("config — config-drift detection", () => {
   });
 
   it("recreate after drift: remove sandbox → next call re-creates + rewrites fingerprint", () => {
-    const sandboxName = "cc-msb-drift-recreate-cycle";
+    const sandboxName = "glovebox-drift-recreate-cycle";
     clearFp(sandboxName);
-    const projectDir = mkdtempSync(join(tmpdir(), "cc-msb-drift-"));
+    const projectDir = mkdtempSync(join(tmpdir(), "glovebox-drift-"));
     writeFileSync(
-      join(projectDir, ".cc-msb.yml"),
+      join(projectDir, ".glovebox.yml"),
       `main:\n  scope: named\n  sandbox_name: ${sandboxName}\n  sandbox_image: ubuntu\n`
     );
     try {
@@ -178,7 +178,7 @@ describe("config — config-drift detection", () => {
       const fp1 = readFileSync(fpPath(sandboxName), "utf8").trim();
 
       writeFileSync(
-        join(projectDir, ".cc-msb.yml"),
+        join(projectDir, ".glovebox.yml"),
         `main:\n  scope: named\n  sandbox_name: ${sandboxName}\n  sandbox_image: alpine\n`
       );
       expect(decisionOf(runHook(projectDir).stdout).decision).toBe("deny");
@@ -198,9 +198,9 @@ describe("config — config-drift detection", () => {
   });
 
   it("auto_recreate config: resolves via standard chain (default false)", () => {
-    const dir = mkdtempSync(join(tmpdir(), "cc-msb-autorec-"));
+    const dir = mkdtempSync(join(tmpdir(), "glovebox-autorec-"));
     try {
-      writeFileSync(join(dir, ".cc-msb.yml"), "main:\n  auto_recreate: true\n");
+      writeFileSync(join(dir, ".glovebox.yml"), "main:\n  auto_recreate: true\n");
       const r = runHook(dir);
       expect(JSON.parse(r.stdout).hookSpecificOutput.permissionDecision).toBe("allow");
     } finally {
@@ -211,16 +211,16 @@ describe("config — config-drift detection", () => {
   it("drift on a running sandbox: hook exits 0 (not a hook error), returns deny", () => {
     // Guards against the hook crashing (non-zero exit) instead of returning a clean deny.
     // Regression: observed as "Failed with non-blocking status code: 113" in the wild.
-    const sandboxName = "cc-msb-drift-exit-code";
+    const sandboxName = "glovebox-drift-exit-code";
     clearFp(sandboxName);
     writeFileSync(`/tmp/fake-msb-${sandboxName}.state`, "Running\n");
-    const projectDir = mkdtempSync(join(tmpdir(), "cc-msb-drift-exit-"));
+    const projectDir = mkdtempSync(join(tmpdir(), "glovebox-drift-exit-"));
     writeFileSync(
-      join(projectDir, ".cc-msb.yml"),
+      join(projectDir, ".glovebox.yml"),
       `main:\n  scope: named\n  sandbox_name: ${sandboxName}\n  sandbox_image: ubuntu\n`
     );
     // Write a fingerprint for a DIFFERENT config so drift is detected immediately.
-    const fpDir = join(homedir(), ".cache", "cc-msb", "fingerprints");
+    const fpDir = join(homedir(), ".cache", "glovebox", "fingerprints");
     try {
       // Simulate a stale fingerprint (as if sandbox was created with alpine, but config now says ubuntu).
       mkdirSync(fpDir, { recursive: true });
@@ -240,12 +240,12 @@ describe("config — config-drift detection", () => {
   });
 
   it("pre-existing sandbox without a stored fingerprint: no drift (backwards-compat)", () => {
-    const sandboxName = "cc-msb-drift-no-stored-fp";
+    const sandboxName = "glovebox-drift-no-stored-fp";
     clearFp(sandboxName);
     writeFileSync(`/tmp/fake-msb-${sandboxName}.state`, "Running\n");
-    const projectDir = mkdtempSync(join(tmpdir(), "cc-msb-drift-"));
+    const projectDir = mkdtempSync(join(tmpdir(), "glovebox-drift-"));
     writeFileSync(
-      join(projectDir, ".cc-msb.yml"),
+      join(projectDir, ".glovebox.yml"),
       `main:\n  scope: named\n  sandbox_name: ${sandboxName}\n  sandbox_image: alpine\n`
     );
     try {

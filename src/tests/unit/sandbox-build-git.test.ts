@@ -2,7 +2,7 @@ import { describe, it, expect, beforeEach, afterEach } from "vitest";
 import { existsSync, readFileSync, rmSync } from "node:fs";
 
 const MODULE_URL = new URL(
-  "../../../plugins/cc-msb/scripts/lib/sandbox-build.mjs",
+  "../../../plugins/glovebox/scripts/lib/sandbox-build.mjs",
   import.meta.url
 ).href;
 
@@ -91,7 +91,7 @@ describe("sandbox-build.mjs — applyGitIdentity", () => {
 });
 
 describe("sandbox-build.mjs — dumpFake", () => {
-  const NAME = "cc-msb-sandbox-build-test";
+  const NAME = "glovebox-sandbox-build-test";
   const FAKE_FILE = `/tmp/fake-msb-${NAME}.create-args`;
   const STATE_FILE = `/tmp/fake-msb-${NAME}.state`;
 
@@ -104,15 +104,15 @@ describe("sandbox-build.mjs — dumpFake", () => {
     try { rmSync(STATE_FILE); } catch { /* ignore */ }
   });
 
-  it("returns false when CC_MSB_FAKE_CREATE is unset", async () => {
-    delete process.env["CC_MSB_FAKE_CREATE"];
+  it("returns false when GLOVEBOX_FAKE_CREATE is unset", async () => {
+    delete process.env["GLOVEBOX_FAKE_CREATE"];
     const { dumpFake } = await import(MODULE_URL);
     expect(dumpFake({ sandboxName: NAME })).toBe(false);
     expect(existsSync(FAKE_FILE)).toBe(false);
   });
 
-  it("writes the JSON payload + state file when CC_MSB_FAKE_CREATE=1", async () => {
-    process.env["CC_MSB_FAKE_CREATE"] = "1";
+  it("writes the JSON payload + state file when GLOVEBOX_FAKE_CREATE=1", async () => {
+    process.env["GLOVEBOX_FAKE_CREATE"] = "1";
     try {
       const { dumpFake } = await import(MODULE_URL);
       const cfg = { ...baseCfg, sandboxName: NAME };
@@ -124,7 +124,7 @@ describe("sandbox-build.mjs — dumpFake", () => {
       expect(dumped.image).toBe("ubuntu");
       expect(readFileSync(STATE_FILE, "utf8").trim()).toBe("Running");
     } finally {
-      delete process.env["CC_MSB_FAKE_CREATE"];
+      delete process.env["GLOVEBOX_FAKE_CREATE"];
     }
   });
 });

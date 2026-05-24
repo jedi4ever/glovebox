@@ -20,7 +20,7 @@ We want full test coverage of features we add
 This project uses git. so have the right .gitignore
 
 This is claude plugin, so follow the conventions
-The plugin goes into the plugins/cc-msb directory
+The plugin goes into the plugins/glovebox directory
 And we should be able to use this to add the plugin to claude
 Dont't mix any plugin actions in tthe package.json
 Plugin is not the output of the this project
@@ -55,7 +55,7 @@ Keep shell and js files short and readable
 Keep the hooks clear names and seperarte in logic to follow
 Make sure to do correct shell escsping where necessary
 
-We want to control features using a config file .cc-msb.yml:
+We want to control features using a config file .glovebox.yml:
 for example enable/disalbe the mouting of the workdir
 The config settings can also be set via env var
 

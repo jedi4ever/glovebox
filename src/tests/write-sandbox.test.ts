@@ -9,15 +9,15 @@ describe("write-sandbox", () => {
     const session = await createCleanSession();
     try {
       const writeResult = await session.run(
-        "Write the text 'cc-msb-write-test' to the file /tmp/cc-msb-write-test.txt"
+        "Write the text 'glovebox-write-test' to the file /tmp/glovebox-write-test.txt"
       );
       expect(writeResult.exitCode).toBe(0);
 
       const readResult = await session.run(
-        "Read the file /tmp/cc-msb-write-test.txt and tell me exactly what it contains. Quote it precisely."
+        "Read the file /tmp/glovebox-write-test.txt and tell me exactly what it contains. Quote it precisely."
       );
       expect(readResult.exitCode).toBe(0);
-      expect(readResult.stdout).toMatch(/cc-msb-write-test/i);
+      expect(readResult.stdout).toMatch(/glovebox-write-test/i);
     } finally {
       await session.dispose();
     }
@@ -29,8 +29,8 @@ describe("write-sandbox", () => {
     try {
       const result = await session.run(
         "Do these 2 steps in order:\n" +
-        "1. Use the Write tool to write the exact text 'hook-written-value\\n' to /tmp/cc-msb-write-sync-test.txt\n" +
-        "2. Run bash: `cat /tmp/cc-msb-write-sync-test.txt` and report the exact output.\n" +
+        "1. Use the Write tool to write the exact text 'hook-written-value\\n' to /tmp/glovebox-write-sync-test.txt\n" +
+        "2. Run bash: `cat /tmp/glovebox-write-sync-test.txt` and report the exact output.\n" +
         "Label each step's output clearly."
       );
 
@@ -50,10 +50,10 @@ describe("write-sandbox", () => {
     try {
       const result = await session.run(
         "Do these 4 steps in order, using separate tool calls for each:\n" +
-        "1. Run a bash command: `echo initial-value > /tmp/cc-msb-roundtrip.txt`\n" +
-        "2. Use the Read tool on /tmp/cc-msb-roundtrip.txt\n" +
-        "3. Run a bash command: `echo updated-value > /tmp/cc-msb-roundtrip.txt`\n" +
-        "4. Use the Read tool on /tmp/cc-msb-roundtrip.txt again and tell me the exact contents.\n"
+        "1. Run a bash command: `echo initial-value > /tmp/glovebox-roundtrip.txt`\n" +
+        "2. Use the Read tool on /tmp/glovebox-roundtrip.txt\n" +
+        "3. Run a bash command: `echo updated-value > /tmp/glovebox-roundtrip.txt`\n" +
+        "4. Use the Read tool on /tmp/glovebox-roundtrip.txt again and tell me the exact contents.\n"
       );
 
       expect(result.exitCode).toBe(0);

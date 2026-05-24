@@ -54,7 +54,7 @@ function assertNoTokenLeak(stdout: string) {
 
 describe.concurrent("git + github integration", () => {
   it("git_user_name / git_user_email are visible via `git config --global --get`", async () => {
-    const { session, teardown } = await setupScenario("cc-msb-git-id-", {
+    const { session, teardown } = await setupScenario("glovebox-git-id-", {
       fixture: "config-git-identity",
     });
     try {
@@ -78,15 +78,15 @@ describe.concurrent("git + github integration", () => {
   const autoEnv = {
     // setup.ts globally disables autodetect for unit-test stability;
     // re-enable here to actually exercise the path.
-    CC_MSB_MAIN_GIT_USER_AUTODETECT: "true",
-    CC_MSB_MAIN_GIT_TOKEN_AUTODETECT: "true",
+    GLOVEBOX_MAIN_GIT_USER_AUTODETECT: "true",
+    GLOVEBOX_MAIN_GIT_TOKEN_AUTODETECT: "true",
   };
   const skipNote = host.ready ? "" : ` — SKIPPED: ${host.reason}`;
 
   itAuto(
     `autodetect: GH_TOKEN reaches api.github.com via the proxy (raw curl)${skipNote}`,
     async () => {
-      const { session, teardown } = await setupScenario("cc-msb-gh-curl-", {
+      const { session, teardown } = await setupScenario("glovebox-gh-curl-", {
         fixture: "config-git-autodetect-probe",
         env: autoEnv,
       });
@@ -120,7 +120,7 @@ describe.concurrent("git + github integration", () => {
   itAuto(
     `autodetect: \`gh auth status\` succeeds inside the sandbox${skipNote}`,
     async () => {
-      const { session, teardown } = await setupScenario("cc-msb-gh-auth-status-", {
+      const { session, teardown } = await setupScenario("glovebox-gh-auth-status-", {
         fixture: "config-git-autodetect-probe",
         env: autoEnv,
       });
@@ -151,7 +151,7 @@ describe.concurrent("git + github integration", () => {
   itAuto(
     `autodetect: host's git config --global user.name/email flow into the sandbox${skipNote}`,
     async () => {
-      const { session, teardown } = await setupScenario("cc-msb-git-identity-auto-", {
+      const { session, teardown } = await setupScenario("glovebox-git-identity-auto-", {
         fixture: "config-git-autodetect-probe",
         env: autoEnv,
       });

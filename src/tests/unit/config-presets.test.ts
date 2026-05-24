@@ -8,12 +8,12 @@ import {
 } from "node:fs";
 import { tmpdir } from "node:os";
 
-const PLUGIN_ROOT = fileURLToPath(new URL("../../../plugins/cc-msb", import.meta.url));
+const PLUGIN_ROOT = fileURLToPath(new URL("../../../plugins/glovebox", import.meta.url));
 const FAKE_MSB_DIR = fileURLToPath(new URL("../fixtures/fake-msb", import.meta.url));
 const PRE_HOOK = join(PLUGIN_ROOT, "hooks/pre-tool-use.mjs");
 
 const SESSION_ID = "unit-presets-001";
-const SANDBOX_NAME = `cc-msb-${SESSION_ID.slice(0, 16)}`;
+const SANDBOX_NAME = `glovebox-${SESSION_ID.slice(0, 16)}`;
 
 function bashEvent(agentType?: string) {
   return {
@@ -56,12 +56,12 @@ function runHook(
       PATH: `${FAKE_MSB_DIR}:${process.env["PATH"]}`,
       CLAUDE_PLUGIN_ROOT: PLUGIN_ROOT,
       CLAUDE_PROJECT_DIR: projectDir,
-      CC_MSB_FAKE_CREATE: "1",
+      GLOVEBOX_FAKE_CREATE: "1",
       // Pin scope to `session` so the sandbox name is predictable
       // regardless of what the preset sets (the `dev` preset uses
       // `scope: directory` which would derive a hash-based name).
       // Individual tests can still override via extraEnv.
-      CC_MSB_MAIN_SCOPE: "session",
+      GLOVEBOX_MAIN_SCOPE: "session",
       ...extraEnv,
     },
   });
@@ -79,8 +79,8 @@ beforeEach(() => cleanupFakeMsbFiles());
 afterEach(() => cleanupFakeMsbFiles());
 
 function makeProject(yaml: string): string {
-  const dir = mkdtempSync(join(tmpdir(), "cc-msb-preset-"));
-  writeFileSync(join(dir, ".cc-msb.yml"), yaml);
+  const dir = mkdtempSync(join(tmpdir(), "glovebox-preset-"));
+  writeFileSync(join(dir, ".glovebox.yml"), yaml);
   return dir;
 }
 
@@ -88,9 +88,9 @@ function makeProject(yaml: string): string {
 // point the hook at it. Built-in presets remain available via
 // CLAUDE_PLUGIN_ROOT (set in runHook above).
 function makeUserPresetsDir(): { dir: string; env: Record<string, string> } {
-  const dir = mkdtempSync(join(tmpdir(), "cc-msb-userpresets-"));
+  const dir = mkdtempSync(join(tmpdir(), "glovebox-userpresets-"));
   mkdirSync(dir, { recursive: true });
-  return { dir, env: { CC_MSB_PRESETS_DIR: dir } };
+  return { dir, env: { GLOVEBOX_PRESETS_DIR: dir } };
 }
 
 describe("config — presets", () => {
@@ -138,7 +138,7 @@ describe("config — presets", () => {
   it("env var still beats preset (top of the chain unchanged)", () => {
     const dir = makeProject("presets: [dev]\n");
     try {
-      runHook(dir, { CC_MSB_SANDBOX_IMAGE: "alpine" });
+      runHook(dir, { GLOVEBOX_SANDBOX_IMAGE: "alpine" });
       const cfg = readCreateConfig();
       expect(cfg?.image).toBe("alpine");
     } finally {
@@ -221,13 +221,13 @@ describe("config — presets", () => {
     }
   });
 
-  it("CC_MSB_PRESETS env var overrides the file-declared list", () => {
+  it("GLOVEBOX_PRESETS env var overrides the file-declared list", () => {
     const { dir: presetsDir, env: presetsEnv } = makeUserPresetsDir();
     // "custom" preset sets a distinct image so we can prove it was NOT loaded
     writeFileSync(join(presetsDir, "custom.yml"), "defaults:\n  sandbox_image: custom-img\n");
     const dir = makeProject("presets: [custom]\n");  // file says custom
     try {
-      runHook(dir, { ...presetsEnv, CC_MSB_PRESETS: "dev" });  // env says dev
+      runHook(dir, { ...presetsEnv, GLOVEBOX_PRESETS: "dev" });  // env says dev
       const cfg = readCreateConfig();
       // dev's image wins; custom-img must NOT appear → env replaced the list
       expect(cfg?.image).toBe("localhost:5123/devbox");

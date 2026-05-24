@@ -27,18 +27,18 @@ describe("config — mount_workdir", () => {
     expect(readCreateArgs()).not.toContain("--volume");
   });
 
-  it("env var CC_MSB_MAIN_MOUNT_WORKDIR=false overrides config file true", () => {
-    runHook(fixturePath("config-mount-on"), { CC_MSB_MAIN_MOUNT_WORKDIR: "false" });
+  it("env var GLOVEBOX_MAIN_MOUNT_WORKDIR=false overrides config file true", () => {
+    runHook(fixturePath("config-mount-on"), { GLOVEBOX_MAIN_MOUNT_WORKDIR: "false" });
     expect(readCreateArgs()).not.toContain("--volume");
   });
 
-  it("env var CC_MSB_MAIN_MOUNT_WORKDIR=true overrides config file false", () => {
-    runHook(fixturePath("config-mount-off"), { CC_MSB_MAIN_MOUNT_WORKDIR: "true" });
+  it("env var GLOVEBOX_MAIN_MOUNT_WORKDIR=true overrides config file false", () => {
+    runHook(fixturePath("config-mount-off"), { GLOVEBOX_MAIN_MOUNT_WORKDIR: "true" });
     expect(readCreateArgs()).toContain("--volume");
   });
 
-  it("env var CC_MSB_AGENT_MOUNT_WORKDIR=false disables mount for agents", () => {
-    runHook(fixturePath("simple-read"), { CC_MSB_AGENT_SCOPE_TEST_AGENT: "per-agent", CC_MSB_AGENT_MOUNT_WORKDIR: "false" }, "test-agent");
+  it("env var GLOVEBOX_AGENT_MOUNT_WORKDIR=false disables mount for agents", () => {
+    runHook(fixturePath("simple-read"), { GLOVEBOX_AGENT_SCOPE_TEST_AGENT: "per-agent", GLOVEBOX_AGENT_MOUNT_WORKDIR: "false" }, "test-agent");
     expect(readCreateArgs(PER_AGENT_SANDBOX)).not.toContain("--volume");
   });
 
@@ -64,20 +64,20 @@ describe("config — sandbox_image", () => {
     expect(readCreateArgs()[0]).toBe("debian");
   });
 
-  it("env var CC_MSB_SANDBOX_IMAGE overrides config file", () => {
-    runHook(fixturePath("config-image-debian"), { CC_MSB_SANDBOX_IMAGE: "alpine" });
+  it("env var GLOVEBOX_SANDBOX_IMAGE overrides config file", () => {
+    runHook(fixturePath("config-image-debian"), { GLOVEBOX_SANDBOX_IMAGE: "alpine" });
     expect(readCreateArgs()[0]).toBe("alpine");
   });
 
-  it("env var CC_MSB_SANDBOX_IMAGE overrides default when no config file", () => {
-    runHook(fixturePath("simple-read"), { CC_MSB_SANDBOX_IMAGE: "alpine" });
+  it("env var GLOVEBOX_SANDBOX_IMAGE overrides default when no config file", () => {
+    runHook(fixturePath("simple-read"), { GLOVEBOX_SANDBOX_IMAGE: "alpine" });
     expect(readCreateArgs()[0]).toBe("alpine");
   });
 
   it("accepts a registry-qualified image reference (localhost:5000/devbox)", () => {
-    const localDir = mkdtempSync(join(tmpdir(), "cc-msb-registry-"));
+    const localDir = mkdtempSync(join(tmpdir(), "glovebox-registry-"));
     writeFileSync(
-      join(localDir, ".cc-msb.yml"),
+      join(localDir, ".glovebox.yml"),
       "main:\n  sandbox_image: localhost:5000/devbox\n  network: disabled\n"
     );
     try {
@@ -91,9 +91,9 @@ describe("config — sandbox_image", () => {
   });
 
   it("accepts a registry image with an explicit tag (registry.example.com:5000/devbox:v1.2)", () => {
-    const localDir = mkdtempSync(join(tmpdir(), "cc-msb-registry-tag-"));
+    const localDir = mkdtempSync(join(tmpdir(), "glovebox-registry-tag-"));
     writeFileSync(
-      join(localDir, ".cc-msb.yml"),
+      join(localDir, ".glovebox.yml"),
       "main:\n  sandbox_image: registry.example.com:5000/devbox:v1.2\n"
     );
     try {
@@ -121,13 +121,13 @@ describe("config — agent-specific image", () => {
     expect(readCreateArgs()[0]).toBe("ubuntu");
   });
 
-  it("env var CC_MSB_AGENT_IMAGE_<NAME> overrides config file for that agent", () => {
-    runHook(fixturePath("config-agent-image"), { CC_MSB_AGENT_IMAGE_TEST_AGENT: "alpine" }, "test-agent");
+  it("env var GLOVEBOX_AGENT_IMAGE_<NAME> overrides config file for that agent", () => {
+    runHook(fixturePath("config-agent-image"), { GLOVEBOX_AGENT_IMAGE_TEST_AGENT: "alpine" }, "test-agent");
     expect(readCreateArgs(PER_AGENT_SANDBOX)[0]).toBe("alpine");
   });
 
-  it("env var CC_MSB_AGENT_IMAGE_<NAME> with hyphenated agent name (test-agent → TEST_AGENT)", () => {
-    runHook(fixturePath("simple-read"), { CC_MSB_AGENT_IMAGE_TEST_AGENT: "alpine" }, "test-agent");
+  it("env var GLOVEBOX_AGENT_IMAGE_<NAME> with hyphenated agent name (test-agent → TEST_AGENT)", () => {
+    runHook(fixturePath("simple-read"), { GLOVEBOX_AGENT_IMAGE_TEST_AGENT: "alpine" }, "test-agent");
     expect(readCreateArgs()[0]).toBe("alpine");
   });
 });

@@ -1,4 +1,4 @@
-// Direct unit tests for plugins/cc-msb/lib/config.mjs — core settings.
+// Direct unit tests for plugins/glovebox/lib/config.mjs — core settings.
 import { describe, it, expect } from "vitest";
 import { spawnSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
@@ -7,14 +7,14 @@ import { mkdtempSync, writeFileSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 
 const CONFIG_MJS = fileURLToPath(
-  new URL("../../../plugins/cc-msb/lib/config.mjs", import.meta.url)
+  new URL("../../../plugins/glovebox/lib/config.mjs", import.meta.url)
 );
 
 const BASE_ENV = {
   ...process.env,
-  CC_MSB_CONFIG_DIR: "/tmp/cc-msb-test-nonexistent-global",
-  CC_MSB_MAIN_GIT_USER_AUTODETECT: "false",
-  CC_MSB_MAIN_GIT_TOKEN_AUTODETECT: "false",
+  GLOVEBOX_CONFIG_DIR: "/tmp/glovebox-test-nonexistent-global",
+  GLOVEBOX_MAIN_GIT_USER_AUTODETECT: "false",
+  GLOVEBOX_MAIN_GIT_TOKEN_AUTODETECT: "false",
 };
 
 interface CfgResult {
@@ -35,8 +35,8 @@ function runConfig(projectDir: string, agentType = "", extraEnv: Record<string, 
 }
 
 function tmpProject(yaml?: string): string {
-  const dir = mkdtempSync(join(tmpdir(), "cc-msb-cfg-test-"));
-  if (yaml) writeFileSync(join(dir, ".cc-msb.yml"), yaml);
+  const dir = mkdtempSync(join(tmpdir(), "glovebox-cfg-test-"));
+  if (yaml) writeFileSync(join(dir, ".glovebox.yml"), yaml);
   return dir;
 }
 
@@ -155,24 +155,24 @@ describe("config.mjs — agents section", () => {
 });
 
 describe("config.mjs — env var overrides", () => {
-  it("CC_MSB_MAIN_SCOPE short-circuits YAML", () => {
+  it("GLOVEBOX_MAIN_SCOPE short-circuits YAML", () => {
     const dir = tmpProject("main:\n  scope: named\n");
     try {
-      expect(runConfig(dir, "", { CC_MSB_MAIN_SCOPE: "host" }).scope).toBe("host");
+      expect(runConfig(dir, "", { GLOVEBOX_MAIN_SCOPE: "host" }).scope).toBe("host");
     } finally { rmSync(dir, { recursive: true, force: true }); }
   });
 
-  it("CC_MSB_SANDBOX_IMAGE overrides main image for main session", () => {
+  it("GLOVEBOX_SANDBOX_IMAGE overrides main image for main session", () => {
     const dir = tmpProject("main:\n  sandbox_image: debian\n");
     try {
-      expect(runConfig(dir, "", { CC_MSB_SANDBOX_IMAGE: "alpine" }).image).toBe("alpine");
+      expect(runConfig(dir, "", { GLOVEBOX_SANDBOX_IMAGE: "alpine" }).image).toBe("alpine");
     } finally { rmSync(dir, { recursive: true, force: true }); }
   });
 
-  it("CC_MSB_AGENT_SCOPE_TEST_AGENT overrides for that agent", () => {
+  it("GLOVEBOX_AGENT_SCOPE_TEST_AGENT overrides for that agent", () => {
     const dir = tmpProject("agents:\n  test-agent:\n    scope: per-run\n");
     try {
-      expect(runConfig(dir, "test-agent", { CC_MSB_AGENT_SCOPE_TEST_AGENT: "session" }).scope).toBe("session");
+      expect(runConfig(dir, "test-agent", { GLOVEBOX_AGENT_SCOPE_TEST_AGENT: "session" }).scope).toBe("session");
     } finally { rmSync(dir, { recursive: true, force: true }); }
   });
 });

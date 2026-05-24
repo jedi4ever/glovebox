@@ -8,12 +8,12 @@ import {
 } from "node:fs";
 import { tmpdir } from "node:os";
 
-const PLUGIN_ROOT = fileURLToPath(new URL("../../../plugins/cc-msb", import.meta.url));
+const PLUGIN_ROOT = fileURLToPath(new URL("../../../plugins/glovebox", import.meta.url));
 const FAKE_MSB_DIR = fileURLToPath(new URL("../fixtures/fake-msb", import.meta.url));
 const PRE_HOOK = join(PLUGIN_ROOT, "hooks/pre-tool-use.mjs");
 
 const SESSION_ID = "unit-pres-union-1";
-const SANDBOX_NAME = `cc-msb-${SESSION_ID.slice(0, 16)}`;
+const SANDBOX_NAME = `glovebox-${SESSION_ID.slice(0, 16)}`;
 
 function bashEvent() {
   return {
@@ -45,8 +45,8 @@ function runHook(projectDir: string, extraEnv: Record<string, string> = {}) {
       PATH: `${FAKE_MSB_DIR}:${process.env["PATH"]}`,
       CLAUDE_PLUGIN_ROOT: PLUGIN_ROOT,
       CLAUDE_PROJECT_DIR: projectDir,
-      CC_MSB_FAKE_CREATE: "1",
-      CC_MSB_MAIN_SCOPE: "session",
+      GLOVEBOX_FAKE_CREATE: "1",
+      GLOVEBOX_MAIN_SCOPE: "session",
       ...extraEnv,
     },
   });
@@ -62,15 +62,15 @@ beforeEach(() => cleanupFakeMsbFiles());
 afterEach(() => cleanupFakeMsbFiles());
 
 function makeProject(yaml: string): string {
-  const dir = mkdtempSync(join(tmpdir(), "cc-msb-uni-"));
-  writeFileSync(join(dir, ".cc-msb.yml"), yaml);
+  const dir = mkdtempSync(join(tmpdir(), "glovebox-uni-"));
+  writeFileSync(join(dir, ".glovebox.yml"), yaml);
   return dir;
 }
 
 function makeUserPresetsDir(): { dir: string; env: Record<string, string> } {
-  const dir = mkdtempSync(join(tmpdir(), "cc-msb-up-"));
+  const dir = mkdtempSync(join(tmpdir(), "glovebox-up-"));
   mkdirSync(dir, { recursive: true });
-  return { dir, env: { CC_MSB_PRESETS_DIR: dir } };
+  return { dir, env: { GLOVEBOX_PRESETS_DIR: dir } };
 }
 
 // Returns a sorted comma-separated view of the value so tests can assert
@@ -186,7 +186,7 @@ describe("config — presets union semantics", () => {
     writeFileSync(join(pdir, "wide.yml"), "defaults:\n  network: \"x.com,y.com\"\n");
     const proj = makeProject("presets: [wide]\n");
     try {
-      runHook(proj, { ...env, CC_MSB_MAIN_NETWORK: "explicit.com" });
+      runHook(proj, { ...env, GLOVEBOX_MAIN_NETWORK: "explicit.com" });
       // Env var wins outright — preset doesn't contribute.
       expect(readCreateConfig()?.network).toBe("explicit.com");
     } finally {

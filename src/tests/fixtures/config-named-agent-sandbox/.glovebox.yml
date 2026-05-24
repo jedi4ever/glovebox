@@ -1,0 +1,8 @@
+main:
+  scope: named
+  sandbox_name: glovebox-test-named-main
+
+agents:
+  test-agent:
+    scope: named
+    sandbox_name: glovebox-test-named-agent

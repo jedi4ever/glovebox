@@ -11,25 +11,25 @@ import { createCleanSession } from "../helpers/session.js";
 //   1. Open a CC session against a fresh project dir with auto_recreate=true
 //      and a named sandbox (so it persists across config edits).
 //   2. Ask Claude to install a marker package + write a marker file. Sync.
-//   3. Edit .cc-msb.yml to flip a network setting (drift).
+//   3. Edit .glovebox.yml to flip a network setting (drift).
 //   4. Open a SECOND CC session in the same project. The first tool call
 //      detects drift; auto_recreate kicks in and snapshots → recreates the
 //      sandbox with the new network policy.
 //   5. Verify the marker package + file are STILL there (state preserved)
 //      AND a subsequent inspect shows the new network rule.
 
-const SANDBOX_NAME = "cc-msb-autorec-it";
+const SANDBOX_NAME = "glovebox-autorec-it";
 
 afterAll(() => {
   // Belt-and-suspenders cleanup of the named sandbox.
   spawnSync("msb", ["stop", SANDBOX_NAME, "--quiet"], { encoding: "utf8" });
   spawnSync("msb", ["remove", SANDBOX_NAME, "--quiet"], { encoding: "utf8" });
-  spawnSync("msb", ["snapshot", "remove", `${SANDBOX_NAME}--cc-msb-pending`, "--force", "--quiet"], { encoding: "utf8" });
+  spawnSync("msb", ["snapshot", "remove", `${SANDBOX_NAME}--glovebox-pending`, "--force", "--quiet"], { encoding: "utf8" });
 });
 
 async function writeConfig(projectDir: string, networkLine: string) {
   await writeFile(
-    join(projectDir, ".cc-msb.yml"),
+    join(projectDir, ".glovebox.yml"),
     [
       "main:",
       `  sandbox_image: buildpack-deps:noble`,  // has bash + apt
@@ -44,7 +44,7 @@ async function writeConfig(projectDir: string, networkLine: string) {
 
 describe.concurrent("config — auto_recreate integration", () => {
   it("on drift: snapshots + recreates with new flags, preserves filesystem state", async () => {
-    const projectDir = await mkdtemp(join(tmpdir(), "cc-msb-autorec-"));
+    const projectDir = await mkdtemp(join(tmpdir(), "glovebox-autorec-"));
 
     // Belt-and-suspenders: kill any leftover sandbox from a previous run.
     spawnSync("msb", ["stop", SANDBOX_NAME, "--quiet"], { encoding: "utf8" });
@@ -59,7 +59,7 @@ describe.concurrent("config — auto_recreate integration", () => {
       // the recreate. `sync` is critical — see comment in recreate-sandbox.mjs.
       const r = await s1.run(
         "Run this bash command and report 'OK' when it finishes: " +
-        "`echo CC_MSB_STATE_BEFORE > /etc/cc-msb-mark && sync && echo OK`"
+        "`echo GLOVEBOX_STATE_BEFORE > /etc/glovebox-mark && sync && echo OK`"
       );
       expect(r.exitCode).toBe(0);
       expect(r.stdout).toMatch(/OK/);
@@ -75,11 +75,11 @@ describe.concurrent("config — auto_recreate integration", () => {
     try {
       const r = await s2.run(
         "Run this bash command and report its exact output: " +
-        "`cat /etc/cc-msb-mark`"
+        "`cat /etc/glovebox-mark`"
       );
       expect(r.exitCode).toBe(0);
       // State must have survived the recreate.
-      expect(r.stdout).toMatch(/CC_MSB_STATE_BEFORE/);
+      expect(r.stdout).toMatch(/GLOVEBOX_STATE_BEFORE/);
     } finally {
       await s2.dispose();
     }

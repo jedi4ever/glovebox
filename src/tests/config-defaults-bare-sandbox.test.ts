@@ -16,7 +16,7 @@ import { fixturePath } from "../helpers/fixtures.js";
 // fresh project dir, so the new image actually takes effect.
 
 function dirSandboxName(dir: string): string {
-  return `cc-msb-dir-${createHash("sha256").update(dir).digest("hex").slice(0, 12)}`;
+  return `glovebox-dir-${createHash("sha256").update(dir).digest("hex").slice(0, 12)}`;
 }
 
 const createdDirs: string[] = [];
@@ -34,7 +34,7 @@ afterAll(async () => {
 
 describe.concurrent("config — bare defaults.<key> integration", () => {
   it("main session picks up `defaults.sandbox_image: debian` + `defaults.scope: directory`", async () => {
-    const projectDir = await mkdtemp(join(tmpdir(), "cc-msb-bare-defaults-"));
+    const projectDir = await mkdtemp(join(tmpdir(), "glovebox-bare-defaults-"));
     await cp(fixturePath("config-defaults-bare"), projectDir, { recursive: true });
     createdDirs.push(projectDir);
 

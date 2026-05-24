@@ -8,7 +8,7 @@ describe("session isolation", () => {
     await session?.dispose();
   });
 
-  it("only cc-msb plugin is loaded — no ralph-loop, vercel, or other global plugins", async () => {
+  it("only glovebox plugin is loaded — no ralph-loop, vercel, or other global plugins", async () => {
     session = await createCleanSession();
     const result = await session.run(
       "List every plugin and slash command you have available. Be exhaustive and specific."

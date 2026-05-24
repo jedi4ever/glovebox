@@ -1,4 +1,4 @@
-// Direct unit tests for plugins/cc-msb/lib/config.mjs — advanced features.
+// Direct unit tests for plugins/glovebox/lib/config.mjs — advanced features.
 import { describe, it, expect } from "vitest";
 import { spawnSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
@@ -8,14 +8,14 @@ import { tmpdir } from "node:os";
 import { fixturePath } from "../../helpers/fixtures.js";
 
 const CONFIG_MJS = fileURLToPath(
-  new URL("../../../plugins/cc-msb/lib/config.mjs", import.meta.url)
+  new URL("../../../plugins/glovebox/lib/config.mjs", import.meta.url)
 );
 
 const BASE_ENV = {
   ...process.env,
-  CC_MSB_CONFIG_DIR: "/tmp/cc-msb-test-nonexistent-global",
-  CC_MSB_MAIN_GIT_USER_AUTODETECT: "false",
-  CC_MSB_MAIN_GIT_TOKEN_AUTODETECT: "false",
+  GLOVEBOX_CONFIG_DIR: "/tmp/glovebox-test-nonexistent-global",
+  GLOVEBOX_MAIN_GIT_USER_AUTODETECT: "false",
+  GLOVEBOX_MAIN_GIT_TOKEN_AUTODETECT: "false",
 };
 
 interface CfgResult {
@@ -36,8 +36,8 @@ function runConfig(projectDir: string, agentType = "", extraEnv: Record<string, 
 }
 
 function tmpProject(yaml?: string): string {
-  const dir = mkdtempSync(join(tmpdir(), "cc-msb-cfg-test-"));
-  if (yaml) writeFileSync(join(dir, ".cc-msb.yml"), yaml);
+  const dir = mkdtempSync(join(tmpdir(), "glovebox-cfg-test-"));
+  if (yaml) writeFileSync(join(dir, ".glovebox.yml"), yaml);
   return dir;
 }
 
@@ -45,7 +45,7 @@ describe("config.mjs — network merge semantics", () => {
   it("disabled beats any allowlist", () => {
     const dir = tmpProject('main:\n  network: "example.com"\n');
     try {
-      expect(runConfig(dir, "", { CC_MSB_MAIN_NETWORK: "disabled" }).network).toBe("disabled");
+      expect(runConfig(dir, "", { GLOVEBOX_MAIN_NETWORK: "disabled" }).network).toBe("disabled");
     } finally { rmSync(dir, { recursive: true, force: true }); }
   });
 });
@@ -54,7 +54,7 @@ describe("config.mjs — pass_env semantics", () => {
   it("all beats any variable list", () => {
     const dir = tmpProject('main:\n  pass_env: "HOME,PATH"\n');
     try {
-      expect(runConfig(dir, "", { CC_MSB_MAIN_PASS_ENV: "all" }).passEnv).toBe("all");
+      expect(runConfig(dir, "", { GLOVEBOX_MAIN_PASS_ENV: "all" }).passEnv).toBe("all");
     } finally { rmSync(dir, { recursive: true, force: true }); }
   });
 });
@@ -116,12 +116,12 @@ describe("config.mjs — presets", () => {
   });
 
   it("later preset image wins over earlier (scalar last-wins)", () => {
-    const presetDir = mkdtempSync(join(tmpdir(), "cc-msb-presets-"));
+    const presetDir = mkdtempSync(join(tmpdir(), "glovebox-presets-"));
     writeFileSync(join(presetDir, "first.yml"), "defaults:\n  agents:\n    scope: per-agent\n");
     writeFileSync(join(presetDir, "second.yml"), "defaults:\n  agents:\n    scope: per-run\n");
     const dir = tmpProject("presets:\n  - first\n  - second\n");
     try {
-      const cfg = runConfig(dir, "", { CC_MSB_PRESETS_DIR: presetDir });
+      const cfg = runConfig(dir, "", { GLOVEBOX_PRESETS_DIR: presetDir });
       expect(cfg.scope).toBe("per-run");
     } finally {
       rmSync(dir, { recursive: true, force: true });

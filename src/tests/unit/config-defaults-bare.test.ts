@@ -13,8 +13,8 @@ afterEach(() => cleanupFakeMsbFiles());
 
 describe("config — bare defaults.<key> (shared baseline)", () => {
   function makeLocalConfig(yaml: string): string {
-    const dir = mkdtempSync(join(tmpdir(), "cc-msb-bared-"));
-    writeFileSync(join(dir, ".cc-msb.yml"), yaml);
+    const dir = mkdtempSync(join(tmpdir(), "glovebox-bared-"));
+    writeFileSync(join(dir, ".glovebox.yml"), yaml);
     return dir;
   }
 
@@ -207,10 +207,10 @@ describe("config — bare defaults.<key> (shared baseline)", () => {
   });
 
   it("global defaults.X applies when local file is silent", () => {
-    const globalDir = mkdtempSync(join(tmpdir(), "cc-msb-global-"));
+    const globalDir = mkdtempSync(join(tmpdir(), "glovebox-global-"));
     writeFileSync(join(globalDir, "config.yml"), "defaults:\n  sandbox_image: debian\n");
     try {
-      runHook(fixturePath("simple-read"), { CC_MSB_CONFIG_DIR: globalDir });
+      runHook(fixturePath("simple-read"), { GLOVEBOX_CONFIG_DIR: globalDir });
       expect(readCreateArgs()[0]).toBe("debian");
     } finally {
       rmSync(globalDir, { recursive: true, force: true });
