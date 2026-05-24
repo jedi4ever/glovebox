@@ -1,3 +1,4 @@
 main:
   scope: named
   sandbox_name: glovebox-test-named
+  mount_workdir: false

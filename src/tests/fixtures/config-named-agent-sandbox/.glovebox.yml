@@ -1,8 +1,10 @@
 main:
   scope: named
   sandbox_name: glovebox-test-named-main
+  mount_workdir: false
 
 agents:
   test-agent:
     scope: named
     sandbox_name: glovebox-test-named-agent
+    mount_workdir: false

@@ -3,10 +3,11 @@
 
 const SDK_URL = new URL("../../plugins/glovebox/lib/sdk.mjs", import.meta.url).href;
 
-type SandboxHandle = { name: string; status: string; configJson: string; stop(): Promise<void>; remove(): Promise<void> };
+type SandboxHandle = { name: string; status: string; configJson: string; stop(): Promise<void>; kill(): Promise<void>; remove(): Promise<void>; connect(): Promise<{ stopAndWait(): Promise<void> }> };
 type SandboxBuilderChain = { createDetached(): Promise<unknown>; replace(): SandboxBuilderChain };
 type SandboxClass = {
   list(): Promise<SandboxHandle[]>;
+  get(name: string): Promise<SandboxHandle>;
   remove(name: string): Promise<void>;
   builder(name: string): { image(img: string): SandboxBuilderChain };
 };
@@ -36,19 +37,21 @@ async function sdk(): Promise<{ Sandbox: SandboxClass; Snapshot: SnapshotClass; 
 export async function removeSandbox(name: string): Promise<void> {
   try {
     const { Sandbox } = await sdk();
-    const handles = await Sandbox.list();
-    const handle = handles.find((h) => h.name === name);
-    if (!handle) return;
+    // Sandbox.list() returns read-only handles — use Sandbox.get() for a live
+    // handle that supports lifecycle methods (stop, kill, remove).
+    let handle: SandboxHandle;
+    try { handle = await Sandbox.get(name); } catch { return; /* not found */ }
+
     if (handle.status === "running" || handle.status === "draining") {
+      // Try graceful stop; fall back to kill() for stuck sandboxes (e.g. broken
+      // workspace mounts keep the VM in a state where stop hangs or stalls).
       try {
-        // connect() + stopAndWait() ensures the sandbox is fully stopped before remove().
-        // handle.stop() is fire-and-forget; calling remove() immediately after fails.
         const live = await handle.connect();
         await live.stopAndWait();
       } catch {
-        // Sandbox stopped mid-flight or connect failed — try direct stop + poll.
-        try { await handle.stop(); } catch {}
-        for (let i = 0; i < 10; i++) {
+        try { await handle.kill(); } catch {}
+        // After kill, poll until the sandbox leaves running state.
+        for (let i = 0; i < 15; i++) {
           await new Promise((r) => setTimeout(r, 300));
           try {
             const h2 = await Sandbox.get(name);
@@ -56,6 +59,9 @@ export async function removeSandbox(name: string): Promise<void> {
           } catch { break; }
         }
       }
+      // MSB needs a moment after the VM stops before remove() will succeed —
+      // the status transitions to "stopped" before the internal lock is released.
+      await new Promise((r) => setTimeout(r, 1000));
     }
     await handle.remove();
   } catch {
