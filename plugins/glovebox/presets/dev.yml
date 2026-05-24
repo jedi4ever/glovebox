@@ -12,6 +12,11 @@
 presets:
   - npm
   - github
+  - apt
+  - docker
+  - pip
+  - go
+  - cargo
 
 defaults:
   sandbox_image: localhost:5123/glovebox

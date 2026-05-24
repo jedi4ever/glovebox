@@ -158,7 +158,7 @@ describe("ecosystem presets — composition", () => {
     } finally { rmSync(dir, { recursive: true, force: true }); }
   });
 
-  it("dev preset (npm + github sub-presets) contains expected hosts", () => {
+  it("dev preset (npm + github + apt sub-presets) contains expected hosts", () => {
     const dir = makeProject("presets: [dev]\n");
     try {
       runHook(dir);
@@ -166,6 +166,8 @@ describe("ecosystem presets — composition", () => {
       expect(net).toContain("registry.npmjs.org");
       expect(net).toContain("github.com");
       expect(net).toContain("ghcr.io");
+      expect(net).toContain("deb.debian.org");
+      expect(net).toContain("archive.ubuntu.com");
     } finally { rmSync(dir, { recursive: true, force: true }); }
   });
 });
