@@ -22,7 +22,6 @@ function makeBuilder() {
     image: record("image"),
     fromSnapshot: record("fromSnapshot"),
     replace: record("replace"),
-    idleTimeout: record("idleTimeout"),
     workdir: record("workdir"),
     port: record("port"),
     portUdp: record("portUdp"),

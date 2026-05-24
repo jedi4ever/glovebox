@@ -36,16 +36,7 @@ export function dumpFake(cfg) {
 //
 // Returns the same builder for chaining.
 // ---------------------------------------------------------------------------
-// Default: keep sandboxes alive for 24 h of inactivity. MSB's built-in
-// default is ~10 s — short enough that Claude's thinking time between tool
-// calls causes the sandbox to stop and /tmp to be cleared. Override with
-// GLOVEBOX_IDLE_TIMEOUT_SECS (e.g. set to 0 in tests to use the MSB default).
-const IDLE_TIMEOUT_SECS = process.env.GLOVEBOX_IDLE_TIMEOUT_SECS != null
-  ? Number(process.env.GLOVEBOX_IDLE_TIMEOUT_SECS)
-  : 86_400;
-
 export function applyConfig(builder, cfg) {
-  if (IDLE_TIMEOUT_SECS > 0) builder.idleTimeout(IDLE_TIMEOUT_SECS);
   applyMount(builder, cfg);
   builder.network((nb) => {
     // Ports must be set on the NetworkBuilder, not the SandboxBuilder:
