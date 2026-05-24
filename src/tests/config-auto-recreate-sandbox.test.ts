@@ -18,7 +18,7 @@ import { removeSandbox, removeSnapshot, getSandboxConfigJson } from "../helpers/
 //   5. Verify the marker file is STILL there (state preserved) AND the new
 //      network rule is reflected in the sandbox config.
 
-const SANDBOX_NAME = "glovebox-autorec-it";
+const SANDBOX_NAME = "glovebox-test-autorec-it";
 
 beforeAll(async () => {
   await removeSandbox(SANDBOX_NAME);

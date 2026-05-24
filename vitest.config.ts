@@ -6,6 +6,7 @@ export default defineConfig({
     environment: "node",
     include: ["src/**/*.test.ts"],
     testTimeout: 180_000,
+    globalSetup: ["src/helpers/global-setup.ts"],
     setupFiles: ["src/helpers/setup.ts"],
     // Integration tests spawn real `claude --print` + msb sandboxes; transient
     // API/network hiccups occasionally surface under heavy parallelism.

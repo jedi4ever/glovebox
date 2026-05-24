@@ -18,7 +18,7 @@ function isPortOpen(port: number, host = "127.0.0.1", timeoutMs = 1500): Promise
   });
 }
 
-const NAMED_SANDBOX = "glovebox-ports-int-named";
+const NAMED_SANDBOX = "glovebox-test-ports-int-named";
 const HOST_PORT = 19876;
 
 // Always clean up the named sandbox so the bound host port is released between

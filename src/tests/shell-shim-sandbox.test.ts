@@ -11,7 +11,7 @@ import { removeSandbox, createSandbox } from "../helpers/msb-sdk.js";
 const PLUGIN_ROOT = fileURLToPath(new URL("../../plugins/glovebox", import.meta.url));
 const SHIM = join(PLUGIN_ROOT, "skills/shell/glovebox-bash.mjs");
 
-const PROBE_SANDBOX = "glovebox-shim-tui-probe";
+const PROBE_SANDBOX = "glovebox-test-shim-tui-probe";
 const CLAUDE_BIN = execSync("which claude", { encoding: "utf8" }).trim();
 
 beforeAll(async () => { await removeSandbox(PROBE_SANDBOX); });
