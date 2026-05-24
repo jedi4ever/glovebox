@@ -1,0 +1,19 @@
+# Preset: apt — pin the network allowlist to the hosts `apt-get update`
+# and `apt-get install` need on Debian and Ubuntu images.
+#
+# Network hosts opened:
+#   deb.debian.org          — Debian main/contrib/non-free packages
+#   security.debian.org     — Debian security updates
+#   archive.ubuntu.com      — Ubuntu main/universe/restricted (amd64/i386)
+#   security.ubuntu.com     — Ubuntu security updates
+#   ports.ubuntu.com        — Ubuntu arm64/armhf port packages
+#   keyserver.ubuntu.com    — GPG key server (apt-key adv --recv-keys)
+#
+# For PPAs or third-party apt repos, add their hosts to `main.network`
+# or a custom preset.
+#
+# Activate via `.cc-msb.yml`:
+#   presets: [apt]
+
+defaults:
+  network: "deb.debian.org,security.debian.org,archive.ubuntu.com,security.ubuntu.com,ports.ubuntu.com,keyserver.ubuntu.com"

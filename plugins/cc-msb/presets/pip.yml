@@ -1,0 +1,12 @@
+# Preset: pip — pin the network allowlist to the hosts pip, uv, poetry,
+# and pipx need to install packages from PyPI.
+#
+# Note: packages that download pre-built wheels from GitHub releases or
+# other CDNs may need additional hosts. Compose with [github] for that:
+#   presets: [pip, github]
+#
+# Activate via `.cc-msb.yml`:
+#   presets: [pip]
+
+defaults:
+  network: "pypi.org,files.pythonhosted.org,bootstrap.pypa.io"

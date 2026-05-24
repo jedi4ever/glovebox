@@ -1,0 +1,17 @@
+# Preset: go — pin the network allowlist to the hosts the Go toolchain
+# needs for `go get`, `go mod download`, and `go install`.
+#
+# Network hosts opened:
+#   proxy.golang.org        — official module proxy (metadata + redirect)
+#   sum.golang.org          — checksum database (required by default)
+#   storage.googleapis.com  — GCS bucket the proxy serves tarballs from
+#   gopkg.in                — popular vanity import redirect service
+#
+# For modules hosted on GitHub, compose with [github]:
+#   presets: [go, github]
+#
+# Activate via `.cc-msb.yml`:
+#   presets: [go]
+
+defaults:
+  network: "proxy.golang.org,sum.golang.org,storage.googleapis.com,gopkg.in"
