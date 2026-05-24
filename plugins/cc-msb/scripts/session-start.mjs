@@ -8,6 +8,7 @@ const pluginRoot = join(fileURLToPath(import.meta.url), '../..');
 const { resolveConfig } = await import(join(pluginRoot, 'lib/config.mjs'));
 const { sandboxNameFor, sandboxStateDir, sandboxTrack, sandboxEnsureRunning } =
   await import(join(pluginRoot, 'lib/sandbox.mjs'));
+const { loadSdk } = await import(join(pluginRoot, 'lib/sdk.mjs'));
 
 function emit(obj) { process.stdout.write(JSON.stringify(obj) + '\n'); }
 
@@ -44,19 +45,33 @@ const stateDir = sandboxStateDir(sessionId);
 mkdirSync(stateDir, { recursive: true });
 
 const payload = { ...cfg, projectDir, sandboxName: sandbox };
-const { failed } = sandboxEnsureRunning(sandbox, projectDir, join(stateDir, 'sandbox.log'), payload) ?? {};
+const { failed } = await sandboxEnsureRunning(sandbox, projectDir, join(stateDir, 'sandbox.log'), payload);
 if (failed) process.exit(0);
 
 if (cfg.scope !== 'directory' && !(cfg.scope === 'named' && cfg.sandboxName)) {
   sandboxTrack(sessionId, sandbox);
 }
 
-// Introspect the sandbox environment
+// Introspect the sandbox environment via SDK.
 const probe = `printf "%s\\n%s\\n%s\\n%s\\n%s\\n%s\\n%s\\n" "$(pwd)" "$(uname -s)" "$(uname -m)" "$SHELL" "$HOME" "$(whoami 2>/dev/null || printf %s "$USER")" "$(. /etc/os-release 2>/dev/null && printf %s "$PRETTY_NAME")"`;
-const r = spawnSync('msb', ['exec', sandbox, '--', 'bash', '-c', probe], { encoding: 'utf8' });
-if (r.status !== 0) process.exit(0);
 
-const lines = r.stdout.split('\n');
+let lines = [];
+if (process.env.CC_MSB_FAKE_CREATE) {
+  // Test seam: fake-msb handles 'exec … bash -c'.
+  const r = spawnSync('msb', ['exec', sandbox, '--', 'bash', '-c', probe], { encoding: 'utf8' });
+  if (r.status !== 0) process.exit(0);
+  lines = r.stdout.split('\n');
+} else {
+  try {
+    const { Sandbox } = await loadSdk();
+    const h = await Sandbox.get(sandbox);
+    const live = await h.connect();
+    const r = await live.shell(probe);
+    if (!r.success()) process.exit(0);
+    lines = r.stdout().split('\n');
+  } catch { process.exit(0); }
+}
+
 const [sbPwd, sbKernel, sbArch, sbShell, sbHome, sbUser, sbOsRaw] = lines;
 const sbOs = sbOsRaw || `${sbKernel} (MSB sandbox)`;
 

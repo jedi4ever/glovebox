@@ -1,4 +1,4 @@
-// Sandbox lifecycle helpers — JS port of lib/sandbox.sh.
+// Sandbox lifecycle helpers — SDK-backed, async throughout.
 import { createHash, randomBytes } from 'node:crypto';
 import { spawnSync } from 'node:child_process';
 import {
@@ -7,8 +7,13 @@ import {
 import { join, dirname, normalize } from 'node:path';
 import { homedir } from 'node:os';
 import { fileURLToPath } from 'node:url';
+import { loadSdk } from './sdk.mjs';
 
 const pluginRoot = join(fileURLToPath(import.meta.url), '../..');
+
+// Load SDK once at module init — graceful if msb is not installed.
+let Sandbox;
+try { ({ Sandbox } = await loadSdk()); } catch { /* msb not installed */ }
 
 export function sandboxStateDir(sessionId) {
   return join(homedir(), '.cache/cc-msb', sessionId);
@@ -68,14 +73,16 @@ export function sandboxNameForFileOp(sessionId, agentType = '', explicitName = '
 // ---------------------------------------------------------------------------
 // Status / fingerprint
 // ---------------------------------------------------------------------------
-export function sandboxStatus(name) {
-  const r = spawnSync('msb', ['status', name, '--format', 'json'], { encoding: 'utf8' });
-  if (r.status !== 0) return '';
-  try {
-    return JSON.parse(r.stdout).status || '';
-  } catch {
-    return '';
+
+// Returns lowercase status string: 'running'|'stopped'|'crashed'|'' (not found).
+export async function sandboxStatus(name) {
+  // Test seam: fake-msb writes /tmp/fake-msb-<name>.state; SDK doesn't read those.
+  if (process.env.CC_MSB_FAKE_CREATE) {
+    try { return readFileSync(`/tmp/fake-msb-${name}.state`, 'utf8').trim().toLowerCase(); }
+    catch { return ''; }
   }
+  if (!Sandbox) return '';
+  try { return (await Sandbox.get(name)).status; } catch { return ''; }
 }
 
 export function sandboxConfigFingerprint(image, mount, network, ports, secrets, onViolation, tlsOn, tlsPort, tlsBypass, trustCas, gitName, gitEmail) {
@@ -101,25 +108,32 @@ function fingerprintFromPayload(payload) {
 }
 
 // ---------------------------------------------------------------------------
-// Ensure running — returns { drift: name|'' }
+// Ensure running — returns { drift: name|'', failed?: true }
 // ---------------------------------------------------------------------------
-export function sandboxEnsureRunning(name, projectDir, logFile, payload) {
-  const status = sandboxStatus(name);
+export async function sandboxEnsureRunning(name, projectDir, logFile, payload) {
+  const status = await sandboxStatus(name);
   const currentFp = fingerprintFromPayload(payload);
   const fpPath = sandboxFingerprintPath(name);
   const storedFp = existsSync(fpPath) ? readFileSync(fpPath, 'utf8').trim() : '';
 
-  if (status === 'Running') {
+  if (status === 'running') {
     return { drift: storedFp && storedFp !== currentFp ? name : '' };
   }
 
-  if (status === 'Stopped') {
+  if (status === 'stopped') {
     if (storedFp && storedFp !== currentFp) return { drift: name };
-    spawnSync('msb', ['start', name, '--quiet'], { stdio: 'ignore' });
+    if (process.env.CC_MSB_FAKE_CREATE) {
+      writeFileSync(`/tmp/fake-msb-${name}.state`, 'Running\n');
+    } else if (Sandbox) {
+      try {
+        const h = await Sandbox.get(name);
+        await h.startDetached();
+      } catch { /* best-effort */ }
+    }
     return { drift: '' };
   }
 
-  // Not found — create
+  // Not found — create via sub-script (SDK create path, handles all config flags).
   const createScript = join(pluginRoot, 'scripts/create-sandbox.mjs');
   const input = JSON.stringify(payload);
   mkdirSync(dirname(logFile), { recursive: true });
@@ -156,22 +170,49 @@ export function sandboxResolvePath(filePath, projectDir, stateDir) {
 }
 
 // ---------------------------------------------------------------------------
-// File sync helpers
+// File sync helpers — SDK-backed, fall back to CLI in test mode.
 // ---------------------------------------------------------------------------
-export function sandboxReadIntoShadow(name, vmPath, hostPath) {
+export async function sandboxReadIntoShadow(name, vmPath, hostPath) {
   mkdirSync(dirname(hostPath), { recursive: true });
-  const r = spawnSync('msb', ['exec', name, '--', 'cat', vmPath], { encoding: 'buffer' });
-  if (r.status !== 0) return false;
-  writeFileSync(hostPath, r.stdout);
-  return true;
+
+  if (process.env.CC_MSB_FAKE_CREATE) {
+    // Test seam: fake-msb handles 'exec … cat <path>' in its exec subcommand.
+    const r = spawnSync('msb', ['exec', name, '--', 'cat', vmPath], { encoding: 'buffer' });
+    if (r.status !== 0) return false;
+    writeFileSync(hostPath, r.stdout);
+    return true;
+  }
+
+  if (!Sandbox) return false;
+  try {
+    const h = await Sandbox.get(name);
+    const live = await h.connect();
+    const bytes = await live.fs().read(vmPath);
+    writeFileSync(hostPath, bytes);
+    return true;
+  } catch { return false; }
 }
 
-export function sandboxWriteFromShadow(name, shadowPath, vmPath) {
-  const encodedDir  = Buffer.from(dirname(vmPath)).toString('base64');
-  const encodedPath = Buffer.from(vmPath).toString('base64');
-  const script = `mkdir -p "$(printf '%s' '${encodedDir}' | base64 -d)" && cat > "$(printf '%s' '${encodedPath}' | base64 -d)"`;
-  const input = readFileSync(shadowPath);
-  spawnSync('msb', ['exec', name, '--', 'bash', '-c', script], { input, stdio: ['pipe', 'ignore', 'ignore'] });
+export async function sandboxWriteFromShadow(name, shadowPath, vmPath) {
+  if (process.env.CC_MSB_FAKE_CREATE) {
+    // Test seam: fake-msb handles 'exec … bash -c <script>' in its exec subcommand.
+    const encodedDir  = Buffer.from(dirname(vmPath)).toString('base64');
+    const encodedPath = Buffer.from(vmPath).toString('base64');
+    const script = `mkdir -p "$(printf '%s' '${encodedDir}' | base64 -d)" && cat > "$(printf '%s' '${encodedPath}' | base64 -d)"`;
+    const input = readFileSync(shadowPath);
+    spawnSync('msb', ['exec', name, '--', 'bash', '-c', script], { input, stdio: ['pipe', 'ignore', 'ignore'] });
+    return;
+  }
+
+  if (!Sandbox) return;
+  try {
+    const h = await Sandbox.get(name);
+    const live = await h.connect();
+    const fs = live.fs();
+    const dir = dirname(vmPath);
+    if (dir && dir !== '/') await live.exec('mkdir', ['-p', dir]).catch(() => {});
+    await fs.write(vmPath, readFileSync(shadowPath));
+  } catch { /* best-effort */ }
 }
 
 // ---------------------------------------------------------------------------
@@ -202,7 +243,6 @@ export function sandboxWrapCommandEphemeral(name, command, envArgs = []) {
 }
 
 // Formats ['--env','K=V','--env','K2=V2'] → " --env 'K=V' --env 'K2=V2'"
-// The --env token is safe to emit unquoted; the KEY=VALUE is single-quoted.
 function buildEnvStr(envArgs) {
   if (!envArgs.length) return '';
   const parts = [];

@@ -29,8 +29,8 @@ const sandbox    = sandboxNameForFileOp(sessionId, agentType, cfg.sandboxName, c
 if (filePath.startsWith(shadowRoot + '/') || filePath.startsWith(shadowRoot)) {
   // Shadow fallback: file was redirected to shadow; sync shadow → sandbox
   const vmPath = filePath.slice(shadowRoot.length);
-  sandboxWriteFromShadow(sandbox, filePath, vmPath);
+  await sandboxWriteFromShadow(sandbox, filePath, vmPath);
 } else if (filePath.startsWith('/') && !filePath.startsWith(projectDir + '/') && !filePath.startsWith('/workspace/')) {
   // Transparent absolute path outside project dir: sync host → sandbox
-  sandboxWriteFromShadow(sandbox, filePath, filePath);
+  await sandboxWriteFromShadow(sandbox, filePath, filePath);
 }

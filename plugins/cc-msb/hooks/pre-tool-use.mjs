@@ -110,7 +110,7 @@ if (toolName === 'Bash') {
   const stateDir  = sandboxStateDir(sessionId);
   mkdirSync(stateDir, { recursive: true });
   const payload   = makePayload(sandbox);
-  const { drift, failed } = sandboxEnsureRunning(sandbox, projectDir, join(stateDir, 'sandbox.log'), payload);
+  const { drift, failed } = await sandboxEnsureRunning(sandbox, projectDir, join(stateDir, 'sandbox.log'), payload);
   if (failed) { deny(`cc-msb: failed to start sandbox (see ${stateDir}/sandbox.log)`); process.exit(0); }
   if (await handleDrift(drift, stateDir, payload)) process.exit(0);
   if (shouldTrack(cfg.scope, cfg.sandboxName)) sandboxTrack(sessionId, sandbox);
@@ -135,11 +135,11 @@ if (toolName === 'Read') {
 
   if (needsSync) {
     const payload = makePayload(sandbox);
-    const { drift, failed } = sandboxEnsureRunning(sandbox, projectDir, join(stateDir, 'sandbox.log'), payload);
+    const { drift, failed } = await sandboxEnsureRunning(sandbox, projectDir, join(stateDir, 'sandbox.log'), payload);
     if (failed) { deny(`cc-msb: failed to start sandbox for read of ${filePath}`); process.exit(0); }
     if (await handleDrift(drift, stateDir, payload)) process.exit(0);
     if (shouldTrack(cfg.scope, cfg.sandboxName)) sandboxTrack(sessionId, sandbox);
-    if (!sandboxReadIntoShadow(sandbox, filePath, hostPath)) {
+    if (!await sandboxReadIntoShadow(sandbox, filePath, hostPath)) {
       deny(`cc-msb: cannot read ${filePath} from sandbox`); process.exit(0);
     }
   }

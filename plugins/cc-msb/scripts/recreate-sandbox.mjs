@@ -60,25 +60,22 @@ if (live) {
   }
 }
 
-// Wait up to ~15s for status=Stopped. We use the `msb status` CLI here
-// (rather than re-getting via SDK) because msb's status field is the
-// ground truth that `snapshot create` reads.
+// Wait up to ~15s for status=stopped/crashed (SDK) or sandbox gone.
 {
-  const { execSync } = await import("node:child_process");
   const deadline = Date.now() + 15_000;
   let lastStatus = "";
   while (Date.now() < deadline) {
     try {
-      const raw = execSync(`msb status "${name}" --format json 2>/dev/null`, { encoding: "utf8" });
-      lastStatus = (JSON.parse(raw).status || "").trim();
+      const h = await Sandbox.get(name);
+      lastStatus = h.status; // lowercase: 'running'|'stopped'|'crashed'|'draining'
     } catch {
       lastStatus = "(not-found)";
     }
-    if (lastStatus === "Stopped" || lastStatus === "Exited") break;
+    if (lastStatus === "stopped" || lastStatus === "crashed") break;
     if (lastStatus === "(not-found)") break;
     await new Promise((r) => setTimeout(r, 250));
   }
-  if (lastStatus !== "Stopped" && lastStatus !== "Exited" && lastStatus !== "(not-found)") {
+  if (lastStatus !== "stopped" && lastStatus !== "crashed" && lastStatus !== "(not-found)") {
     fatal(`could not stop sandbox before snapshot: last status=${lastStatus}`);
   }
 }

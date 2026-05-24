@@ -8,33 +8,10 @@
 // a cc-msb config payload into SDK builder calls. Replacing the backend
 // later (different SDK, different runtime) means editing this function.
 
-import { realpathSync, writeFileSync } from "node:fs";
-import { execSync } from "node:child_process";
-import { pathToFileURL } from "node:url";
-import { dirname, resolve as resolvePath } from "node:path";
-
-// ---------------------------------------------------------------------------
-// SDK locator. `microsandbox` is typically installed globally alongside the
-// `msb` CLI. ESM `import "microsandbox"` from a plugin-local script can't
-// find it — Node's ESM resolver doesn't honor NODE_PATH and there's no
-// node_modules relative to the plugin. We resolve via the `msb` binary's
-// realpath (npm/fnm/nvm-agnostic).
-// ---------------------------------------------------------------------------
-export async function loadSdk() {
-  try {
-    return await import("microsandbox");
-  } catch {
-    let pkgDir;
-    try {
-      const msbBin = execSync("command -v msb", { encoding: "utf8" }).trim();
-      const real = realpathSync(msbBin);
-      pkgDir = resolvePath(dirname(real), "..");
-    } catch {
-      throw new Error("microsandbox SDK not found and `msb` binary not on PATH");
-    }
-    return await import(pathToFileURL(`${pkgDir}/dist/index.js`).href);
-  }
-}
+import { writeFileSync } from "node:fs";
+import { dirname } from "node:path";
+import { loadSdk } from "../../lib/sdk.mjs";
+export { loadSdk };
 
 // ---------------------------------------------------------------------------
 // Fake-SDK seam for unit tests. When CC_MSB_FAKE_CREATE=1, we dump the
