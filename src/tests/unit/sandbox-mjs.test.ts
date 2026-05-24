@@ -119,7 +119,7 @@ describe("sandboxEnvArgs", () => {
   it("comma-separated list returns only set vars", () => {
     const args = sandboxEnvArgs("HOME,PATH,GLOVEBOX_NONEXISTENT_9999");
     expect(args).toContain("--env");
-    const keys = args.filter((_, i) => args[i - 1] === "--env").map(kv => kv.split("=")[0]);
+    const keys = args.filter((_: string, i: number) => args[i - 1] === "--env").map((kv: string) => kv.split("=")[0]);
     expect(keys).toContain("HOME");
     expect(keys).toContain("PATH");
     expect(keys).not.toContain("GLOVEBOX_NONEXISTENT_9999");

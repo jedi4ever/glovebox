@@ -6,6 +6,7 @@ import { existsSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { spawnSync, execSync } from "node:child_process";
 import { spawnTUI, type TUI } from "../helpers/tui.js";
+import { removeSandbox, createSandbox } from "../helpers/msb-sdk.js";
 
 const PLUGIN_ROOT = fileURLToPath(new URL("../../plugins/glovebox", import.meta.url));
 const SHIM = join(PLUGIN_ROOT, "skills/shell/glovebox-bash.mjs");
@@ -13,15 +14,8 @@ const SHIM = join(PLUGIN_ROOT, "skills/shell/glovebox-bash.mjs");
 const PROBE_SANDBOX = "glovebox-shim-tui-probe";
 const CLAUDE_BIN = execSync("which claude", { encoding: "utf8" }).trim();
 
-beforeAll(() => {
-  spawnSync("msb", ["stop", PROBE_SANDBOX, "--quiet"], { encoding: "utf8" });
-  spawnSync("msb", ["remove", PROBE_SANDBOX, "--quiet"], { encoding: "utf8" });
-});
-
-afterAll(() => {
-  spawnSync("msb", ["stop", PROBE_SANDBOX, "--quiet"], { encoding: "utf8" });
-  spawnSync("msb", ["remove", PROBE_SANDBOX, "--quiet"], { encoding: "utf8" });
-});
+beforeAll(async () => { await removeSandbox(PROBE_SANDBOX); });
+afterAll(async () => { await removeSandbox(PROBE_SANDBOX); });
 
 interface Scenario {
   tui: TUI;
@@ -42,12 +36,8 @@ async function setupScenario(settingsEnv: Record<string, string>): Promise<Scena
 
   // Fresh probe sandbox each test (so the shim's "newest glovebox-* sandbox"
   // selector has a current target).
-  spawnSync("msb", ["stop", PROBE_SANDBOX, "--quiet"], { encoding: "utf8" });
-  spawnSync("msb", ["remove", PROBE_SANDBOX, "--quiet"], { encoding: "utf8" });
-  const create = spawnSync("msb", ["create", "ubuntu", "--name", PROBE_SANDBOX, "--quiet"], {
-    encoding: "utf8",
-  });
-  if (create.status !== 0) throw new Error("msb create failed: " + create.stderr);
+  await removeSandbox(PROBE_SANDBOX);
+  await createSandbox(PROBE_SANDBOX, "ubuntu");
 
   const projectDir = await realpath(await mkdtemp(join(tmpdir(), "glovebox-shim-tui-")));
   const configDir = await realpath(await mkdtemp(join(tmpdir(), "glovebox-shim-cfg-")));

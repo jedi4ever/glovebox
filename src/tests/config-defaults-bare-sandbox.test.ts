@@ -3,9 +3,9 @@ import { mkdtemp, rm, cp } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { createHash } from "node:crypto";
-import { spawnSync } from "node:child_process";
 import { createCleanSession } from "../helpers/session.js";
 import { fixturePath } from "../helpers/fixtures.js";
+import { removeSandbox } from "../helpers/msb-sdk.js";
 
 // Regression test for the reported issue: a `defaults:` block with bare
 // `sandbox_image:` + `scope: directory` should be honored by the main
@@ -22,14 +22,8 @@ function dirSandboxName(dir: string): string {
 const createdDirs: string[] = [];
 
 afterAll(async () => {
-  for (const dir of createdDirs) {
-    const name = dirSandboxName(dir);
-    spawnSync("msb", ["stop", name, "--quiet"], { encoding: "utf8" });
-    spawnSync("msb", ["remove", name, "--quiet"], { encoding: "utf8" });
-  }
-  for (const dir of createdDirs) {
-    await rm(dir, { recursive: true, force: true });
-  }
+  await Promise.all(createdDirs.map((dir) => removeSandbox(dirSandboxName(dir))));
+  await Promise.all(createdDirs.map((dir) => rm(dir, { recursive: true, force: true })));
 });
 
 describe.concurrent("config — bare defaults.<key> integration", () => {

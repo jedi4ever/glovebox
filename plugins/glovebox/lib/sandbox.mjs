@@ -15,12 +15,18 @@ const pluginRoot = join(fileURLToPath(import.meta.url), '../..');
 let Sandbox;
 try { ({ Sandbox } = await loadSdk()); } catch { /* msb not installed */ }
 
+export function sandboxStateBase() {
+  return process.env['GLOVEBOX_STATE_DIR'] || join(homedir(), '.cache/glovebox');
+}
+
 export function sandboxStateDir(sessionId) {
-  return join(homedir(), '.cache/glovebox', sessionId);
+  return join(sandboxStateBase(), sessionId);
 }
 
 export function sandboxFingerprintPath(name) {
-  return join(homedir(), '.cache/glovebox/fingerprints', `${name}.fp`);
+  // Fingerprints must persist across test sessions (for drift detection), so
+  // they always live in the real cache dir, not GLOVEBOX_STATE_DIR.
+  return join(homedir(), '.cache/glovebox', 'fingerprints', `${name}.fp`);
 }
 
 export function sandboxTrack(sessionId, name) {

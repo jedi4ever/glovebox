@@ -1,6 +1,7 @@
 import { describe, it, expect } from "vitest";
 import { spawnSync } from "node:child_process";
 import { setupScenario } from "../helpers/scenario.js";
+import { listImageRefs } from "../helpers/msb-sdk.js";
 
 // Probe the developer's host once at module load. The autodetect tests
 // require three things on the host:
@@ -9,7 +10,7 @@ import { setupScenario } from "../helpers/scenario.js";
 //   3. the `localhost:5123/glovebox` image is pulled into msb (it
 //      provides `gh` inside the guest — `buildpack-deps:noble` doesn't)
 // On a fresh laptop or CI without these, the tests skip with a reason.
-function hostReadyForAutodetect(): { ready: boolean; reason: string; token: string } {
+async function hostReadyForAutodetect(): Promise<{ ready: boolean; reason: string; token: string }> {
   const gh = spawnSync("gh", ["auth", "token"], { encoding: "utf8" });
   const token = (gh.stdout || "").trim();
   if (gh.status !== 0 || !token) {
@@ -23,13 +24,13 @@ function hostReadyForAutodetect(): { ready: boolean; reason: string; token: stri
   if (email.status !== 0 || !(email.stdout || "").trim()) {
     return { ready: false, reason: "no `git config --global user.email`", token };
   }
-  const imgs = spawnSync("msb", ["images"], { encoding: "utf8" });
-  if (imgs.status !== 0 || !/localhost:5123\/glovebox/.test(imgs.stdout || "")) {
-    return { ready: false, reason: "`localhost:5123/glovebox` image not in `msb images` (run `cd contrib && make all` first)", token };
+  const imgs = await listImageRefs();
+  if (!imgs.some((ref) => /localhost:5123\/glovebox/.test(ref))) {
+    return { ready: false, reason: "`localhost:5123/glovebox` image not in msb (run `cd contrib && make all` first)", token };
   }
   return { ready: true, reason: "", token };
 }
-const host = hostReadyForAutodetect();
+const host = await hostReadyForAutodetect();
 
 // Defensive guard: any captured test output that ever contains the
 // real host token is a leak. The host token only lives in the test

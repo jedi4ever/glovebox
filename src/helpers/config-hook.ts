@@ -32,6 +32,8 @@ export interface CreateConfig {
   tlsInterceptPort: number | null;
   tlsBypass: string;
   trustHostCas: boolean;
+  gitUserName?: string;
+  gitUserEmail?: string;
 }
 
 export function wrappedCommand(stdout: string): string {
