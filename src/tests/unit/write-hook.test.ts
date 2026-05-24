@@ -3,6 +3,7 @@ import { spawnSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
 import { join } from "node:path";
 import { rmSync, mkdirSync, writeFileSync, existsSync } from "node:fs";
+import { homedir } from "node:os";
 
 const PLUGIN_ROOT = fileURLToPath(new URL("../../../plugins/cc-msb", import.meta.url));
 const FAKE_MSB_DIR = fileURLToPath(new URL("../fixtures/fake-msb", import.meta.url));
@@ -12,7 +13,9 @@ const POST_HOOK = join(PLUGIN_ROOT, "hooks/post-tool-use.mjs");
 const SESSION_ID = "unit-write-test-001";
 const SANDBOX_NAME = `cc-msb-${SESSION_ID.slice(0, 16)}`;
 const PROJECT_DIR = "/tmp/cc-msb-write-test-project";
-const SHADOW_ROOT = `${process.env["HOME"]}/.cache/cc-msb/${SESSION_ID}/shadow`;
+const STATE_DIR = join(homedir(), ".cache", "cc-msb", SESSION_ID);
+const SHADOW_ROOT = join(STATE_DIR, "shadow");
+const NOTICE_PATH = join(STATE_DIR, "sandbox-notice.json");
 const EDIT_TEST_FILE = "/tmp/cc-msb-edit-test.txt";
 
 function runHook(hook: string, event: object, extraEnv: Record<string, string> = {}) {
@@ -41,6 +44,7 @@ beforeEach(() => {
   try { rmSync(`/tmp/fake-msb-${SANDBOX_NAME}.state`); } catch {}
   try { rmSync(SHADOW_ROOT, { recursive: true }); } catch {}
   try { rmSync(EDIT_TEST_FILE); } catch {}
+  try { rmSync(NOTICE_PATH); } catch {}
 });
 
 afterEach(() => {
@@ -48,6 +52,7 @@ afterEach(() => {
   try { rmSync(SHADOW_ROOT, { recursive: true }); } catch {}
   try { rmSync(PROJECT_DIR, { recursive: true }); } catch {}
   try { rmSync(EDIT_TEST_FILE); } catch {}
+  try { rmSync(NOTICE_PATH); } catch {}
 });
 
 describe("pre-tool-use.sh — Write hook", () => {
@@ -166,5 +171,52 @@ describe("post-tool-use.sh — Edit hook", () => {
       tool_input: { file_path: join(PROJECT_DIR, "src.ts"), old_string: "x", new_string: "y" },
     });
     expect(r.status).toBe(0);
+  });
+});
+
+describe("post-tool-use.sh — sandbox restart notice", () => {
+  it("emits additionalContext and deletes the notice file when type=restarted", () => {
+    mkdirSync(STATE_DIR, { recursive: true });
+    writeFileSync(NOTICE_PATH, JSON.stringify({ type: "restarted", sandbox: SANDBOX_NAME }));
+
+    const r = runHook(POST_HOOK, {
+      tool_name: "Bash",
+      session_id: SESSION_ID,
+      tool_input: { command: "echo hi" },
+    });
+
+    expect(r.status).toBe(0);
+    const out = JSON.parse(r.stdout);
+    expect(out.hookSpecificOutput.hookEventName).toBe("PostToolUse");
+    expect(out.hookSpecificOutput.additionalContext).toMatch(/restarted/i);
+    expect(out.hookSpecificOutput.additionalContext).toContain(SANDBOX_NAME);
+    expect(existsSync(NOTICE_PATH)).toBe(false);
+  });
+
+  it("emits additionalContext and deletes the notice file when type=recreated", () => {
+    mkdirSync(STATE_DIR, { recursive: true });
+    writeFileSync(NOTICE_PATH, JSON.stringify({ type: "recreated", sandbox: SANDBOX_NAME }));
+
+    const r = runHook(POST_HOOK, {
+      tool_name: "Bash",
+      session_id: SESSION_ID,
+      tool_input: { command: "echo hi" },
+    });
+
+    expect(r.status).toBe(0);
+    const out = JSON.parse(r.stdout);
+    expect(out.hookSpecificOutput.additionalContext).toMatch(/recreated/i);
+    expect(existsSync(NOTICE_PATH)).toBe(false);
+  });
+
+  it("emits nothing when no notice file exists", () => {
+    const r = runHook(POST_HOOK, {
+      tool_name: "Bash",
+      session_id: SESSION_ID,
+      tool_input: { command: "echo hi" },
+    });
+
+    expect(r.status).toBe(0);
+    expect(r.stdout.trim()).toBe("");
   });
 });

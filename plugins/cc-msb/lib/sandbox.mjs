@@ -108,7 +108,7 @@ function fingerprintFromPayload(payload) {
 }
 
 // ---------------------------------------------------------------------------
-// Ensure running — returns { drift: name|'', failed?: true }
+// Ensure running — returns { drift: name|'', restarted?: true, failed?: true }
 // ---------------------------------------------------------------------------
 export async function sandboxEnsureRunning(name, projectDir, logFile, payload) {
   const status = await sandboxStatus(name);
@@ -130,7 +130,7 @@ export async function sandboxEnsureRunning(name, projectDir, logFile, payload) {
         await h.startDetached();
       } catch { /* best-effort */ }
     }
-    return { drift: '' };
+    return { drift: '', restarted: true };
   }
 
   // Not found — create via sub-script (SDK create path, handles all config flags).

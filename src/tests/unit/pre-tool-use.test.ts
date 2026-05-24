@@ -2,7 +2,8 @@ import { describe, it, expect, beforeEach, afterEach } from "vitest";
 import { spawnSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
 import { join, dirname } from "node:path";
-import { rmSync } from "node:fs";
+import { rmSync, writeFileSync, readFileSync, existsSync, mkdirSync } from "node:fs";
+import { homedir } from "node:os";
 
 const PLUGIN_ROOT = fileURLToPath(new URL("../../../plugins/cc-msb", import.meta.url));
 const FAKE_MSB_DIR = fileURLToPath(new URL("../fixtures/fake-msb", import.meta.url));
@@ -10,6 +11,8 @@ const HOOK = join(PLUGIN_ROOT, "hooks/pre-tool-use.mjs");
 
 const SESSION_ID = "unit-test-session-001";
 const SANDBOX_NAME = `cc-msb-${SESSION_ID.slice(0, 16)}`;
+const STATE_DIR = join(homedir(), ".cache", "cc-msb", SESSION_ID);
+const NOTICE_PATH = join(STATE_DIR, "sandbox-notice.json");
 
 function runHook(event: object, extraEnv: Record<string, string> = {}) {
   const result = spawnSync("node", [HOOK], {
@@ -32,12 +35,13 @@ function runHook(event: object, extraEnv: Record<string, string> = {}) {
 }
 
 beforeEach(() => {
-  // Clean up any leftover fake sandbox state
   try { rmSync(`/tmp/fake-msb-${SANDBOX_NAME}.state`); } catch {}
+  try { rmSync(NOTICE_PATH); } catch {}
 });
 
 afterEach(() => {
   try { rmSync(`/tmp/fake-msb-${SANDBOX_NAME}.state`); } catch {}
+  try { rmSync(NOTICE_PATH); } catch {}
 });
 
 describe("pre-tool-use.sh — passthrough tools", () => {
@@ -119,5 +123,36 @@ describe("pre-tool-use.sh — Bash sandboxing", () => {
     const r = runHook({ tool_name: "Bash", session_id: SESSION_ID, tool_input: {} });
     expect(r.status).toBe(0);
     expect(r.stdout).toBe("");
+  });
+});
+
+describe("pre-tool-use.sh — sandbox restart notice", () => {
+  it("writes sandbox-notice.json when a stopped sandbox is restarted", () => {
+    mkdirSync(STATE_DIR, { recursive: true });
+    writeFileSync(`/tmp/fake-msb-${SANDBOX_NAME}.state`, "Stopped");
+
+    const r = runHook({
+      tool_name: "Bash",
+      session_id: SESSION_ID,
+      tool_input: { command: "echo hi" },
+    });
+
+    expect(r.status).toBe(0);
+    expect(existsSync(NOTICE_PATH)).toBe(true);
+    const notice = JSON.parse(readFileSync(NOTICE_PATH, "utf8"));
+    expect(notice.type).toBe("restarted");
+    expect(notice.sandbox).toBe(SANDBOX_NAME);
+  });
+
+  it("does NOT write a notice when sandbox was already running", () => {
+    writeFileSync(`/tmp/fake-msb-${SANDBOX_NAME}.state`, "Running");
+
+    runHook({
+      tool_name: "Bash",
+      session_id: SESSION_ID,
+      tool_input: { command: "echo hi" },
+    });
+
+    expect(existsSync(NOTICE_PATH)).toBe(false);
   });
 });

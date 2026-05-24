@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-import { readFileSync } from 'node:fs';
+import { readFileSync, existsSync, rmSync } from 'node:fs';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -12,17 +12,34 @@ const projectDir = process.env.CLAUDE_PROJECT_DIR || process.cwd();
 const event      = JSON.parse(readFileSync(0, 'utf8'));
 const toolName   = event.tool_name ?? '';
 const agentType  = event.agent_type ?? '';
+const sessionId  = event.session_id ?? '';
+if (!sessionId) process.exit(0);
+
+const stateDir    = sandboxStateDir(sessionId);
+const noticePath  = join(stateDir, 'sandbox-notice.json');
+
+if (existsSync(noticePath)) {
+  let notice = {};
+  try { notice = JSON.parse(readFileSync(noticePath, 'utf8')); } catch { /* ignore */ }
+  rmSync(noticePath, { force: true });
+
+  const msg = notice.type === 'recreated'
+    ? `cc-msb: sandbox '${notice.sandbox}' was automatically recreated to apply updated settings. In-memory state has been reset; project files are intact.`
+    : `cc-msb: sandbox '${notice.sandbox}' was restarted (it was stopped). Ephemeral in-memory state has been reset; filesystem is preserved.`;
+
+  process.stdout.write(JSON.stringify({
+    hookSpecificOutput: { hookEventName: 'PostToolUse', additionalContext: msg },
+  }) + '\n');
+}
 
 if (toolName !== 'Write' && toolName !== 'Edit' && toolName !== 'MultiEdit') process.exit(0);
 
-const sessionId = event.session_id ?? '';
 const filePath  = event.tool_input?.file_path ?? '';
-if (!sessionId || !filePath) process.exit(0);
+if (!filePath) process.exit(0);
 
 const cfg       = await resolveConfig(projectDir, agentType);
 if (cfg.scope === 'host') process.exit(0);
 
-const stateDir   = sandboxStateDir(sessionId);
 const shadowRoot = join(stateDir, 'shadow');
 const sandbox    = sandboxNameForFileOp(sessionId, agentType, cfg.sandboxName, cfg.scope, projectDir);
 

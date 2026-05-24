@@ -35,6 +35,10 @@ function deny(reason) {
   emit({ hookSpecificOutput: { hookEventName: 'PreToolUse', permissionDecision: 'deny', permissionDecisionReason: reason } });
 }
 
+function writeSandboxNotice(stateDir, type, sandboxName) {
+  writeFileSync(join(stateDir, 'sandbox-notice.json'), JSON.stringify({ type, sandbox: sandboxName }));
+}
+
 // Pass-through tools
 if (/^mcp__|^WebSearch$|^Agent$/.test(toolName)) process.exit(0);
 
@@ -86,6 +90,7 @@ async function handleDrift(driftName, stateDir, createPayload) {
 
   if (result.ok) {
     writeFp(driftName, createPayload);
+    writeSandboxNotice(stateDir, 'recreated', driftName);
     return false;
   }
   if (result.imageChanged) {
@@ -110,9 +115,10 @@ if (toolName === 'Bash') {
   const stateDir  = sandboxStateDir(sessionId);
   mkdirSync(stateDir, { recursive: true });
   const payload   = makePayload(sandbox);
-  const { drift, failed } = await sandboxEnsureRunning(sandbox, projectDir, join(stateDir, 'sandbox.log'), payload);
+  const { drift, failed, restarted } = await sandboxEnsureRunning(sandbox, projectDir, join(stateDir, 'sandbox.log'), payload);
   if (failed) { deny(`cc-msb: failed to start sandbox (see ${stateDir}/sandbox.log)`); process.exit(0); }
   if (await handleDrift(drift, stateDir, payload)) process.exit(0);
+  if (restarted) writeSandboxNotice(stateDir, 'restarted', sandbox);
   if (shouldTrack(cfg.scope, cfg.sandboxName)) sandboxTrack(sessionId, sandbox);
 
   const envArgs = sandboxEnvArgs(cfg.passEnv);
@@ -135,9 +141,10 @@ if (toolName === 'Read') {
 
   if (needsSync) {
     const payload = makePayload(sandbox);
-    const { drift, failed } = await sandboxEnsureRunning(sandbox, projectDir, join(stateDir, 'sandbox.log'), payload);
+    const { drift, failed, restarted } = await sandboxEnsureRunning(sandbox, projectDir, join(stateDir, 'sandbox.log'), payload);
     if (failed) { deny(`cc-msb: failed to start sandbox for read of ${filePath}`); process.exit(0); }
     if (await handleDrift(drift, stateDir, payload)) process.exit(0);
+    if (restarted) writeSandboxNotice(stateDir, 'restarted', sandbox);
     if (shouldTrack(cfg.scope, cfg.sandboxName)) sandboxTrack(sessionId, sandbox);
     if (!await sandboxReadIntoShadow(sandbox, filePath, hostPath)) {
       deny(`cc-msb: cannot read ${filePath} from sandbox`); process.exit(0);
