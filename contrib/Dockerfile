@@ -3,7 +3,7 @@ FROM node:${NODE_VERSION}-slim
 
 # Build arguments for user ID and group ID
 ARG USER_ID=1000
-ARG USERNAME=addt
+ARG USERNAME=glovebox
 ARG GO_VERSION=1.23.5
 ARG UV_VERSION=0.5.11
 
@@ -88,8 +88,8 @@ USER ${USERNAME}
 
 
 # Add version labels for tracking
-LABEL org.opencontainers.image.title="addt-base"
-LABEL org.opencontainers.image.description="Base image for addt - AI coding agents"
+LABEL org.opencontainers.image.title="glovebox-base"
+LABEL org.opencontainers.image.description="Base image for glovebox - AI coding agents"
 LABEL tools.git="installed"
 LABEL tools.gh="installed"
 LABEL tools.ripgrep="installed"

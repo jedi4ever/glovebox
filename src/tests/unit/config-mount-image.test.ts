@@ -74,31 +74,31 @@ describe("config — sandbox_image", () => {
     expect(readCreateArgs()[0]).toBe("alpine");
   });
 
-  it("accepts a registry-qualified image reference (localhost:5000/devbox)", () => {
+  it("accepts a registry-qualified image reference (localhost:5000/glovebox)", () => {
     const localDir = mkdtempSync(join(tmpdir(), "glovebox-registry-"));
     writeFileSync(
       join(localDir, ".glovebox.yml"),
-      "main:\n  sandbox_image: localhost:5000/devbox\n  network: disabled\n"
+      "main:\n  sandbox_image: localhost:5000/glovebox\n  network: disabled\n"
     );
     try {
       runHook(localDir);
       const args = readCreateArgs();
-      expect(args[0]).toBe("localhost:5000/devbox");
+      expect(args[0]).toBe("localhost:5000/glovebox");
       expect(args).toContain("--no-net");
     } finally {
       rmSync(localDir, { recursive: true, force: true });
     }
   });
 
-  it("accepts a registry image with an explicit tag (registry.example.com:5000/devbox:v1.2)", () => {
+  it("accepts a registry image with an explicit tag (registry.example.com:5000/glovebox:v1.2)", () => {
     const localDir = mkdtempSync(join(tmpdir(), "glovebox-registry-tag-"));
     writeFileSync(
       join(localDir, ".glovebox.yml"),
-      "main:\n  sandbox_image: registry.example.com:5000/devbox:v1.2\n"
+      "main:\n  sandbox_image: registry.example.com:5000/glovebox:v1.2\n"
     );
     try {
       runHook(localDir);
-      expect(readCreateArgs()[0]).toBe("registry.example.com:5000/devbox:v1.2");
+      expect(readCreateArgs()[0]).toBe("registry.example.com:5000/glovebox:v1.2");
     } finally {
       rmSync(localDir, { recursive: true, force: true });
     }

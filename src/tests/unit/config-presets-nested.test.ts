@@ -99,7 +99,7 @@ describe("config — presets: network hosts", () => {
     try {
       runHook(dir, { GLOVEBOX_MAIN_GIT_TOKEN_AUTODETECT: "" });
       const cfg = readCreateConfig();
-      expect(cfg?.image).toBe("localhost:5123/devbox");
+      expect(cfg?.image).toBe("localhost:5123/glovebox");
       expect(cfg?.network).toContain("registry.npmjs.org");
       expect(cfg?.network).toContain("nodejs.org");
       expect(cfg?.network).toContain("github.com");

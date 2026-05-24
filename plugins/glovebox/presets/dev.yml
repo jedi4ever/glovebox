@@ -1,5 +1,5 @@
 # Preset: dev — opinionated baseline for daily development against the
-# bundled devbox image (gh, git, ripgrep, node, go, uv pre-installed).
+# bundled glovebox image (gh, git, ripgrep, node, go, uv pre-installed).
 #
 # Activate via `.glovebox.yml`:
 #   presets: [dev]
@@ -14,7 +14,7 @@ presets:
   - github
 
 defaults:
-  sandbox_image: localhost:5123/devbox
+  sandbox_image: localhost:5123/glovebox
   mount_workdir: true
   scope: directory
   auto_recreate: true

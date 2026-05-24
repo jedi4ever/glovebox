@@ -99,7 +99,7 @@ describe("config — presets", () => {
     try {
       runHook(dir);
       const cfg = readCreateConfig();
-      expect(cfg?.image).toBe("localhost:5123/devbox");
+      expect(cfg?.image).toBe("localhost:5123/glovebox");
       expect(cfg?.mountWorkdir).toBe(true);
     } finally {
       rmSync(dir, { recursive: true, force: true });
@@ -114,7 +114,7 @@ describe("config — presets", () => {
     try {
       runHook(dir);
       const cfg = readCreateConfig();
-      // dev preset says localhost:5123/devbox; main: overrides to alpine
+      // dev preset says localhost:5123/glovebox; main: overrides to alpine
       expect(cfg?.image).toBe("alpine");
     } finally {
       rmSync(dir, { recursive: true, force: true });
@@ -151,8 +151,8 @@ describe("config — presets", () => {
     try {
       runHook(dir);
       const cfg = readCreateConfig();
-      // dev → devbox image; npm (direct + via dev) → registry hosts
-      expect(cfg?.image).toBe("localhost:5123/devbox");
+      // dev → glovebox image; npm (direct + via dev) → registry hosts
+      expect(cfg?.image).toBe("localhost:5123/glovebox");
       expect(cfg?.network).toContain("registry.npmjs.org");
       expect(cfg?.network).toContain("nodejs.org");
     } finally {
@@ -167,7 +167,7 @@ describe("config — presets", () => {
     try {
       runHook(dir);
       const cfg = readCreateConfig();
-      expect(cfg?.image).toBe("localhost:5123/devbox");
+      expect(cfg?.image).toBe("localhost:5123/glovebox");
       expect(cfg?.network).toContain("registry.npmjs.org");
       expect(cfg?.network).toContain("nodejs.org");
     } finally {
@@ -230,7 +230,7 @@ describe("config — presets", () => {
       runHook(dir, { ...presetsEnv, GLOVEBOX_PRESETS: "dev" });  // env says dev
       const cfg = readCreateConfig();
       // dev's image wins; custom-img must NOT appear → env replaced the list
-      expect(cfg?.image).toBe("localhost:5123/devbox");
+      expect(cfg?.image).toBe("localhost:5123/glovebox");
       expect(cfg?.image).not.toBe("custom-img");
     } finally {
       rmSync(dir, { recursive: true, force: true });

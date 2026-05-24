@@ -6,7 +6,7 @@ import { setupScenario } from "../helpers/scenario.js";
 // require three things on the host:
 //   1. `gh auth token` returns a non-empty token
 //   2. `git config --global` has user.name + user.email set
-//   3. the `localhost:5123/devbox` image is pulled into msb (it
+//   3. the `localhost:5123/glovebox` image is pulled into msb (it
 //      provides `gh` inside the guest — `buildpack-deps:noble` doesn't)
 // On a fresh laptop or CI without these, the tests skip with a reason.
 function hostReadyForAutodetect(): { ready: boolean; reason: string; token: string } {
@@ -24,8 +24,8 @@ function hostReadyForAutodetect(): { ready: boolean; reason: string; token: stri
     return { ready: false, reason: "no `git config --global user.email`", token };
   }
   const imgs = spawnSync("msb", ["images"], { encoding: "utf8" });
-  if (imgs.status !== 0 || !/localhost:5123\/devbox/.test(imgs.stdout || "")) {
-    return { ready: false, reason: "`localhost:5123/devbox` image not in `msb images` (run `cd contrib && make all` first)", token };
+  if (imgs.status !== 0 || !/localhost:5123\/glovebox/.test(imgs.stdout || "")) {
+    return { ready: false, reason: "`localhost:5123/glovebox` image not in `msb images` (run `cd contrib && make all` first)", token };
   }
   return { ready: true, reason: "", token };
 }

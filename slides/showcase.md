@@ -10,7 +10,7 @@ more bindings languages
 Sandboxing claude
 inside container
     tessl box
-    addt
+    glovebox
 insider microvm
 
 ==
