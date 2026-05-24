@@ -38,32 +38,33 @@ export async function removeSandbox(name: string): Promise<void> {
   try {
     const { Sandbox } = await sdk();
     // Sandbox.list() returns read-only handles — use Sandbox.get() for a live
-    // handle that supports lifecycle methods (stop, kill, remove).
+    // handle that supports lifecycle methods (stop, kill, connect).
     let handle: SandboxHandle;
     try { handle = await Sandbox.get(name); } catch { return; /* not found */ }
 
     if (handle.status === "running" || handle.status === "draining") {
-      // Try graceful stop; fall back to kill() for stuck sandboxes (e.g. broken
-      // workspace mounts keep the VM in a state where stop hangs or stalls).
+      // Graceful stop; fall back to kill() for stuck sandboxes (e.g. broken
+      // workspace mounts keep the VM in a state where connect/stop hangs).
       try {
         const live = await handle.connect();
         await live.stopAndWait();
       } catch {
         try { await handle.kill(); } catch {}
-        // After kill, poll until the sandbox leaves running state.
+        // After kill(), poll until the sandbox leaves running/draining.
         for (let i = 0; i < 15; i++) {
-          await new Promise((r) => setTimeout(r, 300));
+          await new Promise((r) => setTimeout(r, 200));
           try {
             const h2 = await Sandbox.get(name);
             if (h2.status !== "running" && h2.status !== "draining") break;
           } catch { break; }
         }
       }
-      // MSB needs a moment after the VM stops before remove() will succeed —
-      // the status transitions to "stopped" before the internal lock is released.
-      await new Promise((r) => setTimeout(r, 1000));
     }
-    await handle.remove();
+    // Use the static Sandbox.remove(name) — the instance handle.remove() checks
+    // "is the VM still running?" via a different NAPI path and can fail with
+    // SandboxStillRunning even immediately after stopAndWait(). The static path
+    // skips that check and works cleanly after the VM has stopped.
+    await Sandbox.remove(name);
   } catch {
     // Not found or already removed — both are fine.
   }

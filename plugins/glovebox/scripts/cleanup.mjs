@@ -27,8 +27,20 @@ async function removeSandbox(name) {
   if (!Sandbox) return;
   try {
     const h = await Sandbox.get(name);
-    await h.stop().catch(() => {});
-    await h.remove().catch(() => {});
+    if (h.status === 'running' || h.status === 'draining') {
+      // connect() + stopAndWait() waits for VM exit before remove().
+      // Fall back to kill() for stuck sandboxes (e.g. broken mounts).
+      try {
+        const live = await h.connect();
+        await live.stopAndWait();
+      } catch {
+        try { await h.kill(); } catch {}
+      }
+    }
+    // Static Sandbox.remove() works immediately after stopAndWait(); the
+    // instance handle.remove() can fail with SandboxStillRunning on the
+    // same tick due to a daemon internal-lock release lag.
+    await Sandbox.remove(name);
   } catch { /* sandbox already gone */ }
 }
 
