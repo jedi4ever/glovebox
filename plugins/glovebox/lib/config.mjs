@@ -46,7 +46,8 @@ function githubDefaultHosts() {
 }
 
 function unionHosts(existing, newHosts) {
-  if (!existing || existing === 'enabled') return newHosts;
+  if (!existing) return newHosts;
+  if (existing === 'enabled') return 'enabled';
   if (existing === 'disabled') return 'disabled';
   const seen = new Set(existing.split(',').map(h => h.trim()));
   newHosts.split(',').forEach(h => { const t = h.trim(); if (t) seen.add(t); });

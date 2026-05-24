@@ -78,12 +78,12 @@ describe("config.mjs — $VAR expansion in secrets", () => {
 });
 
 describe("config.mjs — GitHub token expansion", () => {
-  it("expands literal github_token into secrets + network + forces tls", () => {
+  it("expands literal github_token into secrets + forces tls, network stays enabled", () => {
     const dir = tmpProject("main:\n  github_token: tok123\n  github_hosts: github.com\n");
     try {
       const cfg = runConfig(dir);
       expect(cfg.secrets).toContain("GH_TOKEN=tok123@github.com");
-      expect(cfg.network).toContain("github.com");
+      expect(cfg.network).toBe("enabled");
       expect(cfg.tlsIntercept).toBe(true);
     } finally { rmSync(dir, { recursive: true, force: true }); }
   });

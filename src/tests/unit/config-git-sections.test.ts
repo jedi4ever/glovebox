@@ -41,19 +41,14 @@ describe("config — git + github sections", () => {
     expect(cfg?.gitUserEmail).toBe("");
   });
 
-  it("github_token with $VAR → one secret per default host + hosts added to network", () => {
+  it("github_token with $VAR → one secret per default host, network stays enabled", () => {
     const dir = makeLocalConfig(
       "main:\n  github_token: $PROBE_GH_TOKEN\n"
     );
     try {
       runHook(dir, { PROBE_GH_TOKEN: "ghp_xyz" });
       const cfg = readCreateConfig();
-      const netDomains = (cfg?.network ?? "").split(",");
-      expect(netDomains).toContain("github.com");
-      expect(netDomains).toContain("api.github.com");
-      expect(netDomains).toContain("codeload.github.com");
-      expect(netDomains).toContain("objects.githubusercontent.com");
-      expect(netDomains).toContain("raw.githubusercontent.com");
+      expect(cfg?.network).toBe("enabled");
       const secretEntries = (cfg?.secrets ?? "").split(",");
       expect(secretEntries).toContain("GH_TOKEN=ghp_xyz@github.com");
       expect(secretEntries).toContain("GH_TOKEN=ghp_xyz@api.github.com");
@@ -105,7 +100,7 @@ describe("config — git + github sections", () => {
     }
   });
 
-  it("github_hosts overrides the default host list", () => {
+  it("github_hosts overrides which hosts receive the token (not the network policy)", () => {
     const dir = makeLocalConfig(
       "main:\n" +
       "  github_token: $PROBE_GH_TOKEN\n" +
@@ -116,7 +111,7 @@ describe("config — git + github sections", () => {
     try {
       runHook(dir, { PROBE_GH_TOKEN: "tok" });
       const cfg = readCreateConfig();
-      expect((cfg?.network ?? "").split(",")).toEqual(["github.com", "api.github.com"]);
+      expect(cfg?.network).toBe("enabled");
       const secretEntries = (cfg?.secrets ?? "").split(",");
       expect(secretEntries).toEqual([
         "GH_TOKEN=tok@github.com",
@@ -141,6 +136,23 @@ describe("config — git + github sections", () => {
       const cfg = readCreateConfig();
       const domains = (cfg?.network ?? "").split(",");
       expect(domains).toEqual(["github.com", "extra.example.com", "api.github.com"]);
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  it("network: enabled + github_token → network stays enabled (not restricted to github hosts)", () => {
+    const dir = makeLocalConfig(
+      "main:\n" +
+      "  github_token: $T\n" +
+      "  network: enabled\n"
+    );
+    try {
+      runHook(dir, { T: "tok" });
+      const cfg = readCreateConfig();
+      expect(cfg?.network).toBe("enabled");
+      const secretEntries = (cfg?.secrets ?? "").split(",");
+      expect(secretEntries).toContain("GH_TOKEN=tok@github.com");
     } finally {
       rmSync(dir, { recursive: true, force: true });
     }
