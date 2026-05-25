@@ -66,6 +66,8 @@ RUN userdel -r node 2>/dev/null || true \
 # Install UV (Python package manager) as the user using official install script
 # This enables 'uv self update' to work inside containers
 USER ${USERNAME}
+RUN npm config set prefix "/home/${USERNAME}/.npm-global" \
+    && npm install -g bun
 RUN if [ "${UV_VERSION}" = "latest" ]; then \
         curl -LsSf https://astral.sh/uv/install.sh | sh; \
     else \
@@ -91,11 +93,16 @@ USER ${USERNAME}
 # Add version labels for tracking
 LABEL org.opencontainers.image.title="glovebox-base"
 LABEL org.opencontainers.image.description="Base image for glovebox - AI coding agents"
+LABEL org.opencontainers.image.source="https://github.com/jedi4ever/glovebox"
+LABEL org.opencontainers.image.documentation="https://github.com/jedi4ever/glovebox/blob/main/contrib/Dockerfile"
+LABEL org.opencontainers.image.url="https://github.com/jedi4ever/glovebox"
+LABEL org.opencontainers.image.licenses="MIT"
 LABEL tools.git="installed"
 LABEL tools.gh="installed"
 LABEL tools.ripgrep="installed"
 LABEL tools.node="installed"
 LABEL tools.go="installed"
 LABEL tools.uv="installed"
+LABEL tools.bun="installed"
 
 CMD ["bash"]

@@ -8,12 +8,15 @@ REGISTRY_PORT ?= 5123
 REGISTRY      ?= localhost:$(REGISTRY_PORT)
 REF           := $(REGISTRY)/$(IMAGE):$(TAG)
 
+GHCR_OWNER    ?= jedi4ever
+GHCR_REF      := ghcr.io/$(GHCR_OWNER)/$(IMAGE):$(TAG)
+
 # Pin the in-guest user's UID to the host's so bind-mounted `/workspace`
 # is writable from inside the sandbox. Override for CI or fixed-UID builds:
 #   make all USER_ID=1000
 USER_ID  ?= $(shell id -u)
 
-.PHONY: all build push pull registry-up registry-down clean
+.PHONY: all build push pull registry-up registry-down clean ghcr-login ghcr-push
 
 all: build push pull
 
@@ -34,6 +37,13 @@ registry-up:
 
 registry-down:
 	-docker rm -f registry
+
+ghcr-login:
+	gh auth token | docker login ghcr.io -u $(GHCR_OWNER) --password-stdin
+
+ghcr-push: ghcr-login
+	docker tag $(REF) $(GHCR_REF)
+	docker push $(GHCR_REF)
 
 clean:
 	-docker rmi $(REF)
