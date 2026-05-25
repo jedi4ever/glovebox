@@ -81,6 +81,11 @@ export async function createCleanSession(options: SessionOptions = {}): Promise<
               ...process.env,
               ANTHROPIC_API_KEY: apiKey,
               CLAUDE_CONFIG_DIR: configDir,
+              // Pin the project dir to the session's cwd so the plugin's
+              // workspace bind-mount and CC's path resolution stay in sync.
+              // Without this, CC may walk up to the git repo root and set
+              // CLAUDE_PROJECT_DIR there, causing Edit path mismatches.
+              ...(options.cwd ? { CLAUDE_PROJECT_DIR: options.cwd } : {}),
               // Redirect plugin state so we can track which sandbox(es) were
               // created, then clean them up in dispose() regardless of scope.
               GLOVEBOX_STATE_DIR: stateDir,

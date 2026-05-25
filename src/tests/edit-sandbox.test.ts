@@ -1,4 +1,7 @@
 import { describe, it, expect } from "vitest";
+import { mkdtemp, rm } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import { createCleanSession } from "../helpers/session.js";
 
 // Empirical findings (verified by hook tracing):
@@ -12,7 +15,8 @@ import { createCleanSession } from "../helpers/session.js";
 
 describe.concurrent("edit sandboxing", () => {
   it("edits a project-dir file (bind-mounted) — supported case", async () => {
-    const session = await createCleanSession();
+    const projectDir = await mkdtemp(join(tmpdir(), "glovebox-edit-proj-"));
+    const session = await createCleanSession({ cwd: projectDir });
     try {
       const result = await session.run(
         "Do these 3 steps in order, using separate tool calls:\n" +
@@ -26,6 +30,7 @@ describe.concurrent("edit sandboxing", () => {
       expect(result.stdout).toMatch(/edited/i);
     } finally {
       await session.dispose();
+      await rm(projectDir, { recursive: true, force: true });
     }
   });
 
