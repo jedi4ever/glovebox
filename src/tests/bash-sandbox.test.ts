@@ -9,7 +9,7 @@ describe.concurrent("bash sandboxing", () => {
         "Run this exact bash command and show me the full output: cat /etc/os-release"
       );
       expect(result.exitCode).toBe(0);
-      expect(result.stdout).toMatch(/ubuntu/i);
+      expect(result.stdout).toMatch(/alpine/i);
     } finally {
       await session.dispose();
     }

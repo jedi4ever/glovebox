@@ -7,6 +7,7 @@ import {
   mkdtempSync, writeFileSync, mkdirSync,
 } from "node:fs";
 import { tmpdir } from "node:os";
+import { DEFAULT_IMAGE as DEFAULT } from "../../helpers/config-hook.js";
 
 const PLUGIN_ROOT = fileURLToPath(new URL("../../../plugins/glovebox", import.meta.url));
 const FAKE_MSB_DIR = fileURLToPath(new URL("../fixtures/fake-msb", import.meta.url));
@@ -215,7 +216,7 @@ describe("config — presets", () => {
       // Hook should still succeed; image falls back to built-in default.
       expect(r.status).toBe(0);
       const cfg = readCreateConfig();
-      expect(cfg?.image).toBe("ubuntu");
+      expect(cfg?.image).toBe(DEFAULT);
     } finally {
       rmSync(dir, { recursive: true, force: true });
     }

@@ -28,9 +28,9 @@ const localConf  = join(process.env.CLAUDE_PROJECT_DIR || '.', '.glovebox.yml');
 const hasConfig  = existsSync(globalConf) || existsSync(localConf);
 
 if (!hasConfig) {
-  const defaultImage = 'ghcr.io/jedi4ever/glovebox:latest';
+  const defaultImage = 'node:alpine';
   const images = spawnSync('msb', ['images'], { encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] });
-  const imageFound = (images.stdout || '').includes('jedi4ever/glovebox');
+  const imageFound = (images.stdout || '').includes('node:alpine') || (images.stdout || '').includes('node alpine');
   if (!imageFound) {
     emit({ hookSpecificOutput: { hookEventName: 'SessionStart', additionalContext: `WARNING: glovebox default image not found.\n\nRun: msb pull ${defaultImage}\n\nSandbox enforcement is DISABLED for this session.` } });
     process.exit(0);

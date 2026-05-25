@@ -23,7 +23,7 @@ describe.concurrent("config — agent-specific image integration", () => {
         "Run a bash command to read /etc/os-release and tell me what NAME= says."
       );
       expect(result.exitCode).toBe(0);
-      expect(result.stdout).toMatch(/ubuntu/i);
+      expect(result.stdout).toMatch(/alpine/i);
     } finally {
       await teardown();
     }

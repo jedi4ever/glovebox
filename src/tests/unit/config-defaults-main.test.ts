@@ -3,7 +3,8 @@ import { join } from "node:path";
 import { mkdtempSync, writeFileSync, rmSync, readdirSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { fixturePath } from "../../helpers/fixtures.js";
-import { createConfigTestContext } from "../../helpers/config-hook.js";
+import { createConfigTestContext, DEFAULT_IMAGE as DEFAULT } from "../../helpers/config-hook.js";
+
 
 const { runHook, readCreateArgs, SANDBOX_NAME, PER_AGENT_SANDBOX, cleanupFakeMsbFiles } =
   createConfigTestContext("unit-dfm-mna-001");
@@ -103,7 +104,7 @@ describe("config — defaults.main block", () => {
     );
     try {
       runHook(dir);
-      expect(readCreateArgs("glovebox-global-named")).toContain("ubuntu");
+      expect(readCreateArgs("glovebox-global-named")).toContain(DEFAULT);
       expect(readCreateArgs(SANDBOX_NAME)).toHaveLength(0);
     } finally {
       rmSync(dir, { recursive: true, force: true });
@@ -206,7 +207,7 @@ describe("config — global config file", () => {
     );
     try {
       runHook(fixturePath("simple-read"), { GLOVEBOX_CONFIG_DIR: globalDir });
-      expect(readCreateArgs("glovebox-global-named")).toContain("ubuntu");
+      expect(readCreateArgs("glovebox-global-named")).toContain(DEFAULT);
       expect(readCreateArgs(SANDBOX_NAME)).toHaveLength(0);
     } finally {
       rmSync(globalDir, { recursive: true, force: true });
@@ -221,7 +222,7 @@ describe("config — global config file", () => {
     writeFileSync(join(localDir, ".glovebox.yml"), "main:\n  scope: named\n  sandbox_name: glovebox-local-named\n");
     try {
       runHook(localDir, { GLOVEBOX_CONFIG_DIR: globalDir });
-      expect(readCreateArgs("glovebox-local-named")).toContain("ubuntu");
+      expect(readCreateArgs("glovebox-local-named")).toContain(DEFAULT);
       expect(readCreateArgs("glovebox-global-named")).toHaveLength(0);
     } finally {
       rmSync(globalDir, { recursive: true, force: true });
@@ -248,7 +249,7 @@ describe("config — global config file", () => {
     );
     try {
       runHook(fixturePath("simple-read"), { GLOVEBOX_CONFIG_DIR: globalDir }, "test-agent");
-      expect(readCreateArgs("glovebox-global-agent")).toContain("ubuntu");
+      expect(readCreateArgs("glovebox-global-agent")).toContain(DEFAULT);
     } finally {
       rmSync(globalDir, { recursive: true, force: true });
     }
@@ -258,7 +259,7 @@ describe("config — global config file", () => {
     runHook(fixturePath("simple-read"), {
       GLOVEBOX_CONFIG_DIR: join(tmpdir(), "glovebox-does-not-exist-xyz"),
     });
-    expect(readCreateArgs()[0]).toBe("ubuntu");
+    expect(readCreateArgs()[0]).toBe(DEFAULT);
   });
 
   it("global main.network=disabled applies when local is silent", () => {

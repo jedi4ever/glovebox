@@ -3,7 +3,7 @@ import { join } from "node:path";
 import { mkdtempSync, writeFileSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { fixturePath } from "../../helpers/fixtures.js";
-import { createConfigTestContext } from "../../helpers/config-hook.js";
+import { createConfigTestContext, DEFAULT_IMAGE as DEFAULT } from "../../helpers/config-hook.js";
 
 const { runHook, readCreateArgs, PER_AGENT_SANDBOX, cleanupFakeMsbFiles } =
   createConfigTestContext("unit-dfb-bar-001");
@@ -196,7 +196,7 @@ describe("config — bare defaults.<key> (shared baseline)", () => {
     try {
       runHook(dir);
       expect(readCreateArgs()[0]).toBe("alpine");
-      expect(readCreateArgs()[0]).not.toBe("ubuntu");
+      expect(readCreateArgs()[0]).not.toBe(DEFAULT);
 
       cleanupFakeMsbFiles();
       runHook(dir, {}, "test-agent");

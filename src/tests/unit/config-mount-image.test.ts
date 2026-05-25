@@ -3,7 +3,8 @@ import { join } from "node:path";
 import { mkdtempSync, writeFileSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { fixturePath } from "../../helpers/fixtures.js";
-import { createConfigTestContext } from "../../helpers/config-hook.js";
+import { createConfigTestContext, DEFAULT_IMAGE as DEFAULT } from "../../helpers/config-hook.js";
+
 
 const { runHook, readCreateArgs, readCreateConfig, PER_AGENT_SANDBOX, cleanupFakeMsbFiles } =
   createConfigTestContext("unit-mnt-img-001");
@@ -54,9 +55,9 @@ describe("config — mount_workdir", () => {
 });
 
 describe("config — sandbox_image", () => {
-  it("uses ubuntu by default (no config file)", () => {
+  it("uses default image when no config file", () => {
     runHook(fixturePath("simple-read"));
-    expect(readCreateArgs()[0]).toBe("ubuntu");
+    expect(readCreateArgs()[0]).toBe(DEFAULT);
   });
 
   it("uses image from config file", () => {

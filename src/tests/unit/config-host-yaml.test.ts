@@ -4,7 +4,7 @@ import { join } from "node:path";
 import { mkdtempSync, writeFileSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { fixturePath } from "../../helpers/fixtures.js";
-import { createConfigTestContext, PLUGIN_ROOT, FAKE_MSB_DIR, PRE_HOOK, wrappedCommand } from "../../helpers/config-hook.js";
+import { createConfigTestContext, PLUGIN_ROOT, FAKE_MSB_DIR, PRE_HOOK, wrappedCommand, DEFAULT_IMAGE as DEFAULT } from "../../helpers/config-hook.js";
 
 const { runHook, readCreateArgs, SANDBOX_NAME, PER_AGENT_SANDBOX, SESSION_ID, cleanupFakeMsbFiles } =
   createConfigTestContext("unit-hst-yml-001");
@@ -28,7 +28,7 @@ describe("config — scope: host", () => {
 
     const rMain = runHook(fixturePath("config-scope-host-agent"));
     expect(rMain.status).toBe(0);
-    expect(readCreateArgs(SANDBOX_NAME)).toContain("ubuntu");
+    expect(readCreateArgs(SANDBOX_NAME)).toContain(DEFAULT);
   });
 
   it("GLOVEBOX_MAIN_SCOPE=host forces pass-through even without a config file", () => {

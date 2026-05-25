@@ -10,6 +10,7 @@ const CONFIG_MJS = fileURLToPath(
   new URL("../../../plugins/glovebox/lib/config.mjs", import.meta.url)
 );
 
+
 const BASE_ENV = {
   ...process.env,
   GLOVEBOX_CONFIG_DIR: "/tmp/glovebox-test-nonexistent-global",
@@ -45,7 +46,7 @@ describe("config.mjs — defaults", () => {
     const dir = tmpProject();
     try {
       const cfg = runConfig(dir);
-      expect(cfg.image).toBe("ubuntu");
+      expect(cfg.image).toBe(DEFAULT);
       expect(cfg.scope).toBe("session");
       expect(cfg.mountWorkdir).toBe(true);
       expect(cfg.passEnv).toBe("none");
