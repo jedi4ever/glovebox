@@ -124,7 +124,7 @@ The same pattern was pioneered by [pi-gondolin](https://github.com/pasky/pi-gond
 ## Implementation Choices & Evolution
 
 - Started with bash hook scripts → moved to Node.js → settled on plain `.mjs` files for low startup latency and testability
-- Bun was considered (and still works) but Node is preferred because some test cases behave differently under Bun
+- Both Bun and Node work, but Bun needs special handling for some test cases that behave differently under Bun
 - All plugin code is plain JavaScript (no TypeScript compilation) to keep it directly usable
 - Shared logic lives in `lib/`: `config.mjs`, `config-yaml.mjs`, `config-merge.mjs`, `sandbox.mjs`, `sdk.mjs`
 - A custom minimal YAML parser (`config-yaml.mjs`) was written with no external dependencies, handling the subset of YAML needed for config files
