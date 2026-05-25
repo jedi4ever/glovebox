@@ -5,6 +5,7 @@ import { fileURLToPath } from "node:url";
 import { join } from "node:path";
 import { mkdtempSync, writeFileSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
+import { DEFAULT_IMAGE as DEFAULT } from "../../helpers/config-hook.js";
 
 const CONFIG_MJS = fileURLToPath(
   new URL("../../../plugins/glovebox/lib/config.mjs", import.meta.url)

@@ -11,8 +11,10 @@
 // Each entry: { key, type, envMain, envAgent, noAgentSuffix, default }
 // noAgentSuffix: agent env var has no _AGENT_TYPE suffix (only mount_workdir)
 // sandboxImageSpecial: image uses GLOVEBOX_SANDBOX_IMAGE for main + special agent fallback
+export const DEFAULT_SANDBOX_IMAGE = 'node:alpine';
+
 const SETTINGS = [
-  { key: 'sandbox_image',       type: 'SCALAR',      envMain: 'GLOVEBOX_SANDBOX_IMAGE',             envAgent: 'GLOVEBOX_AGENT_IMAGE',              sandboxImageSpecial: true, default: 'node:alpine'   },
+  { key: 'sandbox_image',       type: 'SCALAR',      envMain: 'GLOVEBOX_SANDBOX_IMAGE',             envAgent: 'GLOVEBOX_AGENT_IMAGE',              sandboxImageSpecial: true, default: DEFAULT_SANDBOX_IMAGE   },
   { key: 'scope',               type: 'SCALAR',      envMain: 'GLOVEBOX_MAIN_SCOPE',                envAgent: 'GLOVEBOX_AGENT_SCOPE',              default: 'session'  },
   { key: 'sandbox_name',        type: 'SCALAR',      envMain: 'GLOVEBOX_SANDBOX_NAME',              envAgent: 'GLOVEBOX_AGENT_SANDBOX_NAME',       sandboxNameSpecial: true,  default: ''         },
   { key: 'mount_workdir',       type: 'SCALAR',      envMain: 'GLOVEBOX_MAIN_MOUNT_WORKDIR',        envAgent: 'GLOVEBOX_AGENT_MOUNT_WORKDIR',      noAgentSuffix: true,       default: 'true'     },

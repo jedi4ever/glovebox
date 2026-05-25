@@ -5,7 +5,8 @@ import { join } from "node:path";
 import { rmSync, readFileSync, existsSync, readdirSync } from "node:fs";
 
 export const PLUGIN_ROOT = fileURLToPath(new URL("../../plugins/glovebox", import.meta.url));
-export const DEFAULT_IMAGE = 'node:alpine';
+const { DEFAULT_SANDBOX_IMAGE } = await import(new URL("../../plugins/glovebox/lib/config-merge.mjs", import.meta.url).href);
+export const DEFAULT_IMAGE: string = DEFAULT_SANDBOX_IMAGE;
 export const FAKE_MSB_DIR = fileURLToPath(new URL("../tests/fixtures/fake-msb", import.meta.url));
 export const PRE_HOOK = join(PLUGIN_ROOT, "hooks/pre-tool-use.mjs");
 
