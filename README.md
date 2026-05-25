@@ -2,6 +2,14 @@
 
 > Don't box the agent. Box the action.
 
+## Why Glovebox?
+
+A lab glovebox is a sealed chamber for handling things you can't be in the room with — radioactive material, toxic compounds. The operator stands outside. Gloves are built into the wall. You see through the window, you decide from outside, and only your hands cross the boundary through a narrow, controlled interface.
+
+That's the model here. The agent is the operator. The sandbox is the box. Bash, Edit, Read, Write are the gloves — the only way anything gets touched. A hallucinated `rm -rf` or a prompt-injected exfiltration attempt stays inside the box.
+
+---
+
 ## What Is This?
 
 - **Glovebox** is a Claude Code plugin that routes all Claude tool calls (Bash, Read, Write, Edit, WebFetch) through isolated [Micro Sandbox (MSB)](https://microsandbox.dev) micro-VMs, preventing Claude from running arbitrary commands on your host machine
