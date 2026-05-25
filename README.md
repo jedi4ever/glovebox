@@ -112,7 +112,7 @@ The same pattern was pioneered by [pi-gondolin](https://github.com/pasky/pi-gond
 
 ---
 
-## The Shell Skill (`glovebox-bash`)
+## Replacing `!` (`glovebox-bash`)
 
 - There is also a shell shim that intercepts the `!` command in Claude Code's prompt box
 - It finds the active `glovebox-*` sandbox and routes `!` commands through `msb exec` instead of the host shell
