@@ -19,8 +19,7 @@ npm install -g microsandbox
 
 **Install the plugin:**
 ```bash
-claude plugin marketplace add https://github.com/jedi4ever/glovebox
-claude plugin install glovebox
+claude plugin add https://github.com/jedi4ever/glovebox
 ```
 
 Or point directly at the plugin directory for local use:
