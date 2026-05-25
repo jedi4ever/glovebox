@@ -1,4 +1,4 @@
-# Glovebox — Project Narrative
+# Glovebox — Inner sandbox for Claude Code
 
 > Don't box the agent. Box the action.
 
