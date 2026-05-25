@@ -1,4 +1,0 @@
-https://code.claude.com/docs/en/skills#frontmatter-reference
-https://code.claude.com/docs/en/hooks#hooks-in-skills-and-agents
-https://code.claude.com/docs/en/plugins-reference#metadata-fields
-https://microsandbox.dev/
