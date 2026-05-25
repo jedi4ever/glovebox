@@ -12,12 +12,17 @@ That's the model here. The agent is the operator. The sandbox is the box. Bash, 
 
 ## Installation
 
-**Prerequisites**: `node` and `msb` must be installed. Install MSB via:
+**1. Install MSB:**
 ```bash
 npm install -g microsandbox
 ```
 
-**Install the plugin:**
+**2. Pull the glovebox sandbox image:**
+```bash
+msb pull ghcr.io/jedi4ever/glovebox:latest
+```
+
+**3. Install the plugin:**
 ```bash
 claude plugin marketplace add jedi4ever/glovebox
 claude plugin install glovebox@glovebox --scope project
