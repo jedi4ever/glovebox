@@ -10,6 +10,28 @@ That's the model here. The agent is the operator. The sandbox is the box. Bash, 
 
 ---
 
+## Installation
+
+**Prerequisites**: `node` and `msb` must be installed. Install MSB via:
+```bash
+npm install -g microsandbox
+```
+
+**Install the plugin:**
+```bash
+claude plugin marketplace add https://github.com/jedi4ever/glovebox
+claude plugin install glovebox
+```
+
+Or point directly at the plugin directory for local use:
+```bash
+claude --plugin-dir /path/to/glovebox/plugins/glovebox
+```
+
+**Optional**: add a `.glovebox.yml` to your project root to configure the sandbox (image, network policy, secrets, scope). See [`plugins/glovebox/CONFIG.md`](plugins/glovebox/CONFIG.md) for all options.
+
+---
+
 ## What Is This?
 
 - **Glovebox** is a Claude Code plugin that routes all Claude tool calls (Bash, Read, Write, Edit, WebFetch) through isolated [Micro Sandbox (MSB)](https://microsandbox.dev) micro-VMs, preventing Claude from running arbitrary commands on your host machine
@@ -32,7 +54,6 @@ The same pattern was pioneered by [pi-gondolin](https://github.com/pasky/pi-gond
 
 ## Why Was It Built?
 
-- The inspiration came from [Gondolin](https://github.com/earendil-works/gondolin) — a programmable sandbox that could execute commands in isolation without putting the host inside a container
 - Previous sandboxing approaches (Docker, bubblewrap, seatbelt) all had friction: secrets management, static configuration, version drift with Claude Code updates
 - Claude Code's own sandbox was not restrictive enough for our purposes
 - [Micro Sandbox](https://microsandbox.dev) was chosen because it supports OCI/existing container images, and MSB gives a JavaScript SDK — making it *programmable*, not just configurable
@@ -159,3 +180,11 @@ The same pattern was pioneered by [pi-gondolin](https://github.com/pasky/pi-gond
 - New Claude Code tools added in the future would bypass the sandbox until a hook is added for them
 - Disk sizing for sandboxes has an outstanding patch upstream
 - Claude's local memory and plans remain accessible (intentional — lets Claude use project context) but could leak across sessions if not managed
+
+---
+
+## References
+
+- [Claude Code Skills — Frontmatter Reference](https://code.claude.com/docs/en/skills#frontmatter-reference)
+- [Claude Code Hooks — Hooks in Skills and Agents](https://code.claude.com/docs/en/hooks#hooks-in-skills-and-agents)
+- [Claude Code Plugins Reference — Metadata Fields](https://code.claude.com/docs/en/plugins-reference#metadata-fields)

@@ -1,10 +1,15 @@
 {
+  "$schema": "https://code.claude.com/schemas/plugin.json",
   "name": "glovebox",
+  "displayName": "Glovebox",
   "version": "0.1.0",
-  "description": "Isolates Claude Code Read/Write/Bash/Edit tool calls inside an MSB (Micro Sandbox). The host project dir is bind-mounted inside the sandbox; changes are visible on the host only after the sandbox syncs.",
+  "description": "Sandbox every Claude Code action in a MicroVM — Claude stays on your host as the orchestrator, but every Bash, Read, Write, and Edit runs isolated inside a micro-VM.",
   "author": {
     "name": "Patrick Debois",
-    "email": "patrick@tessl.io"
+    "email": "patrick.debois@jedi.be"
   },
-  "license": "MIT"
+  "license": "MIT",
+  "homepage": "https://github.com/jedi4ever/glovebox",
+  "repository": "https://github.com/jedi4ever/glovebox",
+  "keywords": ["sandbox", "security", "microvm", "isolation", "msb"]
 }

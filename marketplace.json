@@ -1,0 +1,16 @@
+{
+  "name": "glovebox",
+  "owner": {
+    "name": "Patrick Debois",
+    "email": "patrick.debois@jedi.be"
+  },
+  "plugins": [
+    {
+      "name": "glovebox",
+      "displayName": "Glovebox",
+      "source": "./plugins/glovebox",
+      "description": "Sandbox every Claude Code action in a MicroVM — Claude stays on your host as the orchestrator, but every Bash, Read, Write, and Edit runs isolated inside a micro-VM.",
+      "version": "0.1.0"
+    }
+  ]
+}
