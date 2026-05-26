@@ -12,7 +12,7 @@
 // full recreate with state loss).
 
 import { readFileSync } from "node:fs";
-import { applyConfig, applyGitIdentity, dumpFake, loadSdk } from "./lib/sandbox-build.mjs";
+import { applyConfig, applyGitIdentity, applyHostUser, dumpFake, loadSdk } from "./lib/sandbox-build.mjs";
 
 function fatal(msg, extra = {}) {
   process.stdout.write(JSON.stringify({ ok: false, error: msg, ...extra }) + "\n");
@@ -121,6 +121,8 @@ try {
   fatal(`recreate failed: ${e.message}`);
 }
 
+// Register host UID in /etc/passwd + sudoers so sudo works (best-effort).
+await applyHostUser(Sandbox, cfg);
 // Apply git identity inside the freshly-restored sandbox (best-effort).
 await applyGitIdentity(Sandbox, cfg);
 

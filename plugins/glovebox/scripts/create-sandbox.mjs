@@ -14,7 +14,7 @@
 // Exit: 0 / 1 respectively.
 
 import { readFileSync } from "node:fs";
-import { applyConfig, applyGitIdentity, dumpFake, loadSdk } from "./lib/sandbox-build.mjs";
+import { applyConfig, applyGitIdentity, applyHostUser, dumpFake, loadSdk } from "./lib/sandbox-build.mjs";
 
 function fatal(msg) {
   process.stdout.write(JSON.stringify({ ok: false, error: msg }) + "\n");
@@ -53,6 +53,8 @@ try {
   fatal(`create failed: ${e.message}`);
 }
 
+// Register host UID in /etc/passwd + sudoers so sudo works (best-effort).
+await applyHostUser(Sandbox, cfg);
 // Apply git identity inside the sandbox (best-effort).
 await applyGitIdentity(Sandbox, cfg);
 

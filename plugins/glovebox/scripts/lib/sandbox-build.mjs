@@ -11,7 +11,6 @@
 import { writeFileSync } from "node:fs";
 import { dirname } from "node:path";
 import { loadSdk } from "../../lib/sdk.mjs";
-import { DEFAULT_SANDBOX_IMAGE } from "../../lib/config-merge.mjs";
 export { loadSdk };
 
 // ---------------------------------------------------------------------------
@@ -68,13 +67,13 @@ function applyUser(builder, cfg) {
   if (cfg.user) {
     // Explicit config always wins.
     builder.user(cfg.user);
-  } else if (cfg.projectDir && truthy(cfg.mountWorkdir) && cfg.image === DEFAULT_SANDBOX_IMAGE) {
-    // The default image (devcontainers/base:debian) runs as vscode/1000 which
-    // can't write to a host-owned bind mount. Map to the host UID so VirtioFS
-    // passes writes through correctly. Other images (e.g. buildpack-deps) run
-    // as root and don't need this override.
+  } else if (cfg.projectDir && truthy(cfg.mountWorkdir)) {
+    // Map to host UID so the VM kernel allows writes to the host-owned bind
+    // mount. applyHostUser() then remaps the container's existing non-root
+    // user to this UID so passwd/sudo stay consistent. If the host user is
+    // already root (uid=0) no override is needed.
     const uid = process.getuid?.();
-    if (uid != null) builder.user(String(uid));
+    if (uid != null && uid !== 0) builder.user(String(uid));
   }
 }
 
@@ -137,6 +136,44 @@ function applyTls(nb, cfg) {
     if (cfg.tlsInterceptPort) tb.interceptedPorts([Number(cfg.tlsInterceptPort)]);
     return tb;
   });
+}
+
+// ---------------------------------------------------------------------------
+// applyHostUser — remap the container's primary non-root user to the host UID.
+// Needed when applyUser() maps the sandbox process to the host UID (e.g. 501):
+// that UID has no /etc/passwd entry, so tools like sudo fail with "you do not
+// exist in the passwd database". Instead of adding a new user, we remap the
+// existing main user (e.g. vscode/1000) so its UID, home dir ownership, and
+// sudoers entry all stay consistent. Runs once as root via execWith after
+// createDetached; the change persists in the overlay across restarts.
+// ---------------------------------------------------------------------------
+export async function applyHostUser(SandboxClass, cfg) {
+  if (cfg.user) return; // explicit user — caller owns the setup
+  if (!cfg.projectDir || !truthy(cfg.mountWorkdir)) return;
+  const newUid = process.getuid?.();
+  if (!newUid || newUid === 0) return; // already root, nothing to remap
+
+  try {
+    const handle = await SandboxClass.get(cfg.sandboxName);
+    const live = await handle.connect();
+    await live.execWith("sh", ["-c", buildRemapScript(newUid)], (b) => { b.user("root"); return b; });
+  } catch {
+    // Non-fatal — image may lack usermod or SDK hiccup.
+  }
+}
+
+// Build a shell script that remaps the container's primary non-root user to
+// the given UID. Finds the first passwd entry in the 500-60000 range, runs
+// usermod to change its UID, then chowns any files that were owned by the old
+// UID. Idempotent — exits 0 without changes if the UID is already correct.
+export function buildRemapScript(newUid) {
+  return `set -e
+MAIN_USER=$(getent passwd | awk -F: '$3 >= 500 && $3 < 60000 { print $1; exit }')
+[ -z "$MAIN_USER" ] && exit 0
+OLD_UID=$(id -u "$MAIN_USER")
+[ "$OLD_UID" = "${newUid}" ] && exit 0
+usermod -u ${newUid} "$MAIN_USER"
+find / -xdev -user "$OLD_UID" -exec chown ${newUid} {} + 2>/dev/null || true`;
 }
 
 // ---------------------------------------------------------------------------

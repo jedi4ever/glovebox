@@ -1,6 +1,5 @@
 import { describe, it, expect } from "vitest";
 import { fileURLToPath } from "node:url";
-import { DEFAULT_SANDBOX_IMAGE } from "../../../plugins/glovebox/lib/config-merge.mjs";
 
 const MODULE_URL = new URL(
   "../../../plugins/glovebox/scripts/lib/sandbox-build.mjs",
@@ -91,27 +90,18 @@ const baseCfg = {
 };
 
 describe("sandbox-build.mjs — applyConfig", () => {
-  it("no user call for non-default images when user is unset (e.g. ubuntu)", async () => {
+  it("auto-maps host UID for any image when mountWorkdir=true (so VirtioFS writes work)", async () => {
     const { applyConfig } = await import(MODULE_URL);
     const b = makeBuilder();
     applyConfig(b, baseCfg); // baseCfg.image = "ubuntu"
     const calls = b.__calls() as Call[];
-    expect(calls.find((c) => c.method === "user")).toBeUndefined();
-    expect(calls.find((c) => c.method === "workdir")?.args).toEqual(["/workspace"]);
-    expect(calls.find((c) => c.method === "volume")?.args).toEqual(["/workspace"]);
-    expect(calls.find((c) => c.method === "volume.bind")?.args).toEqual(["/tmp/proj"]);
-  });
-
-  it("auto-maps host UID for the default image when mounting (so VirtioFS writes work)", async () => {
-    const { applyConfig } = await import(MODULE_URL);
-    const b = makeBuilder();
-    applyConfig(b, { ...baseCfg, image: DEFAULT_SANDBOX_IMAGE });
-    const calls = b.__calls() as Call[];
     const uid = process.getuid?.();
-    if (uid != null) {
+    if (uid != null && uid !== 0) {
       expect(calls.find((c) => c.method === "user")?.args).toEqual([String(uid)]);
     }
     expect(calls.find((c) => c.method === "workdir")?.args).toEqual(["/workspace"]);
+    expect(calls.find((c) => c.method === "volume")?.args).toEqual(["/workspace"]);
+    expect(calls.find((c) => c.method === "volume.bind")?.args).toEqual(["/tmp/proj"]);
   });
 
   it("respects explicit user config instead of defaulting to root", async () => {
@@ -235,5 +225,30 @@ describe("sandbox-build.mjs — applyConfig", () => {
     const { applyConfig } = await import(MODULE_URL);
     const b = makeBuilder();
     expect(() => applyConfig(b, { ...baseCfg, ports: "not-a-port" })).toThrow(/bad port spec/);
+  });
+});
+
+describe("sandbox-build.mjs — buildRemapScript", () => {
+  it("finds the primary non-root user and remaps its UID", async () => {
+    const { buildRemapScript } = await import(MODULE_URL);
+    const uid = process.getuid?.() ?? 501;
+    const script: string = buildRemapScript(uid);
+    expect(script).toMatch(/getent passwd/);
+    expect(script).toMatch(/awk.*500.*60000/);
+    expect(script).toMatch(new RegExp(`usermod -u ${uid}`));
+    expect(script).toMatch(new RegExp(`chown ${uid}`));
+  });
+
+  it("exits early if UID is already correct", async () => {
+    const { buildRemapScript } = await import(MODULE_URL);
+    const uid = process.getuid?.() ?? 501;
+    const script: string = buildRemapScript(uid);
+    expect(script).toMatch(new RegExp(`\\[ "\\$OLD_UID" = "${uid}" \\] && exit 0`));
+  });
+
+  it("exits early if no non-root user found", async () => {
+    const { buildRemapScript } = await import(MODULE_URL);
+    const script: string = buildRemapScript(process.getuid?.() ?? 501);
+    expect(script).toMatch(/\[ -z "\$MAIN_USER" \] && exit 0/);
   });
 });
