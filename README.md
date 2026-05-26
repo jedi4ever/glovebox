@@ -26,6 +26,10 @@ npm install -g microsandbox
 msb pull mcr.microsoft.com/devcontainers/base:bookworm
 ```
 
+> **Note on sandbox images:** There is no off-the-shelf container image that ships Python, Node, GitHub CLI, and other common dev tools *and* supports arm64. `mcr.microsoft.com/devcontainers/universal` has everything but is **amd64-only**. Other options (nikolaik/python-nodejs, oven/bun, etc.) are single-maintainer projects.
+>
+> The glovebox project maintains its own image — `ghcr.io/jedi4ever/glovebox:latest` — with a curated set of dev tools that works on arm64. If you trust this plugin to run in your Claude sessions, you can trust the image it ships. See [`docs/image.md`](docs/image.md) for what's included and how to build it.
+
 **3. Install the plugin:**
 ```bash
 claude plugin marketplace add jedi4ever/glovebox
