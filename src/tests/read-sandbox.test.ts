@@ -24,7 +24,7 @@ describe.concurrent("read sandboxing", () => {
         "Read the file /etc/os-release and tell me exactly what NAME= and VERSION_ID= say."
       );
       expect(result.exitCode).toBe(0);
-      expect(result.stdout).toMatch(/alpine/i);
+      expect(result.stdout).toMatch(/debian/i);
     } finally {
       await session.dispose();
     }

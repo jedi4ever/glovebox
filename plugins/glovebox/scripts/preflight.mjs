@@ -28,9 +28,9 @@ const localConf  = join(process.env.CLAUDE_PROJECT_DIR || '.', '.glovebox.yml');
 const hasConfig  = existsSync(globalConf) || existsSync(localConf);
 
 if (!hasConfig) {
-  const defaultImage = 'mcr.microsoft.com/devcontainers/universal';
+  const defaultImage = 'mcr.microsoft.com/devcontainers/base:debian';
   const images = spawnSync('msb', ['images'], { encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] });
-  const imageFound = (images.stdout || '').includes('devcontainers/universal');
+  const imageFound = (images.stdout || '').includes('devcontainers/base');
   if (!imageFound) {
     emit({ hookSpecificOutput: { hookEventName: 'SessionStart', additionalContext: `WARNING: glovebox default image not found.\n\nRun: msb pull ${defaultImage}\n\nSandbox enforcement is DISABLED for this session.` } });
     process.exit(0);
