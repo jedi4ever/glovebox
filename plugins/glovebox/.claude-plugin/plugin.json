@@ -2,7 +2,7 @@
   "$schema": "https://code.claude.com/schemas/plugin.json",
   "name": "glovebox",
   "displayName": "Glovebox",
-  "version": "0.4.0",
+  "version": "0.5.0",
   "description": "Sandbox every Claude Code action in a MicroVM — Claude stays on your host as the orchestrator, but every Bash, Read, Write, and Edit runs isolated inside a micro-VM.",
   "author": {
     "name": "Patrick Debois",
