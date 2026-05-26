@@ -21,9 +21,9 @@ That's the model here. The agent is the operator. The sandbox is the box. Bash, 
 npm install -g microsandbox
 ```
 
-**2. Pull the glovebox sandbox image:**
+**2. Pull the default sandbox image:**
 ```bash
-msb pull ghcr.io/jedi4ever/glovebox:latest
+msb pull mcr.microsoft.com/devcontainers/base:debian
 ```
 
 **3. Install the plugin:**
