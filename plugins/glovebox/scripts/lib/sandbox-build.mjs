@@ -156,9 +156,14 @@ export async function applyHostUser(SandboxClass, cfg) {
   try {
     const handle = await SandboxClass.get(cfg.sandboxName);
     const live = await handle.connect();
-    await live.execWith("sh", ["-c", buildRemapScript(newUid)], (b) => { b.user("root"); return b; });
-  } catch {
-    // Non-fatal — image may lack usermod or SDK hiccup.
+    // Use numeric "0" for the user override — more portable than "root" across
+    // images where /etc/passwd may not be consulted for the exec user lookup.
+    const result = await live.execWith("sh", (b) => b.args(["-c", buildRemapScript(newUid)]).user("0"));
+    if (!result.success) {
+      process.stderr.write(`[applyHostUser] remap exited ${result.code} for ${cfg.sandboxName}: ${result.stderr()}\n`);
+    }
+  } catch (e) {
+    process.stderr.write(`[applyHostUser] failed for ${cfg.sandboxName}: ${e?.message ?? e}\n`);
   }
 }
 

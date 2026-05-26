@@ -23,16 +23,18 @@ describe("default image — sudo and package manager access", () => {
     }
   });
 
-  it("id command shows a named user (not just a numeric uid)", async () => {
+  it("id command shows the remapped container user (vscode), not root", async () => {
     const session = await createCleanSession();
     try {
       const result = await session.run(
         "Run the bash command `id` and report the exact output."
       );
       expect(result.exitCode).toBe(0);
-      // When the UID is in /etc/passwd the username appears; if not, id shows
-      // just the number with no parenthesised name for uid=.
-      expect(result.stdout).toMatch(/uid=\d+\(\w/);
+      // The container's primary non-root user (vscode) should be remapped to
+      // the host UID — so id shows uid=501(vscode), not uid=501 or uid=0(root).
+      expect(result.stdout).toMatch(/uid=\d+\(vscode\)/);
+      // Must NOT be root — that would mean we remapped the wrong user.
+      expect(result.stdout).not.toMatch(/uid=0\(root\)/);
     } finally {
       await session.dispose();
     }
