@@ -23,7 +23,7 @@ npm install -g microsandbox
 
 **2. Pull the default sandbox image:**
 ```bash
-msb pull mcr.microsoft.com/devcontainers/base:debian
+msb pull mcr.microsoft.com/devcontainers/base:bookworm
 ```
 
 **3. Install the plugin:**

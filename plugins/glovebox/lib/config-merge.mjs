@@ -11,7 +11,7 @@
 // Each entry: { key, type, envMain, envAgent, noAgentSuffix, default }
 // noAgentSuffix: agent env var has no _AGENT_TYPE suffix (only mount_workdir)
 // sandboxImageSpecial: image uses GLOVEBOX_SANDBOX_IMAGE for main + special agent fallback
-export const DEFAULT_SANDBOX_IMAGE = 'mcr.microsoft.com/devcontainers/base:debian';
+export const DEFAULT_SANDBOX_IMAGE = 'mcr.microsoft.com/devcontainers/base:bookworm';
 
 const SETTINGS = [
   { key: 'sandbox_image',       type: 'SCALAR',      envMain: 'GLOVEBOX_SANDBOX_IMAGE',             envAgent: 'GLOVEBOX_AGENT_IMAGE',              sandboxImageSpecial: true, default: DEFAULT_SANDBOX_IMAGE   },
