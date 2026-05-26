@@ -1,5 +1,9 @@
 # Glovebox — Inner sandbox for Claude Code
 
+<p align="center">
+  <img src="docs/glovebox.png" alt="Glovebox logo" width="320" />
+</p>
+
 > Don't box the agent. Box the action.
 
 ## Why Glovebox?
@@ -166,6 +170,15 @@ The same pattern was pioneered by [pi-gondolin](https://github.com/pasky/pi-gond
 
 ---
 
+## Known Limitations & Open Issues
+
+- If hooks are misconfigured, commands fall through to the host — there is no hard kernel-level enforcement
+- New Claude Code tools added in the future would bypass the sandbox until a hook is added for them
+- Disk sizing for sandboxes has an outstanding patch upstream
+- Claude's local memory and plans remain accessible (intentional — lets Claude use project context) but could leak across sessions if not managed
+
+---
+
 ## Testing Strategy
 
 - Tests run in **completely isolated Claude Code sessions**: separate `CLAUDE_CONFIG_DIR`, no memory, Anthropic API key auth
@@ -176,15 +189,6 @@ The same pattern was pioneered by [pi-gondolin](https://github.com/pasky/pi-gond
 - A `fake-msb` fixture provides a mock MSB CLI for unit tests that need to inspect sandbox create arguments without a real VM
 - Global setup cleans up leftover test sandboxes before each test run
 - `claude plugin validate` is run as part of the validation step
-
----
-
-## Known Limitations & Open Issues
-
-- If hooks are misconfigured, commands fall through to the host — there is no hard kernel-level enforcement
-- New Claude Code tools added in the future would bypass the sandbox until a hook is added for them
-- Disk sizing for sandboxes has an outstanding patch upstream
-- Claude's local memory and plans remain accessible (intentional — lets Claude use project context) but could leak across sessions if not managed
 
 ---
 
