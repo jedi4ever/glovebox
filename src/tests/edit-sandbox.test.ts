@@ -4,29 +4,30 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { createCleanSession } from "../helpers/session.js";
 
-// Empirical findings (verified by hook tracing):
-//   - Edit on bind-mounted project-dir files WORKS — the file is on the host,
-//     CC's existence check passes, our hook fires and passes through, Edit applies.
-//   - Edit on VM-only paths (/tmp/..., /etc/..., etc.) is BLOCKED by CC with
-//     "File does not exist" BEFORE our PreToolUse hook is ever invoked. The
-//     hook trace log stays empty for those calls.
+// The glovebox hook blocks Edit and MultiEdit for ALL files — even bind-mounted
+// project-dir files — and redirects the agent to use Bash instead.  This keeps
+// every write inside the sandbox's filesystem view.
 //
-// Workaround for VM-only edits: use Bash with `sed -i` / `echo >>` in the sandbox.
+// CC's own "File does not exist" guard fires for VM-only paths (/tmp/, /etc/,
+// etc.) BEFORE our hook is invoked, so the block comes from CC there.
+// For project-dir files the block comes from our PreToolUse deny.
 
 describe("edit sandboxing", () => {
-  it("edits a project-dir file (bind-mounted) — supported case", async () => {
+  it("Edit on a project-dir (bind-mounted) file is blocked — agent falls back to Bash", async () => {
     const projectDir = await mkdtemp(join(tmpdir(), "glovebox-edit-proj-"));
     const session = await createCleanSession({ cwd: projectDir });
     try {
       const result = await session.run(
         "Do these 3 steps in order, using separate tool calls:\n" +
         "1. Run a bash command: `echo original > ./glovebox-edit-probe-proj.txt`\n" +
-        "2. Use the Edit tool on ./glovebox-edit-probe-proj.txt to replace 'original' with 'edited'.\n" +
+        "2. Use the Edit tool on ./glovebox-edit-probe-proj.txt to replace 'original' with 'edited'. " +
+        "If it fails, note the error and use Bash to make the change instead.\n" +
         "3. Run a bash command: `cat ./glovebox-edit-probe-proj.txt` and report the exact output.\n" +
         "Clean up at the end with: `rm -f ./glovebox-edit-probe-proj.txt`."
       );
 
       expect(result.exitCode).toBe(0);
+      // The agent must have fallen back to Bash — the file should contain 'edited'.
       expect(result.stdout).toMatch(/edited/i);
     } finally {
       await session.dispose();

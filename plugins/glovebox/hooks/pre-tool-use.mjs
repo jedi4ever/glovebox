@@ -178,8 +178,11 @@ if (toolName === 'Write') {
 
 // ---------------------------------------------------------------------------
 if (toolName === 'Edit' || toolName === 'MultiEdit') {
-  // CC checks host file existence before this hook fires, so Edit on VM-only
-  // paths is already blocked by CC. Project-dir files are bind-mounted, pass through.
+  // All file edits must go through the sandbox (Bash), not CC's host-side Edit.
+  // Even bind-mounted project-dir files should be modified via `sed -i`, `tee`,
+  // or `echo >` in Bash so every write is visible in the sandbox's filesystem view.
+  const filePath = event.tool_input?.file_path ?? event.tool_input?.old_string ?? '';
+  deny(`glovebox: Edit is not available inside the sandbox — use Bash to modify files instead (e.g. \`sed -i 's/old/new/g' ${filePath || 'file'}\`).`);
   process.exit(0);
 }
 

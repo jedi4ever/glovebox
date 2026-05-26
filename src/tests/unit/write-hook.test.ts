@@ -114,12 +114,10 @@ describe("post-tool-use.sh — Write hook", () => {
 });
 
 describe("pre-tool-use.sh — Edit hook", () => {
-  // Empirically, CC's Edit tool checks file existence on the host BEFORE this
-  // hook is invoked. For VM-only paths CC denies with "File does not exist"
-  // without ever calling us. So the hook just passes through and lets CC do
-  // its thing. The unit test below verifies the pass-through behavior — CC's
-  // bypass is verified by the integration test in edit-sandbox.test.ts.
-  it("passes through Edit on any path without rewriting tool_input", () => {
+  // Edit and MultiEdit are denied for ALL paths — even bind-mounted project-dir
+  // files — so every write goes through the sandbox (Bash). The agent is
+  // redirected to use Bash (sed, tee, echo) instead.
+  it("denies Edit with a Bash redirect message", () => {
     writeFileSync(`/tmp/fake-msb-${SANDBOX_NAME}.state`, "Running");
 
     const r = runHook(PRE_HOOK, {
@@ -128,12 +126,13 @@ describe("pre-tool-use.sh — Edit hook", () => {
       tool_input: { file_path: EDIT_TEST_FILE, old_string: "hello", new_string: "world" },
     });
 
-    // exit 0 with no stdout → CC proceeds with the original tool_input
     expect(r.status).toBe(0);
-    expect(r.stdout.trim()).toBe("");
+    const out = JSON.parse(r.stdout.trim());
+    expect(out.hookSpecificOutput.permissionDecision).toBe("deny");
+    expect(out.hookSpecificOutput.permissionDecisionReason).toMatch(/glovebox.*Edit.*Bash/i);
   });
 
-  it("passes through MultiEdit the same way", () => {
+  it("denies MultiEdit the same way", () => {
     writeFileSync(`/tmp/fake-msb-${SANDBOX_NAME}.state`, "Running");
 
     const r = runHook(PRE_HOOK, {
@@ -146,7 +145,9 @@ describe("pre-tool-use.sh — Edit hook", () => {
     });
 
     expect(r.status).toBe(0);
-    expect(r.stdout.trim()).toBe("");
+    const out = JSON.parse(r.stdout.trim());
+    expect(out.hookSpecificOutput.permissionDecision).toBe("deny");
+    expect(out.hookSpecificOutput.permissionDecisionReason).toMatch(/glovebox.*Edit.*Bash/i);
   });
 });
 
