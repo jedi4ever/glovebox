@@ -30,3 +30,4 @@ process.env["GLOVEBOX_CONFIG_DIR"] = mkdtempSync(join(tmpdir(), "glovebox-test-c
 // autodetect path re-enable via extraEnv on the spawn call.
 process.env["GLOVEBOX_MAIN_GIT_USER_AUTODETECT"] = "false";
 process.env["GLOVEBOX_MAIN_GIT_TOKEN_AUTODETECT"] = "false";
+

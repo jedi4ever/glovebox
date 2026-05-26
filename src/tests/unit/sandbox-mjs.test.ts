@@ -1,7 +1,7 @@
 // Unit tests for plugins/glovebox/lib/sandbox.mjs pure functions.
 // These don't spawn subprocesses — they call the JS functions directly.
 
-import { describe, it, expect, afterEach } from "vitest";
+import { describe, it, expect, beforeEach, afterEach } from "vitest";
 import { fileURLToPath } from "node:url";
 
 const SANDBOX_MJS = fileURLToPath(
@@ -21,6 +21,7 @@ const {
 
 // ---------------------------------------------------------------------------
 describe("sandboxPrefix — GLOVEBOX_SANDBOX_PREFIX env var", () => {
+  beforeEach(() => { delete process.env["GLOVEBOX_SANDBOX_PREFIX"]; });
   afterEach(() => { delete process.env["GLOVEBOX_SANDBOX_PREFIX"]; });
 
   it("defaults to 'glovebox' when env var is unset", () => {
@@ -51,6 +52,9 @@ describe("sandboxPrefix — GLOVEBOX_SANDBOX_PREFIX env var", () => {
 
 // ---------------------------------------------------------------------------
 describe("sandboxNameFor — scope variants", () => {
+  beforeEach(() => { delete process.env["GLOVEBOX_SANDBOX_PREFIX"]; });
+  afterEach(() => { delete process.env["GLOVEBOX_SANDBOX_PREFIX"]; });
+
   it("session scope uses first 16 chars of session_id", () => {
     expect(sandboxNameFor("abc123", "", "", "session")).toBe("glovebox-abc123");
     expect(sandboxNameFor("averylongsessionidentifier", "", "", "session"))
@@ -116,6 +120,9 @@ describe("sandboxNameFor — scope variants", () => {
 
 // ---------------------------------------------------------------------------
 describe("sandboxNameForFileOp — per-run coercion", () => {
+  beforeEach(() => { delete process.env["GLOVEBOX_SANDBOX_PREFIX"]; });
+  afterEach(() => { delete process.env["GLOVEBOX_SANDBOX_PREFIX"]; });
+
   it("per-run with agent → per-agent style (stable)", () => {
     const a = sandboxNameForFileOp("abcdefgh", "my-agent", "", "per-run");
     const b = sandboxNameForFileOp("abcdefgh", "my-agent", "", "per-run");

@@ -2,7 +2,7 @@
 import { createHash, randomBytes } from 'node:crypto';
 import { spawnSync } from 'node:child_process';
 import {
-  existsSync, mkdirSync, readFileSync, writeFileSync, appendFileSync,
+  existsSync, mkdirSync, readFileSync, writeFileSync, appendFileSync, realpathSync,
 } from 'node:fs';
 import { join, dirname, normalize } from 'node:path';
 import { homedir } from 'node:os';
@@ -56,7 +56,8 @@ export function sandboxNameFor(sessionId, agentType = '', explicitName = '', sco
   }
 
   if (scope === 'directory') {
-    const dir = projectDir || process.cwd();
+    const rawDir = projectDir || process.cwd();
+    let dir; try { dir = realpathSync(rawDir); } catch { dir = rawDir; }
     const hash = createHash('sha256').update(dir).digest('hex').slice(0, 12);
     return `${pfx}-dir-${hash}`;
   }

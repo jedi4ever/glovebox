@@ -26,7 +26,7 @@ async function removeSandbox(name) {
   }
   if (!Sandbox) return;
   try {
-    const h = await Sandbox.get(name);
+    let h = await Sandbox.get(name);
     if (h.status === 'running' || h.status === 'draining') {
       // connect() + stopAndWait() waits for VM exit before remove().
       // Fall back to kill() for stuck sandboxes (e.g. broken mounts).
@@ -35,6 +35,15 @@ async function removeSandbox(name) {
         await live.stopAndWait();
       } catch {
         try { await h.kill(); } catch {}
+      }
+      // Poll until the sandbox leaves running/draining (the user noted a
+      // timing gap between kill() and the daemon updating the status).
+      for (let i = 0; i < 15; i++) {
+        await new Promise((r) => setTimeout(r, 200));
+        try {
+          h = await Sandbox.get(name);
+          if (h.status !== 'running' && h.status !== 'draining') break;
+        } catch { break; }
       }
     }
     // Static Sandbox.remove() works immediately after stopAndWait(); the

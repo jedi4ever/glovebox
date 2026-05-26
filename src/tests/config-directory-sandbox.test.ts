@@ -3,13 +3,16 @@ import { mkdtemp, rm, cp } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { createHash } from "node:crypto";
+import { realpathSync } from "node:fs";
 import { createCleanSession } from "../helpers/session.js";
 import { fixturePath } from "../helpers/fixtures.js";
 import { removeSandbox } from "../helpers/msb-sdk.js";
 
 function dirSandboxName(dir: string): string {
   // Must match the prefix set in createCleanSession (GLOVEBOX_SANDBOX_PREFIX=glovebox-test).
-  return `glovebox-test-dir-${createHash("sha256").update(dir).digest("hex").slice(0, 12)}`;
+  // Resolve symlinks (e.g. macOS /var → /private/var) to match what the plugin computes.
+  let resolved = dir; try { resolved = realpathSync(dir); } catch { /* use raw */ }
+  return `glovebox-test-dir-${createHash("sha256").update(resolved).digest("hex").slice(0, 12)}`;
 }
 
 let createdDirs: string[] = [];

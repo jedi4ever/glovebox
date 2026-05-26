@@ -50,14 +50,17 @@ export async function removeSandbox(name: string): Promise<void> {
         await live.stopAndWait();
       } catch {
         try { await handle.kill(); } catch {}
-        // After kill(), poll until the sandbox leaves running/draining.
-        for (let i = 0; i < 15; i++) {
-          await new Promise((r) => setTimeout(r, 200));
-          try {
-            const h2 = await Sandbox.get(name);
-            if (h2.status !== "running" && h2.status !== "draining") break;
-          } catch { break; }
-        }
+      }
+      // Poll until the sandbox leaves running/draining — there is a brief
+      // timing gap between stopAndWait()/kill() returning and the daemon
+      // updating its internal status, so Sandbox.remove() can still see
+      // the sandbox as running immediately after stop returns.
+      for (let i = 0; i < 15; i++) {
+        await new Promise((r) => setTimeout(r, 200));
+        try {
+          const h2 = await Sandbox.get(name);
+          if (h2.status !== "running" && h2.status !== "draining") break;
+        } catch { break; }
       }
     }
     // Use the static Sandbox.remove(name) — the instance handle.remove() checks
@@ -65,7 +68,11 @@ export async function removeSandbox(name: string): Promise<void> {
     // SandboxStillRunning even immediately after stopAndWait(). The static path
     // skips that check and works cleanly after the VM has stopped.
     await Sandbox.remove(name);
-  } catch {
+  } catch(e: unknown) {
+    const msg = e instanceof Error ? e.message : String(e);
+    if (!msg.includes("not found") && !msg.includes("NotFound")) {
+      process.stderr.write(`[removeSandbox] ${name}: ${msg}\n`);
+    }
     // Not found or already removed — both are fine.
   }
 }

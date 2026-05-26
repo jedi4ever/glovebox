@@ -2,7 +2,6 @@ import { mkdtemp, rm, readFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { spawn } from "node:child_process";
-import { randomBytes } from "node:crypto";
 import { existsSync } from "node:fs";
 import { removeSandbox } from "./msb-sdk.js";
 
@@ -110,6 +109,10 @@ export async function createCleanSession(options: SessionOptions = {}): Promise<
 
     async dispose() {
       if (!options.keepSandbox) {
+        // Normal case: the SessionEnd hook (cleanup.mjs) already removed the
+        // session-scoped sandboxes and deleted the stateDir sub-directory.
+        // Safety net for crashes: if cleanup.mjs didn't run, the stateDir still
+        // has the tracking file and we can remove any leftover sandboxes here.
         for (const name of await trackedSandboxes(stateDir)) {
           await removeSandbox(name);
         }

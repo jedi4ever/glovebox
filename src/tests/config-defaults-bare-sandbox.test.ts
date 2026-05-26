@@ -3,6 +3,7 @@ import { mkdtemp, rm, cp } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { createHash } from "node:crypto";
+import { realpathSync } from "node:fs";
 import { createCleanSession } from "../helpers/session.js";
 import { fixturePath } from "../helpers/fixtures.js";
 import { removeSandbox } from "../helpers/msb-sdk.js";
@@ -16,7 +17,10 @@ import { removeSandbox } from "../helpers/msb-sdk.js";
 // fresh project dir, so the new image actually takes effect.
 
 function dirSandboxName(dir: string): string {
-  return `glovebox-dir-${createHash("sha256").update(dir).digest("hex").slice(0, 12)}`;
+  // Must match the prefix set in createCleanSession (GLOVEBOX_SANDBOX_PREFIX=glovebox-test).
+  // Resolve symlinks (e.g. macOS /var → /private/var) to match what the plugin computes.
+  let resolved = dir; try { resolved = realpathSync(dir); } catch { /* use raw */ }
+  return `glovebox-test-dir-${createHash("sha256").update(resolved).digest("hex").slice(0, 12)}`;
 }
 
 const createdDirs: string[] = [];
