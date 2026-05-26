@@ -112,3 +112,14 @@ export async function listImageRefs(): Promise<string[]> {
   const handles = await Image.list();
   return handles.map((h) => h.reference);
 }
+
+/** Pull an image into msb's store if not already present. */
+export async function ensureImage(ref: string): Promise<void> {
+  const refs = await listImageRefs();
+  if (refs.some((r) => r === ref || r.startsWith(ref + ':'))) return;
+  const { spawnSync } = await import('node:child_process');
+  const isLocal = ref.startsWith('localhost:') || ref.startsWith('127.0.0.1:');
+  const args = isLocal ? ['pull', '--insecure', '--force', ref] : ['pull', ref];
+  const r = spawnSync('msb', args, { stdio: 'inherit' });
+  if (r.status !== 0) throw new Error(`msb pull failed for ${ref}`);
+}
