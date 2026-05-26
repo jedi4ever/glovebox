@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { mkdtemp, rm } from "node:fs/promises";
+import { mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { createCleanSession } from "../helpers/session.js";
@@ -13,7 +13,7 @@ import { createCleanSession } from "../helpers/session.js";
 //
 // Workaround for VM-only edits: use Bash with `sed -i` / `echo >>` in the sandbox.
 
-describe.concurrent("edit sandboxing", () => {
+describe("edit sandboxing", () => {
   it("edits a project-dir file (bind-mounted) — supported case", async () => {
     const projectDir = await mkdtemp(join(tmpdir(), "glovebox-edit-proj-"));
     const session = await createCleanSession({ cwd: projectDir });

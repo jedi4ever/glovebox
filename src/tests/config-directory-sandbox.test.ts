@@ -8,7 +8,8 @@ import { fixturePath } from "../helpers/fixtures.js";
 import { removeSandbox } from "../helpers/msb-sdk.js";
 
 function dirSandboxName(dir: string): string {
-  return `glovebox-dir-${createHash("sha256").update(dir).digest("hex").slice(0, 12)}`;
+  // Must match the prefix set in createCleanSession (GLOVEBOX_SANDBOX_PREFIX=glovebox-test).
+  return `glovebox-test-dir-${createHash("sha256").update(dir).digest("hex").slice(0, 12)}`;
 }
 
 let createdDirs: string[] = [];
@@ -18,7 +19,7 @@ afterAll(async () => {
   await Promise.all(createdDirs.map((dir) => rm(dir, { recursive: true, force: true })));
 });
 
-describe.concurrent("config — directory scope integration", () => {
+describe("config — directory scope integration", () => {
   it("state written in session 1 is readable in session 2 (same directory)", async () => {
     const projectDir = await mkdtemp(join(tmpdir(), "glovebox-dir-scope-"));
     await cp(fixturePath("config-scope-directory"), projectDir, { recursive: true });

@@ -15,7 +15,7 @@ const ALL_NAMED = [NAMED_SANDBOX, NAMED_MAIN_SANDBOX, NAMED_AGENT_SANDBOX];
 beforeAll(async () => { await Promise.all(ALL_NAMED.map(removeSandbox)); });
 afterAll(async () => { await Promise.all(ALL_NAMED.map(removeSandbox)); });
 
-describe.concurrent("config — named scope integration", () => {
+describe("config — named scope integration", () => {
   it("named sandbox persists across sessions: state written in session 1 is readable in session 2", async () => {
     const projectDir = await mkdtemp(join(tmpdir(), "glovebox-named-"));
     try {

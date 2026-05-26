@@ -6,7 +6,7 @@ import { createCleanSession } from "../helpers/session.js";
 // sandbox and injects an additionalContext block; the assertion below is the
 // end-to-end check that the block actually steers Claude's answer.
 
-describe.concurrent("sandbox OS-level info", () => {
+describe("sandbox OS-level info", () => {
   it("operating system reported reflects the sandbox, not the host", async () => {
     const session = await createCleanSession();
     try {

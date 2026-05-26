@@ -1,7 +1,7 @@
 import { describe, it, expect } from "vitest";
 import { setupScenario } from "../helpers/scenario.js";
 
-describe.concurrent("config — sandbox_image integration", () => {
+describe("config — sandbox_image integration", () => {
   it("sandbox runs on the default image when no config file is present", async () => {
     const { session, teardown } = await setupScenario("glovebox-image-default-");
     try {

@@ -13,7 +13,7 @@ const EXPECTED_SHIM_PATH = join(PLUGIN_ROOT, "skills/shell/glovebox-bash.sh");
 // variables don't expand in settings.json env.* values, so this is how we
 // give end users a copy-pasteable absolute path.
 
-describe.concurrent("glovebox:shell skill", () => {
+describe("glovebox:shell skill", () => {
   it("invocation reports the absolute shim path", async () => {
     const session = await createCleanSession();
     try {

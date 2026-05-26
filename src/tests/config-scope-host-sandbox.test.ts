@@ -5,7 +5,7 @@ import { setupScenario } from "../helpers/scenario.js";
 // real host. Verified by hitting paths that only exist on the host (macOS)
 // and not in the Linux MSB sandbox (e.g. `/Users`).
 
-describe.concurrent("config — scope=host integration", () => {
+describe("config — scope=host integration", () => {
   it("main scope=host: bash sees host filesystem (e.g. /Users exists)", async () => {
     const { session, teardown } = await setupScenario("glovebox-scope-host-main-", {
       fixture: "config-scope-host-main",

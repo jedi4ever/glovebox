@@ -148,6 +148,7 @@ export async function resolveConfig(projectDir, agentType = '') {
     autoRecreate:      cfg.auto_recreate      === 'true',
     gitUserName:       cfg.git_user_name,
     gitUserEmail:      cfg.git_user_email,
+    user:              cfg.user,
   };
 }
 

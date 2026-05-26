@@ -4,7 +4,7 @@ import { join } from "node:path";
 import { setupScenario } from "../helpers/scenario.js";
 import { fixturePath } from "../helpers/fixtures.js";
 
-describe.concurrent("config — mount_workdir integration", () => {
+describe("config — mount_workdir integration", () => {
   it("project files are visible inside the sandbox by default", async () => {
     const { projectDir, session, teardown } = await setupScenario("glovebox-mount-on-");
     try {

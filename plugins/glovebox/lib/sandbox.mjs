@@ -38,40 +38,52 @@ export function sandboxTrack(sessionId, name) {
 // ---------------------------------------------------------------------------
 // Sandbox naming — mirrors sandbox_name_for() in sandbox.sh
 // ---------------------------------------------------------------------------
+
+// GLOVEBOX_SANDBOX_PREFIX lets callers namespace all auto-generated sandbox
+// names. Tests set it to "glovebox-test" so global-setup can sweep every VM
+// created during a test run with a single prefix query, without touching
+// production sandboxes. Defaults to "glovebox".
+export function sandboxPrefix() {
+  return process.env['GLOVEBOX_SANDBOX_PREFIX'] || 'glovebox';
+}
+
 export function sandboxNameFor(sessionId, agentType = '', explicitName = '', scope = 'session', projectDir = '') {
+  const pfx = sandboxPrefix();
+
   if (scope === 'named' && explicitName) {
     const safe = explicitName.replace(/[^a-zA-Z0-9_-]/g, '').slice(0, 64);
-    return safe || 'glovebox-named';
+    return safe || `${pfx}-named`;
   }
 
   if (scope === 'directory') {
     const dir = projectDir || process.cwd();
     const hash = createHash('sha256').update(dir).digest('hex').slice(0, 12);
-    return `glovebox-dir-${hash}`;
+    return `${pfx}-dir-${hash}`;
   }
 
   if (!agentType || scope === 'session' || scope === 'named') {
-    return `glovebox-${sessionId.slice(0, 16)}`;
+    return `${pfx}-${sessionId.slice(0, 16)}`;
   }
 
   const lower = agentType.replace(/-/g, '_').toLowerCase().replace(/[^a-z0-9_]/g, '');
 
   if (scope === 'per-agent') {
-    return `glovebox-${sessionId.slice(0, 8)}-${lower.slice(0, 8)}`;
+    return `${pfx}-${sessionId.slice(0, 8)}-${lower.slice(0, 8)}`;
   }
   if (scope === 'per-run') {
     const rand = randomBytes(4).toString('hex');
-    return `glovebox-${sessionId.slice(0, 8)}-${rand}`;
+    return `${pfx}-${sessionId.slice(0, 8)}-${rand}`;
   }
-  return `glovebox-${sessionId.slice(0, 16)}`;
+  return `${pfx}-${sessionId.slice(0, 16)}`;
 }
 
 // Like sandboxNameFor but treats per-run as per-agent (file ops need stable names).
 export function sandboxNameForFileOp(sessionId, agentType = '', explicitName = '', scope = 'session', projectDir = '') {
+  const pfx = sandboxPrefix();
   if (scope === 'per-run') {
-    if (!agentType) return `glovebox-${sessionId.slice(0, 16)}`;
+    if (!agentType) return `${pfx}-${sessionId.slice(0, 16)}`;
     const lower = agentType.replace(/-/g, '_').toLowerCase().replace(/[^a-z0-9_]/g, '');
-    return `glovebox-${sessionId.slice(0, 8)}-${lower.slice(0, 8)}`;
+    return `${pfx}-${sessionId.slice(0, 8)}-${lower.slice(0, 8)}`;
   }
   return sandboxNameFor(sessionId, agentType, explicitName, scope, projectDir);
 }
@@ -91,8 +103,8 @@ export async function sandboxStatus(name) {
   try { return (await Sandbox.get(name)).status; } catch { return ''; }
 }
 
-export function sandboxConfigFingerprint(image, mount, network, ports, secrets, onViolation, tlsOn, tlsPort, tlsBypass, trustCas, gitName, gitEmail) {
-  const payload = `image=${image}|mount=${mount}|net=${network}|ports=${ports}|secrets=${secrets}|onv=${onViolation}|tls=${tlsOn}|tlsp=${tlsPort}|tlsb=${tlsBypass}|trust=${trustCas}|gitn=${gitName}|gite=${gitEmail}`;
+export function sandboxConfigFingerprint(image, mount, network, ports, secrets, onViolation, tlsOn, tlsPort, tlsBypass, trustCas, gitName, gitEmail, user) {
+  const payload = `image=${image}|mount=${mount}|net=${network}|ports=${ports}|secrets=${secrets}|onv=${onViolation}|tls=${tlsOn}|tlsp=${tlsPort}|tlsb=${tlsBypass}|trust=${trustCas}|gitn=${gitName}|gite=${gitEmail}|user=${user}`;
   return createHash('sha256').update(payload).digest('hex').slice(0, 16);
 }
 
@@ -110,6 +122,7 @@ function fingerprintFromPayload(payload) {
     payload.trustHostCas ? 'true' : 'false',
     payload.gitUserName ?? '',
     payload.gitUserEmail ?? '',
+    payload.user ?? '',
   );
 }
 

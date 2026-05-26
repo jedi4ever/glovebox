@@ -8,7 +8,7 @@ import { setupScenario } from "../helpers/scenario.js";
 // URL, our hook bounces it, Claude retries with Bash+curl, the sandbox
 // fetches the URL and Claude sees the body.
 
-describe.concurrent("WebFetch interception", () => {
+describe("WebFetch interception", () => {
   it("asking Claude to fetch a URL routes through Bash+curl in the sandbox", async () => {
     // Use buildpack-deps:noble so curl is preinstalled — saves ~30s of
     // apt-get fallback time on the default ubuntu image.

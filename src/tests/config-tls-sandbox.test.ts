@@ -17,7 +17,7 @@ import { setupScenario } from "../helpers/scenario.js";
 //
 // buildpack-deps:noble has curl and openssl preinstalled.
 
-describe.concurrent("tls interception integration", () => {
+describe("tls interception integration", () => {
   it("curl https:// still succeeds through the MITM proxy", async () => {
     const { session, teardown } = await setupScenario("glovebox-tls-curl-", {
       fixture: "config-tls",

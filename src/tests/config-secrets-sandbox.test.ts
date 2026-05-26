@@ -13,7 +13,7 @@ import { setupScenario } from "../helpers/scenario.js";
 // witness: if substitution happened, the response will contain the real
 // VALUE; if the secret was blocked, it won't.
 
-describe.concurrent("secrets integration", () => {
+describe("secrets integration", () => {
   it("secret VALUE is substituted into outbound HTTPS traffic to the allowlisted host", async () => {
     const tokenValue = "topsecret-glovebox-allowed-abc";
     const { session, teardown } = await setupScenario("glovebox-secret-allow-", {

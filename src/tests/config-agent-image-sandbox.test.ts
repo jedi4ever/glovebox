@@ -1,7 +1,7 @@
 import { describe, it, expect } from "vitest";
 import { setupScenario } from "../helpers/scenario.js";
 
-describe.concurrent("config — agent-specific image integration", () => {
+describe("config — agent-specific image integration", () => {
   it("uses agent-specific image when test-agent subagent is invoked", async () => {
     const { session, teardown } = await setupScenario("glovebox-agent-image-", { fixture: "config-agent-image" });
     try {

@@ -1,7 +1,7 @@
 import { describe, it, expect } from "vitest";
 import { createCleanSession } from "../helpers/session.js";
 
-describe.concurrent("bash sandboxing", () => {
+describe("bash sandboxing", () => {
   it("executes bash commands inside an MSB sandbox", async () => {
     const session = await createCleanSession();
     try {

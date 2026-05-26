@@ -106,6 +106,45 @@ describe("config — sandbox_image", () => {
   });
 });
 
+describe("config — user", () => {
+  it("user defaults to empty string (root applied at build time) when no config", () => {
+    runHook(fixturePath("simple-read"));
+    expect(readCreateConfig()?.user ?? "").toBe("");
+  });
+
+  it("env var GLOVEBOX_MAIN_USER sets user for main", () => {
+    runHook(fixturePath("simple-read"), { GLOVEBOX_MAIN_USER: "myuser" });
+    expect(readCreateConfig()?.user).toBe("myuser");
+  });
+
+  it("config file sets user", () => {
+    const localDir = mkdtempSync(join(tmpdir(), "glovebox-user-cfg-"));
+    writeFileSync(join(localDir, ".glovebox.yml"), "main:\n  user: www-data\n");
+    try {
+      runHook(localDir);
+      expect(readCreateConfig()?.user).toBe("www-data");
+    } finally {
+      rmSync(localDir, { recursive: true, force: true });
+    }
+  });
+
+  it("env var GLOVEBOX_MAIN_USER overrides config file", () => {
+    const localDir = mkdtempSync(join(tmpdir(), "glovebox-user-env-"));
+    writeFileSync(join(localDir, ".glovebox.yml"), "main:\n  user: www-data\n");
+    try {
+      runHook(localDir, { GLOVEBOX_MAIN_USER: "override" });
+      expect(readCreateConfig()?.user).toBe("override");
+    } finally {
+      rmSync(localDir, { recursive: true, force: true });
+    }
+  });
+
+  it("env var GLOVEBOX_AGENT_USER_TEST_AGENT sets user for that agent", () => {
+    runHook(fixturePath("simple-read"), { GLOVEBOX_AGENT_SCOPE_TEST_AGENT: "per-agent", GLOVEBOX_AGENT_USER_TEST_AGENT: "agentuser" }, "test-agent");
+    expect(readCreateConfig(PER_AGENT_SANDBOX)?.user).toBe("agentuser");
+  });
+});
+
 describe("config — agent-specific image", () => {
   it("uses agent-specific image from config when agent_type matches", () => {
     runHook(fixturePath("config-agent-image"), {}, "test-agent");

@@ -8,7 +8,7 @@ import { setupScenario } from "../helpers/scenario.js";
 const PROBE = (host: string, label: string) =>
   `(timeout 5 bash -c 'exec 3<>/dev/tcp/${host}/443' && echo ${label}=OK || echo ${label}=FAIL) 2>&1`;
 
-describe.concurrent("config — network integration", () => {
+describe("config — network integration", () => {
   it("default (no config): network is on — TCP to example.com succeeds", async () => {
     const { session, teardown } = await setupScenario("glovebox-net-default-");
     try {

@@ -89,6 +89,9 @@ export async function createCleanSession(options: SessionOptions = {}): Promise<
               // Redirect plugin state so we can track which sandbox(es) were
               // created, then clean them up in dispose() regardless of scope.
               GLOVEBOX_STATE_DIR: stateDir,
+              // All auto-generated sandbox names get this prefix so global-setup
+              // can sweep every test VM without touching production sandboxes.
+              GLOVEBOX_SANDBOX_PREFIX: 'glovebox-test',
               ...options.env,
             },
           }

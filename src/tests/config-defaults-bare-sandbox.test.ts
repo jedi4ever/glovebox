@@ -26,7 +26,7 @@ afterAll(async () => {
   await Promise.all(createdDirs.map((dir) => rm(dir, { recursive: true, force: true })));
 });
 
-describe.concurrent("config — bare defaults.<key> integration", () => {
+describe("config — bare defaults.<key> integration", () => {
   it("main session picks up `defaults.sandbox_image: debian` + `defaults.scope: directory`", async () => {
     const projectDir = await mkdtemp(join(tmpdir(), "glovebox-bare-defaults-"));
     await cp(fixturePath("config-defaults-bare"), projectDir, { recursive: true });

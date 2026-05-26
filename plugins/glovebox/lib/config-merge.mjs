@@ -34,6 +34,7 @@ const SETTINGS = [
   { key: 'github_hosts',        type: 'LIST_CSV',    envMain: 'GLOVEBOX_MAIN_GITHUB_HOSTS',         envAgent: 'GLOVEBOX_AGENT_GITHUB_HOSTS',       default: ''         },
   { key: 'git_user_autodetect', type: 'SCALAR',      envMain: 'GLOVEBOX_MAIN_GIT_USER_AUTODETECT',  envAgent: 'GLOVEBOX_AGENT_GIT_USER_AUTODETECT',default: 'true'     },
   { key: 'git_token_autodetect',type: 'SCALAR',      envMain: 'GLOVEBOX_MAIN_GIT_TOKEN_AUTODETECT', envAgent: 'GLOVEBOX_AGENT_GIT_TOKEN_AUTODETECT',default: 'true'    },
+  { key: 'user',                type: 'SCALAR',      envMain: 'GLOVEBOX_MAIN_USER',                 envAgent: 'GLOVEBOX_AGENT_USER',               default: ''         },
 ];
 
 function get(doc, path, key) {

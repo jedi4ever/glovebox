@@ -65,6 +65,7 @@ function writeFp(name, payload) {
     payload.trustHostCas ? 'true' : 'false',
     payload.gitUserName ?? '',
     payload.gitUserEmail ?? '',
+    payload.user ?? '',
   );
   const fpPath = sandboxFingerprintPath(name);
   mkdirSync(dirname(fpPath), { recursive: true });

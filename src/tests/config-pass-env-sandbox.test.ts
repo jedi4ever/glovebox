@@ -1,7 +1,7 @@
 import { describe, it, expect } from "vitest";
 import { setupScenario } from "../helpers/scenario.js";
 
-describe.concurrent("config — pass_env integration", () => {
+describe("config — pass_env integration", () => {
   it("default (no config): host env vars do not leak into the sandbox", async () => {
     const { session, teardown } = await setupScenario("glovebox-passenv-default-", {
       env: { GLOVEBOX_LEAK_PROBE: "should-not-be-visible" },

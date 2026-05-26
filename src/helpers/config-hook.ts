@@ -36,6 +36,7 @@ export interface CreateConfig {
   trustHostCas: boolean;
   gitUserName?: string;
   gitUserEmail?: string;
+  user?: string;
 }
 
 export function wrappedCommand(stdout: string): string {

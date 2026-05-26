@@ -37,6 +37,12 @@ export async function setup() {
   await Promise.all(images.map((img) => ensureImage(img).catch((e) => console.warn(`[setup] pull failed for ${img}: ${e.message}`))));
 
   // Remove leftover sandboxes from previous runs.
-  const names = await listSandboxNames('glovebox-test-').catch(() => []);
-  await Promise.all(names.map((n) => removeSandbox(n).catch(() => {})));
+  // 'glovebox-test-' covers the current test prefix (set via GLOVEBOX_SANDBOX_PREFIX).
+  // 'glovebox-dir-' catches pre-prefix-feature leftovers (directory-scope VMs that
+  // accumulated before sessions carried the test prefix).
+  const prefixes = ['glovebox-test-', 'glovebox-dir-'];
+  const allNames = (await Promise.all(
+    prefixes.map((p) => listSandboxNames(p).catch(() => [] as string[]))
+  )).flat();
+  await Promise.all(allNames.map((n) => removeSandbox(n).catch(() => {})));
 }

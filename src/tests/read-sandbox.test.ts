@@ -2,7 +2,7 @@ import { describe, it, expect } from "vitest";
 import { createCleanSession } from "../helpers/session.js";
 import { fixturePath } from "../helpers/fixtures.js";
 
-describe.concurrent("read sandboxing", () => {
+describe("read sandboxing", () => {
   it("reads a file in the project workdir without going through the sandbox", async () => {
     const file = fixturePath("simple-read", "file.txt");
     const session = await createCleanSession();

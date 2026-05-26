@@ -11,7 +11,7 @@ import { createCleanSession } from "../helpers/session.js";
 const HOST_USER = userInfo().username;
 const HOST_HOME = homedir();
 
-describe.concurrent("sandbox home & working directory info", () => {
+describe("sandbox home & working directory info", () => {
   it("home directory reported reflects the sandbox, not the host's home", async () => {
     const session = await createCleanSession();
     try {
@@ -31,13 +31,13 @@ describe.concurrent("sandbox home & working directory info", () => {
     const session = await createCleanSession();
     try {
       const result = await session.run(
-        "What user are you running as? Just the username. " +
+        "What user are you running as? Just the username or UID. " +
         "Do not run any tool calls — answer from the environment context."
       );
       expect(result.exitCode).toBe(0);
-      // Default ubuntu image runs as root.
-      expect(result.stdout).toMatch(/root/i);
-      // Not the host user (unless the host user happens to be 'root', then skip).
+      // The sandbox runs as the host UID mapped into the container. The host
+      // username (e.g. "patrickdebois") should not appear in Claude's answer
+      // because the context override replaces the host environment block.
       if (HOST_USER && HOST_USER !== "root") {
         expect(result.stdout).not.toMatch(new RegExp(HOST_USER, "i"));
       }

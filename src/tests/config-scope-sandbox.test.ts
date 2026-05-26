@@ -1,7 +1,7 @@
 import { describe, it, expect } from "vitest";
 import { setupScenario } from "../helpers/scenario.js";
 
-describe.concurrent("config — scope integration", () => {
+describe("config — scope integration", () => {
   it("default (no config): main and agent share the same sandbox", async () => {
     const { session, teardown } = await setupScenario("glovebox-scope-default-", { fixture: "config-scope-default" });
     try {

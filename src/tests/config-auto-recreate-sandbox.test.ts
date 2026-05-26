@@ -44,7 +44,7 @@ async function writeConfig(projectDir: string, networkLine: string) {
   );
 }
 
-describe.concurrent("config — auto_recreate integration", () => {
+describe("config — auto_recreate integration", () => {
   it("on drift: snapshots + recreates with new flags, preserves filesystem state", async () => {
     const projectDir = await mkdtemp(join(tmpdir(), "glovebox-autorec-"));
 

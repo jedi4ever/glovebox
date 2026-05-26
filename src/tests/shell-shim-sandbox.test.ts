@@ -85,7 +85,7 @@ async function setupScenario(settingsEnv: Record<string, string>): Promise<Scena
   delete baseEnv["CLAUDE_CODE_SHELL"];
   const tui = spawnTUI(CLAUDE_BIN, ["--plugin-dir", PLUGIN_ROOT], {
     cwd: projectDir,
-    env: { ...baseEnv, ANTHROPIC_API_KEY: apiKey, CLAUDE_CONFIG_DIR: configDir },
+    env: { ...baseEnv, ANTHROPIC_API_KEY: apiKey, CLAUDE_CONFIG_DIR: configDir, GLOVEBOX_SANDBOX_PREFIX: 'glovebox-test' },
   });
 
   const teardown = async () => {

@@ -11,6 +11,7 @@
 import { writeFileSync } from "node:fs";
 import { dirname } from "node:path";
 import { loadSdk } from "../../lib/sdk.mjs";
+import { DEFAULT_SANDBOX_IMAGE } from "../../lib/config-merge.mjs";
 export { loadSdk };
 
 // ---------------------------------------------------------------------------
@@ -37,6 +38,7 @@ export function dumpFake(cfg) {
 // Returns the same builder for chaining.
 // ---------------------------------------------------------------------------
 export function applyConfig(builder, cfg) {
+  applyUser(builder, cfg);
   applyMount(builder, cfg);
   builder.network((nb) => {
     // Ports must be set on the NetworkBuilder, not the SandboxBuilder:
@@ -60,6 +62,20 @@ export function applyConfig(builder, cfg) {
 // ---------------------------------------------------------------------------
 function truthy(v) {
   return v === true || v === "true";
+}
+
+function applyUser(builder, cfg) {
+  if (cfg.user) {
+    // Explicit config always wins.
+    builder.user(cfg.user);
+  } else if (cfg.projectDir && truthy(cfg.mountWorkdir) && cfg.image === DEFAULT_SANDBOX_IMAGE) {
+    // The default image (devcontainers/base:debian) runs as vscode/1000 which
+    // can't write to a host-owned bind mount. Map to the host UID so VirtioFS
+    // passes writes through correctly. Other images (e.g. buildpack-deps) run
+    // as root and don't need this override.
+    const uid = process.getuid?.();
+    if (uid != null) builder.user(String(uid));
+  }
 }
 
 function applyMount(builder, cfg) {

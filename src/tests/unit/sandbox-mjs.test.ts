@@ -1,7 +1,7 @@
 // Unit tests for plugins/glovebox/lib/sandbox.mjs pure functions.
 // These don't spawn subprocesses — they call the JS functions directly.
 
-import { describe, it, expect } from "vitest";
+import { describe, it, expect, afterEach } from "vitest";
 import { fileURLToPath } from "node:url";
 
 const SANDBOX_MJS = fileURLToPath(
@@ -11,12 +11,43 @@ const SANDBOX_MJS = fileURLToPath(
 const {
   sandboxNameFor,
   sandboxNameForFileOp,
+  sandboxPrefix,
   sandboxEnvArgs,
   sandboxWrapCommand,
   sandboxWrapCommandEphemeral,
   sandboxConfigFingerprint,
   sandboxResolvePath,
 } = await import(SANDBOX_MJS);
+
+// ---------------------------------------------------------------------------
+describe("sandboxPrefix — GLOVEBOX_SANDBOX_PREFIX env var", () => {
+  afterEach(() => { delete process.env["GLOVEBOX_SANDBOX_PREFIX"]; });
+
+  it("defaults to 'glovebox' when env var is unset", () => {
+    expect(sandboxPrefix()).toBe("glovebox");
+  });
+
+  it("returns the env var value when set", () => {
+    process.env["GLOVEBOX_SANDBOX_PREFIX"] = "glovebox-test";
+    expect(sandboxPrefix()).toBe("glovebox-test");
+  });
+
+  it("sandboxNameFor uses the prefix for session scope", () => {
+    process.env["GLOVEBOX_SANDBOX_PREFIX"] = "glovebox-test";
+    expect(sandboxNameFor("abc123", "", "", "session")).toBe("glovebox-test-abc123");
+  });
+
+  it("sandboxNameFor uses the prefix for directory scope", () => {
+    process.env["GLOVEBOX_SANDBOX_PREFIX"] = "glovebox-test";
+    const name = sandboxNameFor("sid", "", "", "directory", "/home/user/project");
+    expect(name).toMatch(/^glovebox-test-dir-[0-9a-f]{12}$/);
+  });
+
+  it("named scope with explicit name ignores the prefix (caller owns the name)", () => {
+    process.env["GLOVEBOX_SANDBOX_PREFIX"] = "glovebox-test";
+    expect(sandboxNameFor("abc", "agent", "my-box", "named")).toBe("my-box");
+  });
+});
 
 // ---------------------------------------------------------------------------
 describe("sandboxNameFor — scope variants", () => {

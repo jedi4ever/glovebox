@@ -53,7 +53,7 @@ function assertNoTokenLeak(stdout: string) {
 //
 // We use buildpack-deps:noble (curl + git preinstalled) for a fast probe.
 
-describe.concurrent("git + github integration", () => {
+describe("git + github integration", () => {
   it("git_user_name / git_user_email are visible via `git config --global --get`", async () => {
     const { session, teardown } = await setupScenario("glovebox-git-id-", {
       fixture: "config-git-identity",

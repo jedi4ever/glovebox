@@ -1,5 +1,6 @@
 import { describe, it, expect } from "vitest";
 import { fileURLToPath } from "node:url";
+import { DEFAULT_SANDBOX_IMAGE } from "../../../plugins/glovebox/lib/config-merge.mjs";
 
 const MODULE_URL = new URL(
   "../../../plugins/glovebox/scripts/lib/sandbox-build.mjs",
@@ -22,6 +23,7 @@ function makeBuilder() {
     image: record("image"),
     fromSnapshot: record("fromSnapshot"),
     replace: record("replace"),
+    user: record("user"),
     workdir: record("workdir"),
     port: record("port"),
     portUdp: record("portUdp"),
@@ -85,26 +87,55 @@ const baseCfg = {
   tlsInterceptPort: null as number | null,
   tlsBypass: "",
   trustHostCas: false,
+  user: "",
 };
 
 describe("sandbox-build.mjs — applyConfig", () => {
-  it("applies workdir + bind volume when mountWorkdir=true", async () => {
+  it("no user call for non-default images when user is unset (e.g. ubuntu)", async () => {
     const { applyConfig } = await import(MODULE_URL);
     const b = makeBuilder();
-    applyConfig(b, baseCfg);
+    applyConfig(b, baseCfg); // baseCfg.image = "ubuntu"
     const calls = b.__calls() as Call[];
+    expect(calls.find((c) => c.method === "user")).toBeUndefined();
     expect(calls.find((c) => c.method === "workdir")?.args).toEqual(["/workspace"]);
     expect(calls.find((c) => c.method === "volume")?.args).toEqual(["/workspace"]);
     expect(calls.find((c) => c.method === "volume.bind")?.args).toEqual(["/tmp/proj"]);
   });
 
-  it("skips workdir/volume when mountWorkdir=false", async () => {
+  it("auto-maps host UID for the default image when mounting (so VirtioFS writes work)", async () => {
+    const { applyConfig } = await import(MODULE_URL);
+    const b = makeBuilder();
+    applyConfig(b, { ...baseCfg, image: DEFAULT_SANDBOX_IMAGE });
+    const calls = b.__calls() as Call[];
+    const uid = process.getuid?.();
+    if (uid != null) {
+      expect(calls.find((c) => c.method === "user")?.args).toEqual([String(uid)]);
+    }
+    expect(calls.find((c) => c.method === "workdir")?.args).toEqual(["/workspace"]);
+  });
+
+  it("respects explicit user config instead of defaulting to root", async () => {
+    const { applyConfig } = await import(MODULE_URL);
+    const b = makeBuilder();
+    applyConfig(b, { ...baseCfg, user: "myuser" });
+    expect((b.__calls() as Call[]).find((c) => c.method === "user")?.args).toEqual(["myuser"]);
+  });
+
+  it("skips workdir/volume when mountWorkdir=false, no user call when user unset", async () => {
     const { applyConfig } = await import(MODULE_URL);
     const b = makeBuilder();
     applyConfig(b, { ...baseCfg, mountWorkdir: false });
     const calls = b.__calls() as Call[];
+    expect(calls.find((c) => c.method === "user")).toBeUndefined();
     expect(calls.find((c) => c.method === "workdir")).toBeUndefined();
     expect(calls.find((c) => c.method === "volume")).toBeUndefined();
+  });
+
+  it("applies explicit user even when mountWorkdir=false", async () => {
+    const { applyConfig } = await import(MODULE_URL);
+    const b = makeBuilder();
+    applyConfig(b, { ...baseCfg, mountWorkdir: false, user: "1001" });
+    expect((b.__calls() as Call[]).find((c) => c.method === "user")?.args).toEqual(["1001"]);
   });
 
   it("emits .port() for TCP entries and .portUdp() for /udp entries", async () => {
